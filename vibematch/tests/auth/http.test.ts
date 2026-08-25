@@ -1,6 +1,7 @@
 import type { SessionTokenClaims, SessionTokenVerifier } from '../../backend/src/shared/providers';
 import type { AuthSession } from '../../backend/src/auth/repository';
 import { AuthError, type GoogleLoginResult } from '../../backend/src/auth/service';
+import { PhoneVerificationError } from '../../backend/src/auth/phone-service';
 import {
   buildApp,
   type ActiveSessionStore,
@@ -67,19 +68,53 @@ class FakeSessionStore implements ActiveSessionStore {
   }
 }
 
+class FakePhoneVerificationService {
+  startArgs: { userId: string; phone: string } | null = null;
+  confirmArgs: { userId: string; verificationId: string; code: string } | null = null;
+  startError: Error | null = null;
+  confirmError: Error | null = null;
+
+  start(userId: string, phone: string): Promise<{ verificationId: string; expiresAt: Date }> {
+    this.startArgs = { userId, phone };
+    if (this.startError) return Promise.reject(this.startError);
+    return Promise.resolve({
+      verificationId: 'verification-1',
+      expiresAt: new Date('2026-08-25T22:10:00.000Z'),
+    });
+  }
+
+  confirm(
+    userId: string,
+    verificationId: string,
+    code: string,
+  ): Promise<{ ok: true; phoneVerified: true }> {
+    this.confirmArgs = { userId, verificationId, code };
+    if (this.confirmError) return Promise.reject(this.confirmError);
+    return Promise.resolve({ ok: true, phoneVerified: true });
+  }
+}
+
 const fixedNow = new Date('2026-08-25T22:05:00.000Z');
 
 const createSubject = () => {
   const authService = new FakeAuthService();
   const sessionTokenVerifier = new FakeTokenVerifier();
   const activeSessionStore = new FakeSessionStore();
+  const phoneVerificationService = new FakePhoneVerificationService();
   const deps: AuthHttpDependencies = {
     authService,
     sessionTokenVerifier,
     activeSessionStore,
+    phoneVerificationService,
     now: () => fixedNow,
   };
-  return { app: buildApp(deps), authService, sessionTokenVerifier, activeSessionStore };
+  return {
+    app: buildApp(deps),
+    authService,
+    sessionTokenVerifier,
+    activeSessionStore,
+    phoneVerificationService,
+  };
 };
 
 describe('Auth HTTP API', () => {
@@ -168,6 +203,79 @@ describe('Auth HTTP API', () => {
       seenAt: fixedNow,
     });
     expect(authService.logoutArgs).toEqual({ userId: 'user-1', sessionId: 'session-1' });
+    await app.close();
+  });
+
+  test('POST /auth/phone/start requires an active session and returns verification metadata', async () => {
+    const { app, phoneVerificationService } = createSubject();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/auth/phone/start',
+      headers: { authorization: 'Bearer signed-jwt' },
+      payload: { phone_e164: '+5511999999999' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(phoneVerificationService.startArgs).toEqual({
+      userId: 'user-1',
+      phone: '+5511999999999',
+    });
+    expect(response.json()).toEqual({
+      verification_id: 'verification-1',
+      expires_at: '2026-08-25T22:10:00.000Z',
+    });
+    await app.close();
+  });
+
+  test('POST /auth/phone/start maps invalid phone to 400', async () => {
+    const { app, phoneVerificationService } = createSubject();
+    phoneVerificationService.startError = new PhoneVerificationError(
+      'INVALID_PHONE',
+      'invalid phone',
+    );
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/auth/phone/start',
+      headers: { authorization: 'Bearer signed-jwt' },
+      payload: { phone_e164: '11999999999' },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: 'INVALID_PHONE' });
+    await app.close();
+  });
+
+  test('POST /auth/phone/confirm marks phone verified and maps attempt limits', async () => {
+    const { app, phoneVerificationService } = createSubject();
+    const success = await app.inject({
+      method: 'POST',
+      url: '/auth/phone/confirm',
+      headers: { authorization: 'Bearer signed-jwt' },
+      payload: { verification_id: 'verification-1', code: '123456' },
+    });
+
+    expect(success.statusCode).toBe(200);
+    expect(phoneVerificationService.confirmArgs).toEqual({
+      userId: 'user-1',
+      verificationId: 'verification-1',
+      code: '123456',
+    });
+    expect(success.json()).toEqual({ ok: true, phone_verified: true });
+
+    phoneVerificationService.confirmError = new PhoneVerificationError(
+      'TOO_MANY_ATTEMPTS',
+      'locked',
+    );
+    const locked = await app.inject({
+      method: 'POST',
+      url: '/auth/phone/confirm',
+      headers: { authorization: 'Bearer signed-jwt' },
+      payload: { verification_id: 'verification-1', code: '000000' },
+    });
+
+    expect(locked.statusCode).toBe(429);
+    expect(locked.json()).toEqual({ error: 'TOO_MANY_ATTEMPTS' });
     await app.close();
   });
 });

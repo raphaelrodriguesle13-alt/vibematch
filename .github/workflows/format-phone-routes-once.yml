@@ -1,0 +1,38 @@
+name: VibeMatch Phone Routes Formatter
+
+on:
+  push:
+    branches: [continuity]
+    paths:
+      - '.github/format-phone-routes-trigger'
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: continuity
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        working-directory: vibematch
+        run: npm install --no-audit --no-fund
+      - name: Format phone routes
+        working-directory: vibematch
+        run: npx prettier --write backend/src/http/app.ts
+      - name: Commit formatting
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add vibematch/backend/src/http/app.ts
+          if git diff --cached --quiet; then
+            echo "No formatting changes"
+            exit 0
+          fi
+          git commit -m "style: format phone verification routes"
+          git push origin HEAD:continuity
