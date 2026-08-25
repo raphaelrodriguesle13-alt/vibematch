@@ -1,5 +1,5 @@
 import type { GoogleIdentityProvider, SessionTokenProvider } from '../shared/providers';
-import { AuthRepository } from './repository';
+import type { AuthSession, AuthUser } from './repository';
 
 export type AuthErrorCode =
   | 'INVALID_GOOGLE_TOKEN'
@@ -14,6 +14,12 @@ export class AuthError extends Error {
     super(message);
     this.name = 'AuthError';
   }
+}
+
+export interface AuthRepositoryPort {
+  upsertGoogleUser(googleSubjectId: string): Promise<AuthUser>;
+  createSession(userId: string, expiresAt: Date): Promise<AuthSession>;
+  revokeSession(userId: string, sessionId: string, revokedAt: Date): Promise<boolean>;
 }
 
 export interface GoogleLoginResult {
@@ -34,7 +40,7 @@ export class AuthService {
   private readonly now: () => Date;
 
   constructor(
-    private readonly repository: AuthRepository,
+    private readonly repository: AuthRepositoryPort,
     private readonly googleIdentityProvider: GoogleIdentityProvider,
     private readonly sessionTokenProvider: SessionTokenProvider,
     private readonly options: AuthServiceOptions,
