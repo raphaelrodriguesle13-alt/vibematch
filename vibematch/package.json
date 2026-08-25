@@ -21,6 +21,9 @@
     "verify": "npm run typecheck && npm run lint && npm run migrate && npm run test"
   },
   "dependencies": {
+    "fastify": "5.12.1",
+    "google-auth-library": "11.0.2",
+    "jose": "6.2.10",
     "pg": "^8.13.0"
   },
   "devDependencies": {
