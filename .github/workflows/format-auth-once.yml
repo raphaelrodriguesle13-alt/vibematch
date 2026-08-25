@@ -1,0 +1,38 @@
+name: VibeMatch Auth One-Shot Formatter
+
+on:
+  push:
+    branches: [continuity]
+    paths:
+      - '.github/format-auth-trigger'
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: continuity
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        working-directory: vibematch
+        run: npm install --no-audit --no-fund
+      - name: Format auth lot
+        working-directory: vibematch
+        run: npx prettier --write backend/src/auth/service.ts
+      - name: Commit formatting
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add vibematch/backend/src/auth/service.ts
+          if git diff --cached --quiet; then
+            echo "No formatting changes"
+            exit 0
+          fi
+          git commit -m "style: apply prettier to auth service"
+          git push origin HEAD:continuity
