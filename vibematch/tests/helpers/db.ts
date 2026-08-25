@@ -1,5 +1,15 @@
 import { Pool, PoolClient } from 'pg';
 
+type RuntimeRole =
+  | 'svc_auth'
+  | 'svc_profile'
+  | 'svc_matchmaking'
+  | 'svc_video'
+  | 'svc_moderation'
+  | 'svc_billing';
+
+type IdRow = { id: string };
+
 /**
  * Conexões de teste. Todas as credenciais vêm do ambiente — nunca hardcoded.
  * Ver .env.example para as variáveis esperadas.
@@ -13,7 +23,7 @@ export const ownerPool = new Pool({
   connectionString: url(process.env.DATABASE_URL_OWNER, 'DATABASE_URL_OWNER'),
 });
 
-export const rolePools: Record<string, Pool> = {
+export const rolePools: Record<RuntimeRole, Pool> = {
   svc_auth: new Pool({
     connectionString: url(process.env.DATABASE_URL_AUTH, 'DATABASE_URL_AUTH'),
   }),
@@ -45,7 +55,9 @@ export async function expectDbError(
     return null;
   } catch (e) {
     const err = e as { code?: string; message: string };
-    return { code: err.code, message: err.message };
+    const result: { code?: string; message: string } = { message: err.message };
+    if (err.code !== undefined) result.code = err.code;
+    return result;
   }
 }
 
@@ -64,21 +76,33 @@ export async function withRollback<T>(
 }
 
 /** Cria dois usuários ACTIVE e um MatchIntent ACCEPTED entre eles. */
-export async function seedAcceptedIntent(client: PoolClient) {
-  const a = await client.query(
-    `INSERT INTO users (google_subject_id) VALUES ($1) RETURNING id`,
+export async function seedAcceptedIntent(client: PoolClient): Promise<{
+  userA: string;
+  userB: string;
+  intentId: string;
+}> {
+  const a = await client.query<IdRow>(
+    'INSERT INTO users (google_subject_id) VALUES ($1) RETURNING id',
     [`sub-a-${Math.random()}`],
   );
-  const b = await client.query(
-    `INSERT INTO users (google_subject_id) VALUES ($1) RETURNING id`,
+  const b = await client.query<IdRow>(
+    'INSERT INTO users (google_subject_id) VALUES ($1) RETURNING id',
     [`sub-b-${Math.random()}`],
   );
-  const intent = await client.query(
+
+  const userA = a.rows[0]?.id;
+  const userB = b.rows[0]?.id;
+  if (!userA || !userB) throw new Error('Failed to seed users');
+
+  const intent = await client.query<IdRow>(
     `INSERT INTO match_intents (sender_id, receiver_id, status, expires_at, responded_at)
      VALUES ($1,$2,'ACCEPTED', now() + interval '1 day', now()) RETURNING id`,
-    [a.rows[0].id, b.rows[0].id],
+    [userA, userB],
   );
-  return { userA: a.rows[0].id, userB: b.rows[0].id, intentId: intent.rows[0].id };
+  const intentId = intent.rows[0]?.id;
+  if (!intentId) throw new Error('Failed to seed accepted match intent');
+
+  return { userA, userB, intentId };
 }
 
 export async function closeAll(): Promise<void> {
