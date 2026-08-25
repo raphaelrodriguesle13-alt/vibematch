@@ -19,6 +19,7 @@ data class ChatUiState(
 class ChatViewModel(
     private val gateway: ChatGateway,
     private val accessTokenProvider: () -> String?,
+    private val onSessionExpired: () -> Unit = {},
 ) : ViewModel() {
     private val mutableState: MutableState<ChatUiState> = mutableStateOf(ChatUiState())
     val state: State<ChatUiState> = mutableState
@@ -51,6 +52,11 @@ class ChatViewModel(
                     isSending = false,
                 )
             } catch (error: Exception) {
+                if (error is ChatApiException && error.statusCode == 401) {
+                    mutableState.value = ChatUiState()
+                    onSessionExpired()
+                    return@launch
+                }
                 mutableState.value = mutableState.value.copy(
                     isSending = false,
                     errorMessage = publicError(error),
@@ -81,11 +87,12 @@ class ChatViewModel(
 class ChatViewModelFactory(
     private val gateway: ChatGateway,
     private val accessTokenProvider: () -> String?,
+    private val onSessionExpired: () -> Unit = {},
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ChatViewModel::class.java)) {
-            return ChatViewModel(gateway, accessTokenProvider) as T
+            return ChatViewModel(gateway, accessTokenProvider, onSessionExpired) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

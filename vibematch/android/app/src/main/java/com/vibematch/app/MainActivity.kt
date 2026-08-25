@@ -27,7 +27,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -88,6 +87,7 @@ class MainActivity : ComponentActivity() {
                     factory = ChatViewModelFactory(
                         gateway = ChatApiClient(BuildConfig.API_BASE_URL),
                         accessTokenProvider = sessionStore::readAccessToken,
+                        onSessionExpired = authViewModel::signOut,
                     ),
                 )
                 VibeMatchApp(this@MainActivity, authViewModel, chatViewModel)
@@ -292,12 +292,8 @@ private fun ChatHeader(isSigningOut: Boolean, onLogout: () -> Unit) {
                 color = Color(0xFF72717D),
             )
         }
-        IconButton(onClick = onLogout, enabled = !isSigningOut) {
-            Icon(
-                imageVector = Icons.Default.Logout,
-                contentDescription = "Sair",
-                tint = VibePurple,
-            )
+        TextButton(onClick = onLogout, enabled = !isSigningOut) {
+            Text("Sair", color = VibePurple)
         }
     }
 }

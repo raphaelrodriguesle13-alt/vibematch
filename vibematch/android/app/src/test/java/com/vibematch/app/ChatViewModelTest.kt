@@ -33,7 +33,7 @@ class ChatViewModelTest {
 
     @Test
     fun `does not send without an access token`() = runTest {
-        val viewModel = ChatViewModel(gateway) { null }
+        val viewModel = ChatViewModel(gateway, { null })
 
         viewModel.send("Oi")
 
@@ -45,8 +45,21 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun `returns to authentication when backend rejects the session`() = runTest {
+        var sessionExpired = false
+        gateway.error = ChatApiException(401, "revoked")
+        val viewModel = ChatViewModel(gateway, { "session-jwt" }) { sessionExpired = true }
+
+        viewModel.send("Oi")
+
+        assertTrue(sessionExpired)
+        assertTrue(viewModel.state.value.messages.isEmpty())
+        assertFalse(viewModel.state.value.isSending)
+    }
+
+    @Test
     fun `adds user and assistant messages after a successful response`() = runTest {
-        val viewModel = ChatViewModel(gateway) { "session-jwt" }
+        val viewModel = ChatViewModel(gateway, { "session-jwt" })
 
         viewModel.send("Como funciona?")
 
@@ -59,6 +72,7 @@ class ChatViewModelTest {
 
     private class FakeGateway : ChatGateway {
         val calls = mutableListOf<String>()
+        var error: Exception? = null
         var lastAccessToken: String? = null
 
         override suspend fun send(
@@ -66,6 +80,7 @@ class ChatViewModelTest {
             message: String,
             history: List<ChatMessage>,
         ): ChatReply {
+            error?.let { throw it }
             lastAccessToken = accessToken
             calls += message
             assertEquals(0, history.size)
