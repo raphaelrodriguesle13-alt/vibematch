@@ -5,11 +5,7 @@ import type {
   SessionTokenProvider,
 } from '../../backend/src/shared/providers';
 import type { AuthSession, AuthUser } from '../../backend/src/auth/repository';
-import {
-  AuthError,
-  AuthService,
-  type AuthRepositoryPort,
-} from '../../backend/src/auth/service';
+import { AuthService, type AuthRepositoryPort } from '../../backend/src/auth/service';
 
 class FakeGoogleIdentityProvider implements GoogleIdentityProvider {
   identity: GoogleIdentity = { subject: 'google-subject' };
@@ -86,7 +82,7 @@ describe('AuthService', () => {
     const { repository, google, service } = createSubject();
     google.error = new Error('invalid signature');
 
-    await expect(service.loginWithGoogle('bad-token')).rejects.toMatchObject<AuthError>({
+    await expect(service.loginWithGoogle('bad-token')).rejects.toMatchObject({
       code: 'INVALID_GOOGLE_TOKEN',
     });
     expect(repository.upsertedSubject).toBeNull();
@@ -96,7 +92,7 @@ describe('AuthService', () => {
     const { repository, service } = createSubject();
     repository.user = { ...repository.user, status: 'SUSPENDED', isNewUser: false };
 
-    await expect(service.loginWithGoogle('valid-token')).rejects.toMatchObject<AuthError>({
+    await expect(service.loginWithGoogle('valid-token')).rejects.toMatchObject({
       code: 'ACCOUNT_UNAVAILABLE',
     });
     expect(repository.createdSession).toBeNull();
@@ -130,7 +126,7 @@ describe('AuthService', () => {
     const { repository, tokens, service } = createSubject();
     tokens.error = new Error('signer unavailable');
 
-    await expect(service.loginWithGoogle('valid-token')).rejects.toMatchObject<AuthError>({
+    await expect(service.loginWithGoogle('valid-token')).rejects.toMatchObject({
       code: 'SESSION_ISSUANCE_FAILED',
     });
     expect(repository.revokedSession).toEqual({
