@@ -7,10 +7,7 @@ export type AuthErrorCode =
   | 'SESSION_ISSUANCE_FAILED';
 
 export class AuthError extends Error {
-  constructor(
-    readonly code: AuthErrorCode,
-    message: string,
-  ) {
+  constructor(readonly code: AuthErrorCode, message: string) {
     super(message);
     this.name = 'AuthError';
   }
