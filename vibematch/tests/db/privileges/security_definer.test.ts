@@ -11,7 +11,14 @@ afterAll(closeAll);
 const PERMISSION_DENIED = '42501';
 
 describe('Direct invocation of administrative SECURITY DEFINER functions is denied', () => {
-  const roles = ['svc_auth', 'svc_profile', 'svc_matchmaking', 'svc_video', 'svc_moderation', 'svc_billing'];
+  const roles = [
+    'svc_auth',
+    'svc_profile',
+    'svc_matchmaking',
+    'svc_video',
+    'svc_moderation',
+    'svc_billing',
+  ] as const;
 
   test.each(roles)('%s CANNOT directly call verify_audit_chain()', async (role) => {
     const err = await expectDbError(rolePools[role], 'SELECT * FROM verify_audit_chain()');
