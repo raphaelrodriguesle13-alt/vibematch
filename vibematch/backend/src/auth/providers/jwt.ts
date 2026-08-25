@@ -1,4 +1,4 @@
-import { importPKCS8, importSPKI, jwtVerify, SignJWT, type KeyLike } from 'jose';
+import { importPKCS8, importSPKI, jwtVerify, SignJWT } from 'jose';
 import type {
   SessionTokenClaims,
   SessionTokenProvider,
@@ -14,8 +14,8 @@ export interface JwtSessionProviderOptions {
 }
 
 export class JwtSessionProvider implements SessionTokenProvider, SessionTokenVerifier {
-  private privateKeyPromise: Promise<KeyLike> | null = null;
-  private publicKeyPromise: Promise<KeyLike> | null = null;
+  private privateKeyPromise: Promise<CryptoKey> | null = null;
+  private publicKeyPromise: Promise<CryptoKey> | null = null;
   private readonly now: () => Date;
 
   constructor(private readonly options: JwtSessionProviderOptions) {
@@ -62,12 +62,12 @@ export class JwtSessionProvider implements SessionTokenProvider, SessionTokenVer
     };
   }
 
-  private privateKey(): Promise<KeyLike> {
+  private privateKey(): Promise<CryptoKey> {
     this.privateKeyPromise ??= importPKCS8(this.options.privateKeyPem, 'RS256');
     return this.privateKeyPromise;
   }
 
-  private publicKey(): Promise<KeyLike> {
+  private publicKey(): Promise<CryptoKey> {
     this.publicKeyPromise ??= importSPKI(this.options.publicKeyPem, 'RS256');
     return this.publicKeyPromise;
   }
