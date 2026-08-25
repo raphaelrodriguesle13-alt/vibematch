@@ -1,0 +1,32 @@
+# Ambiente local reproduzível — apenas infraestrutura, sem serviços de aplicação.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vibematch-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-vibematch}
+      POSTGRES_USER: ${POSTGRES_OWNER_USER:-vibematch_owner}
+      POSTGRES_PASSWORD: ${POSTGRES_OWNER_PASSWORD:?set POSTGRES_OWNER_PASSWORD in .env}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - vibematch_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_OWNER_USER:-vibematch_owner} -d ${POSTGRES_DB:-vibematch}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: vibematch-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  vibematch_pgdata:

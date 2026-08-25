@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: vibematch
+          POSTGRES_USER: vibematch_owner
+          POSTGRES_PASSWORD: ci_local_only_not_a_real_secret
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U vibematch_owner -d vibematch"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgres://vibematch_owner:ci_local_only_not_a_real_secret@localhost:5432/vibematch
+      DATABASE_URL_OWNER: postgres://vibematch_owner:ci_local_only_not_a_real_secret@localhost:5432/vibematch
+      DATABASE_URL_AUTH: postgres://svc_auth:ci_local_only_not_a_real_secret@localhost:5432/vibematch
+      DATABASE_URL_PROFILE: postgres://svc_profile:ci_local_only_not_a_real_secret@localhost:5432/vibematch
+      DATABASE_URL_MATCHMAKING: postgres://svc_matchmaking:ci_local_only_not_a_real_secret@localhost:5432/vibematch
+      DATABASE_URL_VIDEO: postgres://svc_video:ci_local_only_not_a_real_secret@localhost:5432/vibematch
+      DATABASE_URL_MODERATION: postgres://svc_moderation:ci_local_only_not_a_real_secret@localhost:5432/vibematch
+      DATABASE_URL_BILLING: postgres://svc_billing:ci_local_only_not_a_real_secret@localhost:5432/vibematch
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      # NOTA: "npm ci" exige package-lock.json versionado. Este repositório ainda
+      # NÃO tem um (correção 10) — foi gerado em ambiente sem acesso ao registry npm
+      # (ver FINAL_IMPLEMENTATION_REPORT.md, seção K). Este passo FALHARÁ até que o
+      # proprietário rode "npm install" uma vez com acesso real ao registry e
+      # commite o package-lock.json resultante. Depois disso, este passo funciona
+      # sem qualquer outra alteração.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Run migrations (empty DB -> full schema)
+        run: npm run migrate
+
+      - name: Grant LOGIN to runtime roles
+        run: |
+          for role in auth profile matchmaking video moderation billing; do
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+              -c "ALTER ROLE svc_${role} WITH LOGIN PASSWORD 'ci_local_only_not_a_real_secret';"
+          done
+
+      - name: Migration validation (schema, constraints, triggers, indexes, grants)
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c \
+            "SELECT tgname FROM pg_trigger WHERE NOT tgisinternal ORDER BY tgname;"
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c \
+            "SELECT conname FROM pg_constraint WHERE contype='c' ORDER BY conname;"
+
+      - name: Database + privilege tests (Gates 42/43/44)
+        run: npm run test:db
+
+      - name: Secret scanning
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

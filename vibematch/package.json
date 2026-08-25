@@ -1,0 +1,37 @@
+{
+  "name": "vibematch",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VibeMatch — social discovery with mutual-consent video. Blueprint V1.2.",
+  "engines": { "node": ">=22.0.0" },
+  "scripts": {
+    "lint": "eslint . --ext .ts",
+    "format": "prettier --write \"**/*.{ts,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,json,md}\"",
+    "typecheck": "tsc --noEmit",
+    "db:up": "bash scripts/db-up.sh",
+    "db:down": "bash scripts/db-down.sh",
+    "db:roles": "bash scripts/db-roles.sh",
+    "migrate": "node-pg-migrate up -m migrations --migrations-schema public",
+    "migrate:down": "node-pg-migrate down -m migrations --migrations-schema public",
+    "test": "jest --runInBand",
+    "test:db": "jest tests/db --runInBand",
+    "verify": "npm run typecheck && npm run lint && npm run migrate && npm run test"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.10",
+    "@typescript-eslint/eslint-plugin": "^8.18.0",
+    "@typescript-eslint/parser": "^8.18.0",
+    "eslint": "^8.57.1",
+    "jest": "^29.7.0",
+    "node-pg-migrate": "^7.9.0",
+    "prettier": "^3.4.2",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.7.2"
+  }
+}
