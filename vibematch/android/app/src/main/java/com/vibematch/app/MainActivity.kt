@@ -97,6 +97,7 @@ private fun VibeMatchTheme(content: @Composable () -> Unit) {
 private fun ChatScreen(viewModel: ChatViewModel, sessionStore: DevSessionStore) {
     val state by viewModel.state
     var draft by remember { mutableStateOf("") }
+    var hasSession by remember { mutableStateOf(!sessionStore.getAccessToken().isNullOrBlank()) }
     val listState = rememberLazyListState()
 
     LaunchedEffect(state.messages.size) {
@@ -111,7 +112,11 @@ private fun ChatScreen(viewModel: ChatViewModel, sessionStore: DevSessionStore) 
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             ChatHeader()
-            SessionTokenCard(sessionStore)
+            if (BuildConfig.DEV_TOKEN_INPUT_ENABLED) {
+                SessionTokenCard(sessionStore) { hasSession = true }
+            } else {
+                ReleaseAuthCard()
+            }
             if (state.messages.isEmpty()) {
                 EmptyChat(modifier = Modifier.weight(1f))
             } else {
@@ -140,6 +145,7 @@ private fun ChatScreen(viewModel: ChatViewModel, sessionStore: DevSessionStore) 
             Composer(
                 draft = draft,
                 isSending = state.isSending,
+                enabled = hasSession,
                 onDraftChange = { draft = it },
                 onSend = {
                     viewModel.send(draft)
@@ -189,7 +195,7 @@ private fun ChatHeader() {
 }
 
 @Composable
-private fun SessionTokenCard(sessionStore: DevSessionStore) {
+private fun SessionTokenCard(sessionStore: DevSessionStore, onTokenSaved: () -> Unit) {
     var token by remember { mutableStateOf(sessionStore.getAccessToken().orEmpty()) }
     var saved by remember { mutableStateOf(!token.isNullOrBlank()) }
 
@@ -230,12 +236,37 @@ private fun SessionTokenCard(sessionStore: DevSessionStore) {
             onClick = {
                 sessionStore.setAccessToken(token)
                 saved = true
+                onTokenSaved()
             },
             modifier = Modifier.align(Alignment.End),
             colors = ButtonDefaults.buttonColors(containerColor = VibePurple),
         ) {
             Text(if (saved) "Token salvo" else "Salvar sessão")
         }
+    }
+}
+
+@Composable
+private fun ReleaseAuthCard() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White)
+            .padding(14.dp),
+    ) {
+        Text(
+            text = "Entre para conversar",
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "O login Google será conectado nesta etapa. O modo de token manual não existe no release.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF72717D),
+        )
     }
 }
 
@@ -345,10 +376,11 @@ private fun ErrorBanner(message: String, onDismiss: () -> Unit) {
 private fun Composer(
     draft: String,
     isSending: Boolean,
+    enabled: Boolean,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
 ) {
-    val canSend = draft.trim().isNotEmpty() && !isSending
+    val canSend = draft.trim().isNotEmpty() && !isSending && enabled
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -360,7 +392,7 @@ private fun Composer(
             value = draft,
             onValueChange = onDraftChange,
             modifier = Modifier.weight(1f),
-            enabled = !isSending,
+            enabled = enabled && !isSending,
             placeholder = { Text("Escreva uma mensagem") },
             maxLines = 4,
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),

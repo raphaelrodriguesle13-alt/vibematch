@@ -5,6 +5,9 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+fun String.toBuildConfigString(): String =
+    "\"${replace("\\", "\\\\").replace("\"", "\\\"")}\""
+
 android {
     namespace = "com.vibematch.app"
     compileSdk = 35
@@ -15,11 +18,27 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+    }
 
-        val apiBaseUrl = providers.gradleProperty("API_BASE_URL")
-            .orElse("http://10.0.2.2:3000")
-            .get()
-        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+    buildTypes {
+        debug {
+            val debugApiBaseUrl = providers.gradleProperty("API_BASE_URL")
+                .orElse("http://10.0.2.2:3000")
+                .get()
+            buildConfigField("String", "API_BASE_URL", debugApiBaseUrl.toBuildConfigString())
+            buildConfigField("boolean", "DEV_TOKEN_INPUT_ENABLED", "true")
+        }
+        release {
+            val releaseApiBaseUrl = providers.gradleProperty("API_BASE_URL")
+                .orElse("https://api.vibematch.example")
+                .get()
+            require(releaseApiBaseUrl.startsWith("https://")) {
+                "Release API_BASE_URL must use HTTPS"
+            }
+            buildConfigField("String", "API_BASE_URL", releaseApiBaseUrl.toBuildConfigString())
+            buildConfigField("boolean", "DEV_TOKEN_INPUT_ENABLED", "false")
+            isDebuggable = false
+        }
     }
 
     buildFeatures {

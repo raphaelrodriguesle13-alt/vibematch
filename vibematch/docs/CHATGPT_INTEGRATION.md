@@ -77,7 +77,7 @@ O módulo `android/` contém uma tela Compose funcional, uma camada de rede OkHt
 ./gradlew :app:assembleDebug -PAPI_BASE_URL=http://10.0.2.2:3000
 ```
 
-A tela possui um campo temporário para JWT enquanto o login Google não foi ligado ao cliente. O token fica somente em memória. Antes de distribuir o aplicativo, esse campo deve ser removido e substituído pelo fluxo real de login, o tráfego deve usar HTTPS e o `android:usesCleartextTraffic` deve ser retirado.
+A tela debug possui um campo temporário para JWT enquanto o login Google não foi ligado ao cliente. O token fica somente em memória e o campo não é compilado no release. O manifest debug é a única variante que habilita HTTP local; o manifest release força `android:usesCleartextTraffic=false` e o Gradle rejeita `API_BASE_URL` sem HTTPS.
 
 ## Próxima etapa
 

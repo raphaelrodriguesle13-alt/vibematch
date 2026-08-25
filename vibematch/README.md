@@ -31,7 +31,7 @@ está em `docs/CHATGPT_INTEGRATION.md`.
 ## Cliente Android
 
 A primeira tela Compose está em `android/`. Para apontar o emulador ao backend local, use
-`./gradlew :app:assembleDebug -PAPI_BASE_URL=http://10.0.2.2:3000`. A tela usa um token de
+`cd android && ./gradlew :app:assembleDebug -PAPI_BASE_URL=http://10.0.2.2:3000`. A tela usa um token de
 sessão temporário apenas durante o desenvolvimento, até a integração do login Google no
 cliente.
 
