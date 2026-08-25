@@ -38,6 +38,11 @@ export interface SessionTokenProvider {
   issue(claims: SessionTokenClaims, expiresAt: Date): Promise<string>;
 }
 
+/** Verificação independente para middleware HTTP e serviços internos. */
+export interface SessionTokenVerifier {
+  verify(token: string): Promise<SessionTokenClaims>;
+}
+
 export type AgeAssuranceDecision = 'APPROVED' | 'REJECTED' | 'PENDING';
 
 export interface AgeAssuranceResult {
