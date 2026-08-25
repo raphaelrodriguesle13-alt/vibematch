@@ -28,7 +28,9 @@ describe('GATE 42 — svc_video cannot write to consents', () => {
 
   test('svc_video CANNOT UPDATE consents', async () => {
     const err = await expectDbError(
-      rolePools.svc_video, `UPDATE consents SET status='ACCEPTED_BOTH'`);
+      rolePools.svc_video,
+      `UPDATE consents SET status='ACCEPTED_BOTH'`,
+    );
     expect(err).not.toBeNull();
     expect(err!.code).toBe(PERMISSION_DENIED);
   });
@@ -46,18 +48,22 @@ describe('GATE 42 — svc_video cannot write to consents', () => {
 });
 
 describe('GATE 43 — runtime roles cannot ALTER/DROP or disable triggers', () => {
-  const roles = ['svc_matchmaking', 'svc_video', 'svc_moderation', 'svc_billing'];
+  const roles = ['svc_matchmaking', 'svc_video', 'svc_moderation', 'svc_billing'] as const;
 
   test.each(roles)('%s CANNOT ALTER TABLE consents', async (role) => {
     const err = await expectDbError(
-      rolePools[role], 'ALTER TABLE consents ADD COLUMN injected_col TEXT');
+      rolePools[role],
+      'ALTER TABLE consents ADD COLUMN injected_col TEXT',
+    );
     expect(err).not.toBeNull();
     expect(err!.message).toMatch(INSUFFICIENT_PRIV);
   });
 
   test.each(roles)('%s CANNOT disable the session eligibility trigger', async (role) => {
     const err = await expectDbError(
-      rolePools[role], 'ALTER TABLE sessions DISABLE TRIGGER trg_enforce_session_eligibility');
+      rolePools[role],
+      'ALTER TABLE sessions DISABLE TRIGGER trg_enforce_session_eligibility',
+    );
     expect(err).not.toBeNull();
     expect(err!.message).toMatch(INSUFFICIENT_PRIV);
   });
@@ -70,7 +76,9 @@ describe('GATE 43 — runtime roles cannot ALTER/DROP or disable triggers', () =
 
   test.each(roles)('%s is NOT the owner of any application table', async (role) => {
     const res = await ownerPool.query(
-      `SELECT tablename FROM pg_tables WHERE schemaname='public' AND tableowner=$1`, [role]);
+      `SELECT tablename FROM pg_tables WHERE schemaname='public' AND tableowner=$1`,
+      [role],
+    );
     expect(res.rows).toHaveLength(0);
   });
 });
@@ -86,8 +94,7 @@ describe('GATE 44 — audit_logs is INSERT-only for runtime roles', () => {
   });
 
   test('TEST B — runtime CANNOT UPDATE audit_logs', async () => {
-    const err = await expectDbError(
-      rolePools.svc_moderation, `UPDATE audit_logs SET action='tampered'`);
+    const err = await expectDbError(rolePools.svc_moderation, `UPDATE audit_logs SET action='tampered'`);
     expect(err).not.toBeNull();
     expect(err!.code).toBe(PERMISSION_DENIED);
   });
@@ -100,7 +107,9 @@ describe('GATE 44 — audit_logs is INSERT-only for runtime roles', () => {
 
   test('TEST D — runtime CANNOT ALTER audit_logs', async () => {
     const err = await expectDbError(
-      rolePools.svc_moderation, 'ALTER TABLE audit_logs DROP COLUMN row_hash');
+      rolePools.svc_moderation,
+      'ALTER TABLE audit_logs DROP COLUMN row_hash',
+    );
     expect(err).not.toBeNull();
     expect(err!.message).toMatch(INSUFFICIENT_PRIV);
   });
@@ -108,15 +117,16 @@ describe('GATE 44 — audit_logs is INSERT-only for runtime roles', () => {
 
 describe('Cross-domain isolation', () => {
   test('svc_billing CANNOT write to sessions', async () => {
-    const err = await expectDbError(
-      rolePools.svc_billing, `UPDATE sessions SET status='ENDED'`);
+    const err = await expectDbError(rolePools.svc_billing, `UPDATE sessions SET status='ENDED'`);
     expect(err).not.toBeNull();
     expect(err!.code).toBe(PERMISSION_DENIED);
   });
 
   test('svc_matchmaking CANNOT write to subscriptions', async () => {
     const err = await expectDbError(
-      rolePools.svc_matchmaking, `UPDATE subscriptions SET status='ACTIVE'`);
+      rolePools.svc_matchmaking,
+      `UPDATE subscriptions SET status='ACTIVE'`,
+    );
     expect(err).not.toBeNull();
     expect(err!.code).toBe(PERMISSION_DENIED);
   });
