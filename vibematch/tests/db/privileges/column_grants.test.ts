@@ -2,15 +2,24 @@
  * COLUMN-LEVEL LEAST PRIVILEGE — correções 1, 2, 3, 4 sobre o Blueprint V1.2 §2.5.
  * Cada role só pode tocar exatamente as colunas do seu domínio.
  */
+import type { PoolClient } from 'pg';
 import { ownerPool, rolePools, expectDbError, withRollback, closeAll } from '../../helpers/db';
 
 afterAll(closeAll);
 
 const PERMISSION_DENIED = '42501';
 
-const mkUser = async (c: any, sub: string) =>
-  (await c.query(`INSERT INTO users (google_subject_id) VALUES ($1) RETURNING id`, [sub])).rows[0]
-    .id;
+type IdRow = { id: string };
+
+const mkUser = async (c: PoolClient, sub: string): Promise<string> => {
+  const result = await c.query<IdRow>(
+    `INSERT INTO users (google_subject_id) VALUES ($1) RETURNING id`,
+    [sub],
+  );
+  const id = result.rows[0]?.id;
+  if (!id) throw new Error('Failed to create test user');
+  return id;
+};
 
 describe('svc_auth — correção 1 (least privilege real)', () => {
   test('svc_auth CAN update phone_verified (its own domain)', async () => {
@@ -21,9 +30,6 @@ describe('svc_auth — correção 1 (least privilege real)', () => {
         `UPDATE users SET phone_verified = TRUE WHERE id = $1`,
         [id],
       );
-      // withRollback isola a criação do usuário; svc_auth roda em conexão própria e
-      // não enxerga a transação não commitada — por isso o teste valida apenas o
-      // código de erro esperado (linha inexistente não é erro de PERMISSÃO).
       expect(err === null || err.code !== PERMISSION_DENIED).toBe(true);
     });
   });
