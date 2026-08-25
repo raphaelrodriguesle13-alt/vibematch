@@ -71,17 +71,17 @@ A mensagem atual e cada item do histórico podem ter até 4.000 caracteres; o hi
 
 ## Android
 
-O módulo `android/` contém uma tela Compose funcional, uma camada de rede OkHttp e um ViewModel com estado de carregamento, mensagens e erros. Para o emulador, a URL padrão é `http://10.0.2.2:3000`; para um aparelho físico, passe o endereço acessível do backend:
+O módulo `android/` contém uma tela Compose funcional, uma camada de rede OkHttp, Credential Manager e ViewModels de Auth/chat. Para o emulador, a URL padrão é `http://10.0.2.2:3000`; para um aparelho físico, passe o endereço acessível do backend:
 
 ```bash
 ./gradlew :app:assembleDebug -PAPI_BASE_URL=http://10.0.2.2:3000
 ```
 
-A tela debug possui um campo temporário para JWT enquanto o login Google não foi ligado ao cliente. O token fica somente em memória e o campo não é compilado no release. O manifest debug é a única variante que habilita HTTP local; o manifest release força `android:usesCleartextTraffic=false` e o Gradle rejeita `API_BASE_URL` sem HTTPS.
+O cliente obtém o Google ID token com Credential Manager, troca-o em `/auth/google` por um JWT curto do backend e guarda somente a sessão em `EncryptedSharedPreferences`. O logout revoga a sessão, limpa o estado de credencial Google e apaga o armazenamento local. O manifest debug é a única variante que habilita HTTP local; o manifest release força `android:usesCleartextTraffic=false` e o Gradle rejeita `API_BASE_URL` sem HTTPS.
 
 ## Próxima etapa
 
-A próxima entrega deve conectar o login Google do backend à Activity Android, guardar a sessão com armazenamento seguro, adicionar logout e substituir o token manual por autenticação real. Rate limiting, persistência de conversas, observabilidade e moderação continuam pendentes.
+A próxima entrega deve completar o onboarding de telefone no Android, tratar renovação/expiração de sessão conforme o contrato do backend e revisar rate limiting, persistência de conversas, observabilidade e moderação antes de produção.
 
 ## Referências oficiais
 

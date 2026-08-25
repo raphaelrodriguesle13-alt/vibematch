@@ -19,9 +19,4 @@ cada decisão da V1.2 aparece no código.
 | D2 / D3 (config server-side)  | `backend/src/config/env.ts`                                                             |
 | Gates 42/43/44                | `tests/db/privileges/roles.test.ts`                                                     |
 
-**Implementado nesta continuidade:** autenticação Google e sessões revogáveis, contrato inicial
-`POST /api/chat`, adaptador server-side para a OpenAI Responses API e primeira tela Android
-Compose. **Não implementado nesta etapa:** login Google no cliente Android, armazenamento seguro
-da sessão no dispositivo, §5 API Contract completo, §7 modelo de concorrência (transações de
-aplicação), §8 LiveKit, §9 cascatas, §10 event bus, §11 billing, rate limiting e persistência
-de conversas.
+**Implementado nesta continuidade:** autenticação Google e sessões revogáveis no backend, login Google no cliente Android via Credential Manager, sessão criptografada via AndroidX Security Crypto, logout coordenado, contrato inicial `POST /api/chat`, adaptador server-side para a OpenAI Responses API e primeira tela Android Compose. **Não implementado nesta etapa:** onboarding de telefone no cliente Android, renovação de sessão, §5 API Contract completo, §7 modelo de concorrência (transações de aplicação), §8 LiveKit, §9 cascatas, §10 event bus, §11 billing, rate limiting e persistência de conversas.

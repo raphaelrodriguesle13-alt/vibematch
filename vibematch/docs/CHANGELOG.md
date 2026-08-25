@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] — Chat Android conectado ao backend
+## [Unreleased] — Login Google e sessão segura no Android
 
 ### Adicionado
 
@@ -8,13 +8,16 @@
 - Adaptador server-side da OpenAI Responses API com timeout e erros públicos estáveis.
 - Primeiro módulo Android em Kotlin + Jetpack Compose, com tela de conversa, ViewModel e cliente OkHttp.
 - Configuração `API_BASE_URL` para apontar o emulador para o backend local.
+- Login Google via Credential Manager usando o Web client ID como audience do backend.
+- Troca do Google ID token por JWT de sessão emitido pelo backend.
+- Armazenamento da sessão com AndroidX Security Crypto e limpeza coordenada no logout.
 - Testes unitários do serviço, do adaptador e do contrato HTTP do chat.
+- Testes Android do AuthViewModel e da serialização do request Google.
 
 ### Limitações conhecidas
 
-- O login Google ainda não está ligado à Activity; o token informado na tela é temporário,
-  fica somente em memória e serve apenas para desenvolvimento.
-- HTTPS, armazenamento seguro de sessão, rate limiting e persistência de conversas ainda estão pendentes.
+- O onboarding de telefone ainda não está ligado à Activity.
+- Renovação de sessão, rate limiting, persistência de conversas e observabilidade ainda estão pendentes.
 
 ## [0.1.0] — Etapa 0 + Etapa 1 (implementação de schema e fundação)
 
@@ -31,5 +34,5 @@
 
 ### Não incluído (etapas posteriores)
 
-UI Android, Google OAuth real, SMS, Didit, APIs de Matchmaking/Consent,
+UI social completa, SMS, Didit, APIs de Matchmaking/Consent,
 LiveKit, Play Billing, FCM, VibeOS, infraestrutura GCP de produção.

@@ -9,14 +9,16 @@ Atualizado em 2026-08-25.
 - Node alvo: 22+.
 - Etapas 0–1 contêm configuração, migrations, scripts de banco, CI e testes.
 - O branch de continuidade já contém autenticação Google server-side, sessões revogáveis e verificação telefônica.
-- O backend possui chat autenticado e o módulo Android inicial consome `POST /api/chat`.
-- A próxima barreira legítima é obter evidência verde de CI/migrations/testes e ligar o login Google ao Android.
+- O backend possui chat autenticado e o módulo Android consome `POST /api/chat`.
+- O Android agora obtém o Google ID token via Credential Manager, troca-o por sessão backend e guarda a sessão com AndroidX Security Crypto.
+- Logout Android revoga a sessão no backend, limpa o estado de credencial Google e remove a sessão local.
+- A próxima barreira legítima é completar onboarding de telefone no Android, renovar/expirar sessões e obter evidência verde de CI/migrations/testes.
 
 ## Ordem de continuidade
 
 1. Validar CI e migrations Up/Down/Up.
 2. Corrigir qualquer falha das etapas 0–1.
-3. Conectar o login Google e logout ao cliente Android com armazenamento seguro de sessão.
+3. Completar o onboarding de telefone no Android e tratar expiração/renovação de sessão.
 4. Consolidar o chat Android: HTTPS, rate limiting, persistência e observabilidade.
 5. Etapa 3: Profile/Interests.
 6. Etapa 4: Age Assurance, fail-closed.

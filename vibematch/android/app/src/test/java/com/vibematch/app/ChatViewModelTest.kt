@@ -39,7 +39,7 @@ class ChatViewModelTest {
 
         assertTrue(gateway.calls.isEmpty())
         assertEquals(
-            "Informe o token de sessão para conversar com o backend.",
+            "Entre novamente para conversar com o backend.",
             viewModel.state.value.errorMessage,
         )
     }

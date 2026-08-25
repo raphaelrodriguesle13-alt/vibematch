@@ -3,6 +3,8 @@ package com.vibematch.app
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import com.vibematch.app.chat.ChatMessage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -51,7 +53,9 @@ class ChatApiClient(
             .post(requestBody)
             .build()
 
-        val response = httpClient.newCall(request).execute()
+        val response = withContext(Dispatchers.IO) {
+            httpClient.newCall(request).execute()
+        }
         response.use {
             val body = it.body?.string().orEmpty()
             if (!it.isSuccessful) {

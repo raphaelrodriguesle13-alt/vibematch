@@ -1,5 +1,6 @@
 package com.vibematch.app
 
+import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -26,6 +27,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -48,15 +50,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.vibematch.app.auth.AuthApiClient
+import com.vibematch.app.auth.AuthViewModel
+import com.vibematch.app.auth.AuthViewModelFactory
+import com.vibematch.app.auth.GoogleOidcClient
+import com.vibematch.app.auth.SecureSessionStore
 import com.vibematch.app.chat.ChatMessage
 import com.vibematch.app.chat.ChatViewModel
 import com.vibematch.app.chat.ChatViewModelFactory
-import com.vibematch.app.chat.DevSessionStore
 
 private val VibePurple = Color(0xFF6D4AFF)
 private val VibeInk = Color(0xFF20202A)
@@ -68,14 +72,25 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             VibeMatchTheme {
-                val sessionStore = remember { DevSessionStore() }
+                val sessionStore = remember { SecureSessionStore(applicationContext) }
+                val authGateway = remember { AuthApiClient(BuildConfig.API_BASE_URL) }
+                val googleOidcClient = remember {
+                    GoogleOidcClient(applicationContext, BuildConfig.GOOGLE_SERVER_CLIENT_ID)
+                }
+                val authViewModel: AuthViewModel = viewModel(
+                    factory = AuthViewModelFactory(
+                        googleOidcClient = googleOidcClient,
+                        authGateway = authGateway,
+                        sessionStore = sessionStore,
+                    ),
+                )
                 val chatViewModel: ChatViewModel = viewModel(
                     factory = ChatViewModelFactory(
                         gateway = ChatApiClient(BuildConfig.API_BASE_URL),
-                        accessTokenProvider = sessionStore::getAccessToken,
+                        accessTokenProvider = sessionStore::readAccessToken,
                     ),
                 )
-                ChatScreen(chatViewModel, sessionStore)
+                VibeMatchApp(this@MainActivity, authViewModel, chatViewModel)
             }
         }
     }
@@ -94,10 +109,102 @@ private fun VibeMatchTheme(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun ChatScreen(viewModel: ChatViewModel, sessionStore: DevSessionStore) {
+private fun VibeMatchApp(
+    activity: Activity,
+    authViewModel: AuthViewModel,
+    chatViewModel: ChatViewModel,
+) {
+    val authState by authViewModel.state
+    if (authState.session == null) {
+        LoginScreen(activity, authViewModel)
+    } else {
+        ChatScreen(
+            viewModel = chatViewModel,
+            isSigningOut = authState.isLoading,
+            onLogout = {
+                chatViewModel.clearConversation()
+                authViewModel.signOut()
+            },
+        )
+    }
+}
+
+@Composable
+private fun LoginScreen(activity: Activity, viewModel: AuthViewModel) {
+    val state by viewModel.state
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = VibeBackground,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 32.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(84.dp)
+                    .clip(CircleShape)
+                    .background(VibePurple),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(40.dp),
+                )
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = "Bem-vindo ao VibeMatch",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Entre com sua conta Google para conversar com segurança.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color(0xFF72717D),
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(28.dp))
+            Button(
+                onClick = { viewModel.signIn(activity) },
+                enabled = !state.isLoading,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = VibePurple),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                if (state.isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Text("Entrar com Google")
+                }
+            }
+            state.errorMessage?.let { error ->
+                Spacer(modifier = Modifier.height(16.dp))
+                ErrorBanner(error) { viewModel.clearError() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChatScreen(
+    viewModel: ChatViewModel,
+    isSigningOut: Boolean,
+    onLogout: () -> Unit,
+) {
     val state by viewModel.state
     var draft by remember { mutableStateOf("") }
-    var hasSession by remember { mutableStateOf(!sessionStore.getAccessToken().isNullOrBlank()) }
     val listState = rememberLazyListState()
 
     LaunchedEffect(state.messages.size) {
@@ -111,12 +218,7 @@ private fun ChatScreen(viewModel: ChatViewModel, sessionStore: DevSessionStore) 
         color = VibeBackground,
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            ChatHeader()
-            if (BuildConfig.DEV_TOKEN_INPUT_ENABLED) {
-                SessionTokenCard(sessionStore) { hasSession = true }
-            } else {
-                ReleaseAuthCard()
-            }
+            ChatHeader(isSigningOut = isSigningOut, onLogout = onLogout)
             if (state.messages.isEmpty()) {
                 EmptyChat(modifier = Modifier.weight(1f))
             } else {
@@ -138,18 +240,17 @@ private fun ChatScreen(viewModel: ChatViewModel, sessionStore: DevSessionStore) 
                     }
                 }
             }
-
             state.errorMessage?.let { error ->
                 ErrorBanner(error) { viewModel.clearError() }
             }
             Composer(
                 draft = draft,
                 isSending = state.isSending,
-                enabled = hasSession,
+                enabled = !isSigningOut,
                 onDraftChange = { draft = it },
                 onSend = {
                     viewModel.send(draft)
-                    if (!sessionStore.getAccessToken().isNullOrBlank()) draft = ""
+                    draft = ""
                 },
             )
         }
@@ -157,7 +258,7 @@ private fun ChatScreen(viewModel: ChatViewModel, sessionStore: DevSessionStore) 
 }
 
 @Composable
-private fun ChatHeader() {
+private fun ChatHeader(isSigningOut: Boolean, onLogout: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -179,94 +280,25 @@ private fun ChatHeader() {
             )
         }
         Spacer(modifier = Modifier.width(12.dp))
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = "VibeMatch",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = "Seu espaço para conversar",
+                text = "Sessão segura ativa",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color(0xFF72717D),
             )
         }
-    }
-}
-
-@Composable
-private fun SessionTokenCard(sessionStore: DevSessionStore, onTokenSaved: () -> Unit) {
-    var token by remember { mutableStateOf(sessionStore.getAccessToken().orEmpty()) }
-    var saved by remember { mutableStateOf(!token.isNullOrBlank()) }
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White)
-            .padding(14.dp),
-    ) {
-        Text(
-            text = "Sessão de desenvolvimento",
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            text = "Até o login Google ser conectado, informe um JWT de sessão do backend.",
-            style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF72717D),
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            value = token,
-            onValueChange = {
-                token = it
-                saved = false
-            },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            placeholder = { Text("Bearer token") },
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            shape = RoundedCornerShape(12.dp),
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = {
-                sessionStore.setAccessToken(token)
-                saved = true
-                onTokenSaved()
-            },
-            modifier = Modifier.align(Alignment.End),
-            colors = ButtonDefaults.buttonColors(containerColor = VibePurple),
-        ) {
-            Text(if (saved) "Token salvo" else "Salvar sessão")
+        IconButton(onClick = onLogout, enabled = !isSigningOut) {
+            Icon(
+                imageVector = Icons.Default.Logout,
+                contentDescription = "Sair",
+                tint = VibePurple,
+            )
         }
-    }
-}
-
-@Composable
-private fun ReleaseAuthCard() {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White)
-            .padding(14.dp),
-    ) {
-        Text(
-            text = "Entre para conversar",
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "O login Google será conectado nesta etapa. O modo de token manual não existe no release.",
-            style = MaterialTheme.typography.bodySmall,
-            color = Color(0xFF72717D),
-        )
     }
 }
 

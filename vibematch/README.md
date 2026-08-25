@@ -30,10 +30,8 @@ está em `docs/CHATGPT_INTEGRATION.md`.
 
 ## Cliente Android
 
-A primeira tela Compose está em `android/`. Para apontar o emulador ao backend local, use
-`cd android && ./gradlew :app:assembleDebug -PAPI_BASE_URL=http://10.0.2.2:3000`. A tela usa um token de
-sessão temporário apenas durante o desenvolvimento, até a integração do login Google no
-cliente.
+A primeira tela Compose e o login Google estão em `android/`. Para apontar o emulador ao backend local, use
+`cd android && ./gradlew :app:assembleDebug -PAPI_BASE_URL=http://10.0.2.2:3000 -PGOOGLE_SERVER_CLIENT_ID=seu-web-client-id.apps.googleusercontent.com`. O cliente troca o ID token Google por uma sessão curta do backend e guarda apenas essa sessão de forma criptografada.
 
 ## Testes
 

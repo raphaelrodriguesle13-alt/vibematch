@@ -6,18 +6,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.vibematch.app.ChatApiException
 import com.vibematch.app.ChatGateway
 import kotlinx.coroutines.launch
-
-class DevSessionStore {
-    private var accessToken: String? = null
-
-    fun getAccessToken(): String? = accessToken
-
-    fun setAccessToken(value: String) {
-        accessToken = value.trim().ifEmpty { null }
-    }
-}
 
 data class ChatUiState(
     val messages: List<ChatMessage> = emptyList(),
@@ -39,7 +30,7 @@ class ChatViewModel(
         val token = accessTokenProvider()?.trim()
         if (token.isNullOrEmpty()) {
             mutableState.value = mutableState.value.copy(
-                errorMessage = "Informe o token de sessão para conversar com o backend.",
+                errorMessage = "Entre novamente para conversar com o backend.",
             )
             return
         }
@@ -68,16 +59,20 @@ class ChatViewModel(
         }
     }
 
+    fun clearConversation() {
+        mutableState.value = ChatUiState()
+    }
+
     fun clearError() {
         mutableState.value = mutableState.value.copy(errorMessage = null)
     }
 
     private fun publicError(error: Exception): String = when {
-        error is com.vibematch.app.ChatApiException && error.statusCode == 401 ->
+        error is ChatApiException && error.statusCode == 401 ->
             "Sua sessão expirou. Entre novamente para continuar."
-        error is com.vibematch.app.ChatApiException && error.statusCode == 504 ->
+        error is ChatApiException && error.statusCode == 504 ->
             "O chat demorou demais para responder. Tente novamente."
-        error is com.vibematch.app.ChatApiException && error.statusCode >= 500 ->
+        error is ChatApiException && error.statusCode >= 500 ->
             "O chat está temporariamente indisponível. Tente novamente."
         else -> "Não foi possível enviar agora. Verifique sua conexão."
     }
