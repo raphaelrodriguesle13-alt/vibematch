@@ -1,0 +1,31 @@
+name: VibeMatch Auth Dependency Installer
+
+on:
+  push:
+    branches: [continuity]
+    paths:
+      - '.github/auth-deps-trigger'
+
+permissions:
+  contents: write
+
+jobs:
+  install:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: continuity
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pinned auth and HTTP dependencies
+        working-directory: vibematch
+        run: npm install --save-exact google-auth-library@11.0.2 jose@6.2.10 fastify@5.12.1
+      - name: Commit package manifests
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add vibematch/package.json vibematch/package-lock.json
+          git commit -m "chore: add auth and HTTP runtime dependencies"
+          git push origin HEAD:continuity
