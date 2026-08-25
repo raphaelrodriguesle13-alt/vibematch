@@ -9,7 +9,7 @@ import { ownerPool, rolePools, expectDbError, closeAll } from '../../helpers/db'
 afterAll(closeAll);
 
 const PERMISSION_DENIED = '42501';
-type FunctionAclRow = { proname: string; acl: string | null };
+type FunctionAclRow = { proname: string; public_execute: boolean };
 
 describe('Direct invocation of administrative SECURITY DEFINER functions is denied', () => {
   const roles = [
@@ -44,17 +44,23 @@ describe('Direct invocation of administrative SECURITY DEFINER functions is deni
 });
 
 describe('PUBLIC has no EXECUTE on administrative functions (catalog check)', () => {
-  test('pg_proc/pg_catalog shows no ACL entry granting PUBLIC execute', async () => {
+  test('effective ACL contains no PUBLIC execute grant', async () => {
     const r = await ownerPool.query<FunctionAclRow>(`
-      SELECT proname, proacl::text AS acl
-      FROM pg_proc
-      WHERE proname IN ('verify_audit_chain','verify_consent_decision_chain',
-                         'audit_logs_hash_chain','consent_decisions_hash_chain')
+      SELECT p.proname,
+             EXISTS (
+               SELECT 1
+               FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS a
+               WHERE a.grantee = 0
+                 AND a.privilege_type = 'EXECUTE'
+             ) AS public_execute
+      FROM pg_proc AS p
+      WHERE p.proname IN ('verify_audit_chain','verify_consent_decision_chain',
+                           'audit_logs_hash_chain','consent_decisions_hash_chain')
     `);
+
+    expect(r.rows.length).toBeGreaterThan(0);
     for (const row of r.rows) {
-      if (row.acl !== null) {
-        expect(row.acl).not.toMatch(/=[a-zA-Z]*X\//);
-      }
+      expect(row.public_execute).toBe(false);
     }
   });
 });
