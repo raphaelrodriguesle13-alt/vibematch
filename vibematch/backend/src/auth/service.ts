@@ -2,12 +2,13 @@ import type { GoogleIdentityProvider, SessionTokenProvider } from '../shared/pro
 import type { AuthSession, AuthUser } from './repository';
 
 export type AuthErrorCode =
-  | 'INVALID_GOOGLE_TOKEN'
-  | 'ACCOUNT_UNAVAILABLE'
-  | 'SESSION_ISSUANCE_FAILED';
+  'INVALID_GOOGLE_TOKEN' | 'ACCOUNT_UNAVAILABLE' | 'SESSION_ISSUANCE_FAILED';
 
 export class AuthError extends Error {
-  constructor(readonly code: AuthErrorCode, message: string) {
+  constructor(
+    readonly code: AuthErrorCode,
+    message: string,
+  ) {
     super(message);
     this.name = 'AuthError';
   }
