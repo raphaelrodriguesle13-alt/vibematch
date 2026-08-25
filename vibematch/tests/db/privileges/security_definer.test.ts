@@ -9,6 +9,7 @@ import { ownerPool, rolePools, expectDbError, closeAll } from '../../helpers/db'
 afterAll(closeAll);
 
 const PERMISSION_DENIED = '42501';
+type FunctionAclRow = { proname: string; acl: string | null };
 
 describe('Direct invocation of administrative SECURITY DEFINER functions is denied', () => {
   const roles = [
@@ -36,8 +37,6 @@ describe('Direct invocation of administrative SECURITY DEFINER functions is deni
   });
 
   test.each(roles)('%s CANNOT directly call enforce_session_eligibility()', async (role) => {
-    // Chamada direta (não via trigger) — deve ser negada por falta de EXECUTE,
-    // mesmo sendo uma função de trigger comum (não SECURITY DEFINER).
     const err = await expectDbError(rolePools[role], 'SELECT enforce_session_eligibility()');
     expect(err).not.toBeNull();
     expect(err!.code).toBe(PERMISSION_DENIED);
@@ -46,15 +45,13 @@ describe('Direct invocation of administrative SECURITY DEFINER functions is deni
 
 describe('PUBLIC has no EXECUTE on administrative functions (catalog check)', () => {
   test('pg_proc/pg_catalog shows no ACL entry granting PUBLIC execute', async () => {
-    const r = await ownerPool.query(`
+    const r = await ownerPool.query<FunctionAclRow>(`
       SELECT proname, proacl::text AS acl
       FROM pg_proc
       WHERE proname IN ('verify_audit_chain','verify_consent_decision_chain',
                          'audit_logs_hash_chain','consent_decisions_hash_chain')
     `);
     for (const row of r.rows) {
-      // proacl NULL significa "privilégios default do dono" (sem PUBLIC implícito
-      // após REVOKE); se não for NULL, não deve conter "=X/" (a notação de PUBLIC).
       if (row.acl !== null) {
         expect(row.acl).not.toMatch(/=[a-zA-Z]*X\//);
       }
