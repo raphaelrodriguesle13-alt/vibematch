@@ -1,8 +1,42 @@
 /**
  * Interfaces de fornecedor — Blueprint V1.2 §1.3 / §15 (fornecedores substituíveis).
- * SOMENTE CONTRATOS. Nenhuma implementação de fornecedor nesta etapa (0/1).
  * O domínio de negócio nunca importa um SDK de fornecedor diretamente.
  */
+
+export interface GoogleIdentity {
+  subject: string;
+  email?: string;
+  emailVerified?: boolean;
+  displayName?: string;
+  avatarUrl?: string;
+}
+
+/** V1.2 §1.4/§3.1 — validação do ID token acontece server-side. */
+export interface GoogleIdentityProvider {
+  verifyIdToken(idToken: string): Promise<GoogleIdentity>;
+}
+
+export interface SmsVerificationStart {
+  providerVerificationId: string;
+  expiresAt: Date;
+}
+
+/** Provedor substituível; o domínio não armazena código SMS em texto puro. */
+export interface SmsVerificationProvider {
+  start(userId: string, phoneE164: string): Promise<SmsVerificationStart>;
+  confirm(providerVerificationId: string, code: string): Promise<boolean>;
+}
+
+export interface SessionTokenClaims {
+  userId: string;
+  sessionId: string;
+  phoneVerified: boolean;
+}
+
+/** JWT curto assinado server-side; chave resolvida fora do domínio. */
+export interface SessionTokenProvider {
+  issue(claims: SessionTokenClaims, expiresAt: Date): Promise<string>;
+}
 
 export type AgeAssuranceDecision = 'APPROVED' | 'REJECTED' | 'PENDING';
 
