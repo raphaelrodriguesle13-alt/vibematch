@@ -3,7 +3,8 @@
 ## HEAD analisado
 
 `a8237f093df4073329add16ec79d5eb4fe7fb807` — `continuity` sincronizada com `origin/continuity` antes do lote.
-HEAD final do lote: `46f376af61256ecfad91bdbccc7f6834337221e7`.
+HEAD final da implementação Android: `46f376af61256ecfad91bdbccc7f6834337221e7`.
+O branch final também contém o commit cooperativo de CI `87e53ed` e o handoff anterior `f5265b4`.
 Após o lote, o branch foi reconciliado com os commits remotos de Auth/phone verification em
 `f177047`, sem sobrescrever o trabalho Android.
 
@@ -16,9 +17,11 @@ Após o lote, o branch foi reconciliado com os commits remotos de Auth/phone ver
 | `f177047`                                  | merge de Auth/phone verification remoto, preservando o lote Android |
 | `bb04da0`                                  | `feat: connect Android Google sign-in session`                      |
 | `46f376a`                                  | `fix: return Android chat to auth on session expiry`                |
+| `87e53ed`                                  | commit cooperativo: `ci: validate Android build and unit tests`     |
+| `f5265b4`                                  | `docs: handoff Google auth Android`                                 |
 
 Os commits foram criados sem reescrever histórico e o branch foi reconciliado sem force-push.
-O handoff atualizado será publicado no branch `continuity` após este commit documental.
+Este handoff registra a revisão após a integração cooperativa do CI Android.
 
 ## Testes executados
 
