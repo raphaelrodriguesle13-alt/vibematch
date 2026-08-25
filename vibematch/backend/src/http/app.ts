@@ -4,10 +4,7 @@ import { ChatRequestValidationError, type ChatRequest, type ChatService } from '
 import { ChatGptProviderError } from '../shared/providers/openai';
 import { AuthError, type AuthService } from '../auth/service';
 import type { AuthSession } from '../auth/repository';
-import {
-  PhoneVerificationError,
-  type PhoneVerificationService,
-} from '../auth/phone-service';
+import { PhoneVerificationError, type PhoneVerificationService } from '../auth/phone-service';
 
 export interface ActiveSessionStore {
   findActiveSession(userId: string, sessionId: string, now: Date): Promise<AuthSession | null>;
