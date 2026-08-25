@@ -94,10 +94,7 @@ describe('Auth persistence least privilege', () => {
     'svc_moderation',
     'svc_billing',
   ] as const)('%s CANNOT read phone_verifications', async (role) => {
-    const err = await expectDbError(
-      rolePools[role],
-      'SELECT id FROM phone_verifications LIMIT 1',
-    );
+    const err = await expectDbError(rolePools[role], 'SELECT id FROM phone_verifications LIMIT 1');
     expect(err).not.toBeNull();
     expect(err!.code).toBe(PERMISSION_DENIED);
   });
