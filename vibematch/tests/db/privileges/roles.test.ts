@@ -84,11 +84,11 @@ describe('GATE 43 — runtime roles cannot ALTER/DROP or disable triggers', () =
 });
 
 describe('GATE 44 — audit_logs is INSERT-only for runtime roles', () => {
-  test('TEST A — runtime CAN INSERT into audit_logs', async () => {
+  test('TEST A — runtime CAN INSERT event fields; hash fields remain trigger-owned', async () => {
     const err = await expectDbError(
       rolePools.svc_moderation,
-      `INSERT INTO audit_logs (actor_type, action, object_type, row_hash)
-       VALUES ('SYSTEM','gate44.probe','test','placeholder')`,
+      `INSERT INTO audit_logs (actor_type, action, object_type, reason)
+       VALUES ('SYSTEM','gate44.probe','test','runtime-insert')`,
     );
     expect(err).toBeNull();
   });
