@@ -3,14 +3,19 @@
 ## HEAD analisado
 
 `a8237f093df4073329add16ec79d5eb4fe7fb807` — `continuity` sincronizada com `origin/continuity` antes do lote.
+Após o lote, o branch foi reconciliado com os commits remotos de Auth/phone verification em
+`f177047`, sem sobrescrever o trabalho Android.
 
 ## Commits produzidos
 
-| Commit                                     | Descrição                                        |
-| ------------------------------------------ | ------------------------------------------------ |
-| `be1d2572885af7d61cd1c53ac46a8c5924995a6c` | `fix: isolate Android dev auth and add CI gates` |
+| Commit                                     | Descrição                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------- |
+| `be1d2572885af7d61cd1c53ac46a8c5924995a6c` | `fix: isolate Android dev auth and add CI gates`                    |
+| `393d5c1`                                  | `docs: add Android batch handoff`                                   |
+| `f177047`                                  | merge de Auth/phone verification remoto, preservando o lote Android |
 
-O commit foi criado sem reescrever histórico e será publicado no branch `continuity` junto com este handoff.
+Os commits foram criados sem reescrever histórico e o branch foi reconciliado sem force-push.
+O handoff atualizado será publicado no branch `continuity`.
 
 ## Testes executados
 
@@ -24,8 +29,9 @@ O commit foi criado sem reescrever histórico e será publicado no branch `conti
 | `npm run typecheck`                                                           | Aprovado                                                          |
 | `npm run lint`                                                                | Aprovado                                                          |
 | `npm run format:check`                                                        | Aprovado                                                          |
-| `npm run test:unit`                                                           | Aprovado; 5 suítes e 25 testes                                    |
-| Scanner local de padrões de segredo                                           | Aprovado; nenhum segredo real encontrado                          |
+| `npm run test:unit`                                                           | Aprovado após o merge; 5 suítes e 28 testes                       |
+
+| Scanner local de padrões de segredo | Aprovado; nenhum segredo real encontrado |
 
 ## Mudanças realizadas
 
@@ -50,7 +56,7 @@ O Android ainda não possui login Google integrado; por isso, o chat debug conti
 
 O lint Android reporta 8 avisos não bloqueantes relacionados ao empacotamento de bibliotecas nativas e à configuração mínima do protótipo. O APK foi produzido como debug e não é um artefato de release assinado.
 
-O job Android do CI usa `android-actions/setup-android@v3` e instala `platforms;android-35` e `build-tools;35.0.0`; a execução efetiva do runner GitHub ainda precisa ser observada no primeiro push.
+O job Android do CI usa `android-actions/setup-android@v3` e instala `platforms;android-35` e `build-tools;35.0.0`; a execução efetiva do runner GitHub ainda precisa ser observada no primeiro push. O branch recebeu commits remotos adicionais de phone verification durante o lote; os gates backend foram repetidos e permaneceram verdes.
 
 ## Próximo trabalho recomendado para Manus
 
