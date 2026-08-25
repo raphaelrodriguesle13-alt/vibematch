@@ -50,10 +50,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: vibematch/package.json
 
-      - name: Install dependencies and generate deterministic lockfile
+      - name: Install dependencies
         run: npm install --no-audit --no-fund
 
       - name: Typecheck
@@ -62,14 +60,11 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Apply SQL migrations in strict order
-        shell: bash
-        run: |
-          set -euo pipefail
-          for migration in migrations/*.sql; do
-            echo "Applying ${migration}"
-            psql "$DATABASE_URL_OWNER" -v ON_ERROR_STOP=1 -f "$migration"
-          done
+      - name: Format check
+        run: npm run format:check
+
+      - name: Apply SQL migrations
+        run: npm run migrate
 
       - name: Enable runtime-role logins for isolated CI database
         shell: bash
@@ -88,6 +83,8 @@ jobs:
             "SELECT tgname FROM pg_trigger WHERE NOT tgisinternal ORDER BY tgname;"
           psql "$DATABASE_URL_OWNER" -v ON_ERROR_STOP=1 -c \
             "SELECT conname FROM pg_constraint WHERE contype IN ('c','f','u') ORDER BY conname;"
+          psql "$DATABASE_URL_OWNER" -v ON_ERROR_STOP=1 -c \
+            "SELECT rolname FROM pg_roles WHERE rolname IN ('svc_auth','svc_profile','svc_matchmaking','svc_video','svc_moderation','svc_billing') ORDER BY rolname;"
 
       - name: Database and privilege tests
         run: npm run test:db
