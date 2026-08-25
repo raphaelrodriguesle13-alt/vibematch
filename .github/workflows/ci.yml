@@ -1,0 +1,101 @@
+name: VibeMatch CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, continuity]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vibematch
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: vibematch
+          POSTGRES_USER: vibematch_owner
+          POSTGRES_PASSWORD: ci_local_only_not_a_real_secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vibematch_owner -d vibematch"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-retries 20
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgres://vibematch_owner:ci_local_only_not_a_real_secret@localhost:5432/vibematch
+      DATABASE_URL_OWNER: postgres://vibematch_owner:ci_local_only_not_a_real_secret@localhost:5432/vibematch
+      DATABASE_URL_AUTH: postgres://svc_auth:ci_local_only_not_a_real_secret@localhost:5432/vibematch
+      DATABASE_URL_PROFILE: postgres://svc_profile:ci_local_only_not_a_real_secret@localhost:5432/vibematch
+      DATABASE_URL_MATCHMAKING: postgres://svc_matchmaking:ci_local_only_not_a_real_secret@localhost:5432/vibematch
+      DATABASE_URL_VIDEO: postgres://svc_video:ci_local_only_not_a_real_secret@localhost:5432/vibematch
+      DATABASE_URL_MODERATION: postgres://svc_moderation:ci_local_only_not_a_real_secret@localhost:5432/vibematch
+      DATABASE_URL_BILLING: postgres://svc_billing:ci_local_only_not_a_real_secret@localhost:5432/vibematch
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: vibematch/package.json
+
+      - name: Install dependencies and generate deterministic lockfile
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Apply SQL migrations in strict order
+        shell: bash
+        run: |
+          set -euo pipefail
+          for migration in migrations/*.sql; do
+            echo "Applying ${migration}"
+            psql "$DATABASE_URL_OWNER" -v ON_ERROR_STOP=1 -f "$migration"
+          done
+
+      - name: Enable runtime-role logins for isolated CI database
+        shell: bash
+        run: |
+          set -euo pipefail
+          for role in auth profile matchmaking video moderation billing; do
+            psql "$DATABASE_URL_OWNER" -v ON_ERROR_STOP=1 \
+              -c "ALTER ROLE svc_${role} WITH LOGIN PASSWORD 'ci_local_only_not_a_real_secret';"
+          done
+
+      - name: Validate database security objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql "$DATABASE_URL_OWNER" -v ON_ERROR_STOP=1 -c \
+            "SELECT tgname FROM pg_trigger WHERE NOT tgisinternal ORDER BY tgname;"
+          psql "$DATABASE_URL_OWNER" -v ON_ERROR_STOP=1 -c \
+            "SELECT conname FROM pg_constraint WHERE contype IN ('c','f','u') ORDER BY conname;"
+
+      - name: Database and privilege tests
+        run: npm run test:db
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Secret scanning
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
