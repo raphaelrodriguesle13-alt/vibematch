@@ -4,7 +4,7 @@
  * O owner do banco AINDA pode reescrever a cadeia inteira — isso é risco residual
  * declarado na V1.2 §12, não um bug destes testes.
  */
-import type { PoolClient, QueryResult } from 'pg';
+import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
 import { ownerPool, withRollback, closeAll } from '../../helpers/db';
 
 afterAll(closeAll);
@@ -15,7 +15,7 @@ type HashRow = { row_hash: string };
 type LinkedHashRow = { prev_hash: string; row_hash: string };
 type ChainBreakRow = { broken_at: string | number; failure: string };
 
-const first = <T>(result: QueryResult<T>): T => {
+const first = <T extends QueryResultRow>(result: QueryResult<T>): T => {
   const row = result.rows[0];
   if (!row) throw new Error('Expected database row');
   return row;
