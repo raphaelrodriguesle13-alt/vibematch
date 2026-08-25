@@ -3,8 +3,9 @@
 Plataforma de descoberta social por interesses com **vídeo liberado somente após
 consentimento explícito e mútuo**. Fonte técnica de verdade: **Blueprint V1.2**.
 
-> **Estado:** Etapas 0–1 (fundação + schema). Nenhuma API, app Android ou integração
-> de fornecedor implementada. Ver `docs/ARCHITECTURE.md`.
+> **Estado:** Etapas 0–1 (fundação + schema) concluídas no código; a primeira camada
+> backend de ChatGPT está implementada, mas autenticação, app Android e fornecedores de
+> vídeo ainda não estão prontos. Ver `docs/ARCHITECTURE.md` e `docs/CHATGPT_INTEGRATION.md`.
 
 ## Requisitos
 - Node.js 22+
@@ -19,6 +20,12 @@ bash scripts/db-up.sh     # sobe PostgreSQL + Redis
 npm run migrate           # aplica o schema completo
 bash scripts/db-roles.sh  # habilita LOGIN dos papéis de runtime
 ```
+
+## Backend de ChatGPT
+
+O backend expõe `POST /api/chat` e mantém a chave da OpenAI exclusivamente no servidor.
+Consulte `docs/CHATGPT_INTEGRATION.md` para o contrato HTTP, a configuração e as
+limitações atuais.
 
 ## Testes
 

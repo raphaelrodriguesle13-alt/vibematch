@@ -13,9 +13,12 @@ cada decisão da V1.2 aparece no código.
 | §4.2 trilha de autenticidade | `migrations/003` `consent_decisions` + `005` hash chain |
 | §12 audit model | `migrations/005` |
 | §1.3 interfaces de fornecedor | `backend/src/shared/providers/index.ts` |
+| ChatGPT adapter + API | `backend/src/shared/providers/openai.ts`, `backend/src/features/chat`, `backend/src/http/server.ts` |
 | D2 / D3 (config server-side) | `backend/src/config/env.ts` |
 | Gates 42/43/44 | `tests/db/privileges/roles.test.ts` |
 
-**Não implementado nesta etapa:** §5 API Contract, §6 tokens, §7 modelo de concorrência
+**Implementado nesta etapa adicional:** contrato inicial `POST /api/chat`, adaptador server-side
+para a OpenAI Responses API, validações de payload, timeout e testes unitários. **Não
+implementado nesta etapa:** §5 API Contract completo, §6 tokens, §7 modelo de concorrência
 (transações de aplicação), §8 LiveKit, §9 cascatas, §10 event bus, §11 billing.
 As garantias estruturais de banco existem; as garantias de aplicação não.

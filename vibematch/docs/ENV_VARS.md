@@ -19,3 +19,7 @@ não por arquivo `.env` — ver `backend/src/config/env.ts`.
 | `SECRET_BACKEND` | env \| gcp-secret-manager | não | 0 |
 | `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET` | não usados na etapa 0/1 | não | 7 |
 | `AGE_ASSURANCE_API_KEY` | não usado na etapa 0/1 | não | 4 |
+| `OPENAI_API_KEY` | chave server-side para a Responses API | sim para `/api/chat` | 2 |
+| `OPENAI_BASE_URL` | base URL do fornecedor; default `https://api.openai.com/v1` | não | 2 |
+| `OPENAI_MODEL` | modelo usado pelo chat; default `gpt-5.6` | não | 2 |
+| `OPENAI_TIMEOUT_MS` | timeout da chamada ao fornecedor; default `30000` | não | 2 |

@@ -33,6 +33,12 @@ export const env = {
 
   consentDecisionExpirySeconds: intFromEnv('CONSENT_DECISION_EXPIRY_SECONDS', 86400),
 
+  /** OpenAI é sempre acessada pelo backend; a chave é resolvida somente no uso. */
+  openAiApiKey: () => required('OPENAI_API_KEY'),
+  openAiBaseUrl: process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1',
+  openAiModel: process.env.OPENAI_MODEL ?? 'gpt-5.6',
+  openAiTimeoutMs: intFromEnv('OPENAI_TIMEOUT_MS', 30_000),
+
   /** 'env' apenas para desenvolvimento/teste; produção usa GCP Secret Manager. */
   secretBackend: (process.env.SECRET_BACKEND ?? 'env') as 'env' | 'gcp-secret-manager',
 
