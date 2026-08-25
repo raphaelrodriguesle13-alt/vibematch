@@ -74,7 +74,9 @@ describe('Consent structural immutability (trigger, defense-in-depth)', () => {
     await withRollback(ownerPool, async (c) => {
       const { consentId } = await mkConsent(c);
       const msg = await expectRejection(() =>
-        c.query(`UPDATE consents SET created_at = now() - interval '1 day' WHERE id=$1`, [consentId]),
+        c.query(`UPDATE consents SET created_at = now() - interval '1 day' WHERE id=$1`, [
+          consentId,
+        ]),
       );
       expect(msg).toMatch(/structural field is immutable: created_at/);
     });
@@ -105,8 +107,12 @@ describe('Consent structural immutability (trigger, defense-in-depth)', () => {
 describe('Consent ↔ MatchIntent rejection matrix (item 14 do prompt)', () => {
   test('CM01 Consent for a SENT (not yet ACCEPTED) MatchIntent is rejected', async () => {
     await withRollback(ownerPool, async (c) => {
-      const a = await c.query<IdRow>(`INSERT INTO users (google_subject_id) VALUES ('cm01-a') RETURNING id`);
-      const b = await c.query<IdRow>(`INSERT INTO users (google_subject_id) VALUES ('cm01-b') RETURNING id`);
+      const a = await c.query<IdRow>(
+        `INSERT INTO users (google_subject_id) VALUES ('cm01-a') RETURNING id`,
+      );
+      const b = await c.query<IdRow>(
+        `INSERT INTO users (google_subject_id) VALUES ('cm01-b') RETURNING id`,
+      );
       const aRow = first(a);
       const bRow = first(b);
       const sent = await c.query<IdRow>(
@@ -127,8 +133,12 @@ describe('Consent ↔ MatchIntent rejection matrix (item 14 do prompt)', () => {
 
   test('CM02 Consent for a DECLINED MatchIntent is rejected', async () => {
     await withRollback(ownerPool, async (c) => {
-      const a = await c.query<IdRow>(`INSERT INTO users (google_subject_id) VALUES ('cm02-a') RETURNING id`);
-      const b = await c.query<IdRow>(`INSERT INTO users (google_subject_id) VALUES ('cm02-b') RETURNING id`);
+      const a = await c.query<IdRow>(
+        `INSERT INTO users (google_subject_id) VALUES ('cm02-a') RETURNING id`,
+      );
+      const b = await c.query<IdRow>(
+        `INSERT INTO users (google_subject_id) VALUES ('cm02-b') RETURNING id`,
+      );
       const aRow = first(a);
       const bRow = first(b);
       const declined = await c.query<IdRow>(
@@ -149,8 +159,12 @@ describe('Consent ↔ MatchIntent rejection matrix (item 14 do prompt)', () => {
 
   test('CM03 Consent for an EXPIRED MatchIntent is rejected', async () => {
     await withRollback(ownerPool, async (c) => {
-      const a = await c.query<IdRow>(`INSERT INTO users (google_subject_id) VALUES ('cm03-a') RETURNING id`);
-      const b = await c.query<IdRow>(`INSERT INTO users (google_subject_id) VALUES ('cm03-b') RETURNING id`);
+      const a = await c.query<IdRow>(
+        `INSERT INTO users (google_subject_id) VALUES ('cm03-a') RETURNING id`,
+      );
+      const b = await c.query<IdRow>(
+        `INSERT INTO users (google_subject_id) VALUES ('cm03-b') RETURNING id`,
+      );
       const aRow = first(a);
       const bRow = first(b);
       const expired = await c.query<IdRow>(

@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "description": "VibeMatch — social discovery with mutual-consent video. Blueprint V1.2.",
-  "engines": { "node": ">=22.0.0" },
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"**/*.{ts,json,md}\"",

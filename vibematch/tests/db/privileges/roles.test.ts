@@ -94,7 +94,10 @@ describe('GATE 44 — audit_logs is INSERT-only for runtime roles', () => {
   });
 
   test('TEST B — runtime CANNOT UPDATE audit_logs', async () => {
-    const err = await expectDbError(rolePools.svc_moderation, `UPDATE audit_logs SET action='tampered'`);
+    const err = await expectDbError(
+      rolePools.svc_moderation,
+      `UPDATE audit_logs SET action='tampered'`,
+    );
     expect(err).not.toBeNull();
     expect(err!.code).toBe(PERMISSION_DENIED);
   });

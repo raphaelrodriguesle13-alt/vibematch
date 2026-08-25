@@ -7,6 +7,7 @@ consentimento explícito e mútuo**. Fonte técnica de verdade: **Blueprint V1.2
 > de fornecedor implementada. Ver `docs/ARCHITECTURE.md`.
 
 ## Requisitos
+
 - Node.js 22+
 - Docker (para PostgreSQL e Redis locais)
 

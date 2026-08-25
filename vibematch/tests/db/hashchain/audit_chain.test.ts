@@ -89,10 +89,9 @@ describe('audit_logs hash chain', () => {
       const middleRow = first(middle);
       const lastRow = first(last);
 
-      await c.query(
-        `UPDATE audit_logs SET prev_hash = 'FORGED_PREV_HASH_0000' WHERE id = $1`,
-        [middleRow.id],
-      );
+      await c.query(`UPDATE audit_logs SET prev_hash = 'FORGED_PREV_HASH_0000' WHERE id = $1`, [
+        middleRow.id,
+      ]);
 
       const v = await c.query<ChainBreakRow>('SELECT * FROM verify_audit_chain()');
       expect(v.rows.length).toBeGreaterThan(0);

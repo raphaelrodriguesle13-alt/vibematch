@@ -112,7 +112,9 @@ describe('CONSENT invariants (V1.2 §2.3)', () => {
           [intentId, userA, userB],
         ),
       );
-      expect(msg).toMatch(/chk_accepted_both_iff_both_accepted|chk_pending_has_no_terminal_substatus/);
+      expect(msg).toMatch(
+        /chk_accepted_both_iff_both_accepted|chk_pending_has_no_terminal_substatus/,
+      );
     });
   });
 
@@ -191,7 +193,9 @@ describe('CONSENT invariants (V1.2 §2.3)', () => {
         [intentId, userA, userB],
       );
       const msg = await expectRejection(() =>
-        c.query(`UPDATE consents SET status='PENDING', user_a_status='PENDING' WHERE id=$1`, [first(r).id]),
+        c.query(`UPDATE consents SET status='PENDING', user_a_status='PENDING' WHERE id=$1`, [
+          first(r).id,
+        ]),
       );
       expect(msg).toMatch(/terminal/i);
     });
@@ -283,7 +287,9 @@ describe('SESSION eligibility (V1.2 §2.2 trigger)', () => {
     await withRollback(ownerPool, async (c) => {
       const { consentId } = await mkConsent(c, 'PENDING');
       const msg = await expectRejection(() =>
-        c.query(`INSERT INTO sessions (consent_id, livekit_room) VALUES ($1,'room-s01')`, [consentId]),
+        c.query(`INSERT INTO sessions (consent_id, livekit_room) VALUES ($1,'room-s01')`, [
+          consentId,
+        ]),
       );
       expect(msg).toMatch(/expected ACCEPTED_BOTH/);
     });
@@ -301,7 +307,9 @@ describe('SESSION eligibility (V1.2 §2.2 trigger)', () => {
         [intentId, userA, userB],
       );
       const msg = await expectRejection(() =>
-        c.query(`INSERT INTO sessions (consent_id, livekit_room) VALUES ($1,'room-s02')`, [first(r).id]),
+        c.query(`INSERT INTO sessions (consent_id, livekit_room) VALUES ($1,'room-s02')`, [
+          first(r).id,
+        ]),
       );
       expect(msg).toMatch(/video window expired/);
     });
@@ -312,7 +320,9 @@ describe('SESSION eligibility (V1.2 §2.2 trigger)', () => {
       const { consentId, userA } = await mkConsent(c, 'ACCEPTED_BOTH');
       await c.query(`UPDATE users SET status='SUSPENDED' WHERE id=$1`, [userA]);
       const msg = await expectRejection(() =>
-        c.query(`INSERT INTO sessions (consent_id, livekit_room) VALUES ($1,'room-s03')`, [consentId]),
+        c.query(`INSERT INTO sessions (consent_id, livekit_room) VALUES ($1,'room-s03')`, [
+          consentId,
+        ]),
       );
       expect(msg).toMatch(/participant not ACTIVE/);
     });
@@ -323,7 +333,9 @@ describe('SESSION eligibility (V1.2 §2.2 trigger)', () => {
       const { consentId, userB } = await mkConsent(c, 'ACCEPTED_BOTH');
       await c.query(`UPDATE users SET status='PENDING_DELETION' WHERE id=$1`, [userB]);
       const msg = await expectRejection(() =>
-        c.query(`INSERT INTO sessions (consent_id, livekit_room) VALUES ($1,'room-s04')`, [consentId]),
+        c.query(`INSERT INTO sessions (consent_id, livekit_room) VALUES ($1,'room-s04')`, [
+          consentId,
+        ]),
       );
       expect(msg).toMatch(/participant not ACTIVE/);
     });
@@ -334,7 +346,9 @@ describe('SESSION eligibility (V1.2 §2.2 trigger)', () => {
       const { consentId, userA, userB } = await mkConsent(c, 'ACCEPTED_BOTH');
       await c.query(`INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1,$2)`, [userA, userB]);
       const msg = await expectRejection(() =>
-        c.query(`INSERT INTO sessions (consent_id, livekit_room) VALUES ($1,'room-s05')`, [consentId]),
+        c.query(`INSERT INTO sessions (consent_id, livekit_room) VALUES ($1,'room-s05')`, [
+          consentId,
+        ]),
       );
       expect(msg).toMatch(/block exists between participants/);
     });
@@ -345,7 +359,9 @@ describe('SESSION eligibility (V1.2 §2.2 trigger)', () => {
       const { consentId, userA, userB } = await mkConsent(c, 'ACCEPTED_BOTH');
       await c.query(`INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1,$2)`, [userB, userA]);
       const msg = await expectRejection(() =>
-        c.query(`INSERT INTO sessions (consent_id, livekit_room) VALUES ($1,'room-s06')`, [consentId]),
+        c.query(`INSERT INTO sessions (consent_id, livekit_room) VALUES ($1,'room-s06')`, [
+          consentId,
+        ]),
       );
       expect(msg).toMatch(/block exists between participants/);
     });
@@ -366,9 +382,13 @@ describe('SESSION eligibility (V1.2 §2.2 trigger)', () => {
   test('S08 second Session for the same Consent is rejected (UNIQUE consent_id)', async () => {
     await withRollback(ownerPool, async (c) => {
       const { consentId } = await mkConsent(c, 'ACCEPTED_BOTH');
-      await c.query(`INSERT INTO sessions (consent_id, livekit_room) VALUES ($1,'room-s08-a')`, [consentId]);
+      await c.query(`INSERT INTO sessions (consent_id, livekit_room) VALUES ($1,'room-s08-a')`, [
+        consentId,
+      ]);
       const msg = await expectRejection(() =>
-        c.query(`INSERT INTO sessions (consent_id, livekit_room) VALUES ($1,'room-s08-b')`, [consentId]),
+        c.query(`INSERT INTO sessions (consent_id, livekit_room) VALUES ($1,'room-s08-b')`, [
+          consentId,
+        ]),
       );
       expect(msg).toMatch(/duplicate key|sessions_consent_id_key/i);
     });

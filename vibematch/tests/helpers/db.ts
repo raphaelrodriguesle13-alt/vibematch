@@ -1,12 +1,7 @@
 import { Pool, PoolClient } from 'pg';
 
 type RuntimeRole =
-  | 'svc_auth'
-  | 'svc_profile'
-  | 'svc_matchmaking'
-  | 'svc_video'
-  | 'svc_moderation'
-  | 'svc_billing';
+  'svc_auth' | 'svc_profile' | 'svc_matchmaking' | 'svc_video' | 'svc_moderation' | 'svc_billing';
 
 type IdRow = { id: string };
 
@@ -61,10 +56,7 @@ export async function expectDbError(
   }
 }
 
-export async function withRollback<T>(
-  pool: Pool,
-  fn: (c: PoolClient) => Promise<T>,
-): Promise<T> {
+export async function withRollback<T>(pool: Pool, fn: (c: PoolClient) => Promise<T>): Promise<T> {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
