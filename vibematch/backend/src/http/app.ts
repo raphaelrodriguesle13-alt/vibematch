@@ -1,5 +1,7 @@
 import fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import type { SessionTokenClaims, SessionTokenVerifier } from '../shared/providers';
+import { ChatRequestValidationError, type ChatRequest, type ChatService } from '../chat/service';
+import { ChatGptProviderError } from '../shared/providers/openai';
 import { AuthError, type AuthService } from '../auth/service';
 import type { AuthSession } from '../auth/repository';
 
@@ -12,10 +14,12 @@ export interface AuthHttpDependencies {
   authService: Pick<AuthService, 'loginWithGoogle' | 'logout'>;
   sessionTokenVerifier: SessionTokenVerifier;
   activeSessionStore: ActiveSessionStore;
+  chatService?: Pick<ChatService, 'respond'>;
   now?: () => Date;
 }
 
 type GoogleLoginBody = { google_id_token?: unknown };
+type ChatBody = { message?: unknown; history?: unknown };
 
 type AuthenticatedRequest = {
   claims: SessionTokenClaims;
@@ -64,7 +68,7 @@ export const buildApp = (deps: AuthHttpDependencies): FastifyInstance => {
   const app = fastify({ logger: false });
   const now = deps.now ?? (() => new Date());
 
-  app.get('/health', async () => ({ ok: true }));
+  app.get('/health', () => ({ ok: true }));
 
   app.post<{ Body: GoogleLoginBody }>('/auth/google', async (request, reply) => {
     const googleIdToken = request.body?.google_id_token;
@@ -101,6 +105,41 @@ export const buildApp = (deps: AuthHttpDependencies): FastifyInstance => {
     if (!auth) return;
     await deps.authService.logout(auth.claims.userId, auth.claims.sessionId);
     return reply.code(200).send({ ok: true });
+  });
+
+  app.post<{ Body: ChatBody }>('/api/chat', async (request, reply) => {
+    const auth = await authenticate(request, reply, deps, now);
+    if (!auth) return;
+    if (!deps.chatService) {
+      return reply.code(503).send({ error: 'CHAT_NOT_CONFIGURED' });
+    }
+
+    try {
+      const result = await deps.chatService.respond(request.body as ChatRequest);
+      return reply.code(200).send({
+        data: {
+          request_id: result.requestId,
+          model: result.model,
+          text: result.text,
+        },
+      });
+    } catch (error) {
+      if (error instanceof ChatRequestValidationError) {
+        return reply.code(400).send({ error: 'INVALID_REQUEST' });
+      }
+      if (error instanceof ChatGptProviderError) {
+        if (error.kind === 'timeout') {
+          return reply.code(504).send({ error: 'CHAT_PROVIDER_TIMEOUT' });
+        }
+        request.log.error(
+          { kind: error.kind, statusCode: error.statusCode },
+          'chat provider failed',
+        );
+        return reply.code(502).send({ error: 'CHAT_PROVIDER_UNAVAILABLE' });
+      }
+      request.log.error({ err: error }, 'api/chat failed');
+      return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+    }
   });
 
   return app;

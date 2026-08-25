@@ -89,3 +89,26 @@ export interface NotificationsProvider {
 export interface AdsProvider {
   readonly name: string;
 }
+
+/** Mensagens aceitas pelo adaptador server-side da OpenAI Responses API. */
+export type ChatGptMessageRole = 'developer' | 'system' | 'user' | 'assistant';
+
+export interface ChatGptMessage {
+  role: ChatGptMessageRole;
+  content: string;
+}
+
+export interface ChatGptGenerateParams {
+  messages: ChatGptMessage[];
+}
+
+export interface ChatGptGenerateResult {
+  id: string;
+  model: string;
+  text: string;
+}
+
+/** Contrato do domínio; a aplicação não importa SDK de fornecedor. */
+export interface ChatGptProvider {
+  generate(params: ChatGptGenerateParams): Promise<ChatGptGenerateResult>;
+}

@@ -64,7 +64,10 @@ export class PhoneVerificationService {
     this.now = options.now ?? (() => new Date());
   }
 
-  async start(userId: string, phoneE164: string): Promise<{ verificationId: string; expiresAt: Date }> {
+  async start(
+    userId: string,
+    phoneE164: string,
+  ): Promise<{ verificationId: string; expiresAt: Date }> {
     const normalized = phoneE164.trim();
     if (!E164.test(normalized)) {
       throw new PhoneVerificationError('INVALID_PHONE', 'Phone must use E.164 format');

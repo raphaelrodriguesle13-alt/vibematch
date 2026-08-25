@@ -1,4 +1,4 @@
-import { importPKCS8, importSPKI, jwtVerify, SignJWT } from 'jose';
+import { importPKCS8, importSPKI, jwtVerify, SignJWT, type CryptoKey } from 'jose';
 import type {
   SessionTokenClaims,
   SessionTokenProvider,

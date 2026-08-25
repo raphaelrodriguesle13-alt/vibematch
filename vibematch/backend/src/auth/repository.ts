@@ -173,10 +173,7 @@ export class AuthRepository {
     return row ? this.mapPhoneVerification(row) : null;
   }
 
-  async incrementPhoneVerificationAttempts(
-    userId: string,
-    verificationId: string,
-  ): Promise<void> {
+  async incrementPhoneVerificationAttempts(userId: string, verificationId: string): Promise<void> {
     await this.pool.query(
       `UPDATE phone_verifications
        SET attempts = attempts + 1

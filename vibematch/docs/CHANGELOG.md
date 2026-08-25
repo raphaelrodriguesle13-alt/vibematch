@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased] — Chat Android conectado ao backend
+
+### Adicionado
+
+- Rota autenticada `POST /api/chat` integrada ao Fastify e ao middleware de sessão existente.
+- Adaptador server-side da OpenAI Responses API com timeout e erros públicos estáveis.
+- Primeiro módulo Android em Kotlin + Jetpack Compose, com tela de conversa, ViewModel e cliente OkHttp.
+- Configuração `API_BASE_URL` para apontar o emulador para o backend local.
+- Testes unitários do serviço, do adaptador e do contrato HTTP do chat.
+
+### Limitações conhecidas
+
+- O login Google ainda não está ligado à Activity; o token informado na tela é temporário,
+  fica somente em memória e serve apenas para desenvolvimento.
+- HTTPS, armazenamento seguro de sessão, rate limiting e persistência de conversas ainda estão pendentes.
+
 ## [0.1.0] — Etapa 0 + Etapa 1 (implementação de schema e fundação)
 
 ### Adicionado

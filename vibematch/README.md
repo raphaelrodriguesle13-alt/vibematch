@@ -3,8 +3,9 @@
 Plataforma de descoberta social por interesses com **vídeo liberado somente após
 consentimento explícito e mútuo**. Fonte técnica de verdade: **Blueprint V1.2**.
 
-> **Estado:** Etapas 0–1 (fundação + schema). Nenhuma API, app Android ou integração
-> de fornecedor implementada. Ver `docs/ARCHITECTURE.md`.
+> **Estado:** fundação, schema e primeira camada de autenticação implementados no branch
+> de continuidade. O backend também expõe chat autenticado e o primeiro cliente Android
+> do chat já está disponível. Ver `docs/ARCHITECTURE.md` e `docs/CHATGPT_INTEGRATION.md`.
 
 ## Requisitos
 
@@ -20,6 +21,19 @@ bash scripts/db-up.sh     # sobe PostgreSQL + Redis
 npm run migrate           # aplica o schema completo
 bash scripts/db-roles.sh  # habilita LOGIN dos papéis de runtime
 ```
+
+## Backend e chat
+
+O backend Fastify expõe autenticação Google, logout com sessão revogável e `POST /api/chat`,
+que exige um Bearer token de sessão antes de chamar o ChatGPT. A configuração detalhada
+está em `docs/CHATGPT_INTEGRATION.md`.
+
+## Cliente Android
+
+A primeira tela Compose está em `android/`. Para apontar o emulador ao backend local, use
+`./gradlew :app:assembleDebug -PAPI_BASE_URL=http://10.0.2.2:3000`. A tela usa um token de
+sessão temporário apenas durante o desenvolvimento, até a integração do login Google no
+cliente.
 
 ## Testes
 

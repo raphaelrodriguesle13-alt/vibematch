@@ -1,7 +1,7 @@
 name: CI
 
 on:
-  push: { branches: [main] }
+  push: { branches: [main, continuity] }
   pull_request:
 
 jobs:
@@ -39,12 +39,7 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      # NOTA: "npm ci" exige package-lock.json versionado. Este repositório ainda
-      # NÃO tem um (correção 10) — foi gerado em ambiente sem acesso ao registry npm
-      # (ver FINAL_IMPLEMENTATION_REPORT.md, seção K). Este passo FALHARÁ até que o
-      # proprietário rode "npm install" uma vez com acesso real ao registry e
-      # commite o package-lock.json resultante. Depois disso, este passo funciona
-      # sem qualquer outra alteração.
+      # O package-lock.json é versionado; npm ci mantém a instalação reproduzível.
       - name: Install dependencies
         run: npm ci
 
@@ -76,6 +71,9 @@ jobs:
 
       - name: Database + privilege tests (Gates 42/43/44)
         run: npm run test:db
+
+      - name: Auth and Chat HTTP tests
+        run: npm run test:unit
 
       - name: Secret scanning
         uses: gitleaks/gitleaks-action@v2

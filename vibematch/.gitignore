@@ -6,3 +6,8 @@ coverage/
 !.env.example
 *.log
 .DS_Store
+.gradle/
+**/build/
+local.properties
+.idea/
+*.iml
