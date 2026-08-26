@@ -11,7 +11,21 @@ function required(name: string): string {
   if (!v || v.trim() === '') {
     throw new Error(`Missing required environment variable: ${name}`);
   }
-  return v;
+  return v.trim();
+}
+
+function requiredUrl(name: string, protocol: 'https:' | 'wss:'): string {
+  const value = required(name);
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`Environment variable ${name} must be a valid URL`);
+  }
+  if (parsed.protocol !== protocol) {
+    throw new Error(`Environment variable ${name} must use ${protocol.replace(':', '://')}`);
+  }
+  return value.replace(/\/+$/, '');
 }
 
 function intFromEnv(name: string, fallback: number): number {
@@ -33,8 +47,11 @@ export const env = {
 
   consentDecisionExpirySeconds: intFromEnv('CONSENT_DECISION_EXPIRY_SECONDS', 86400),
 
-  /** LiveKit: URL pública para RTC e credenciais somente server-side. */
-  liveKitUrl: () => required('LIVEKIT_URL'),
+  /** LiveKit RTC público consumido pelo cliente. Nunca contém segredo. */
+  liveKitRtcUrl: () => requiredUrl('LIVEKIT_URL', 'wss:'),
+
+  /** LiveKit API administrativa usada somente no backend. */
+  liveKitApiUrl: () => requiredUrl('LIVEKIT_API_URL', 'https:'),
   liveKitApiKey: () => required('LIVEKIT_API_KEY'),
   liveKitApiSecret: () => required('LIVEKIT_API_SECRET'),
 
@@ -47,7 +64,9 @@ export const env = {
   /** 'env' apenas para desenvolvimento/teste; produção usa GCP Secret Manager. */
   secretBackend: (process.env.SECRET_BACKEND ?? 'env') as 'env' | 'gcp-secret-manager',
 
+  /** Owner/migrations. Runtime de vídeo deve usar exclusivamente svc_video. */
   databaseUrl: () => required('DATABASE_URL'),
+  videoDatabaseUrl: () => required('DATABASE_URL_VIDEO'),
 } as const;
 
 /**
