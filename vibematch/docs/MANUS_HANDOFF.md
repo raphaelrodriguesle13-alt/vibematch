@@ -109,7 +109,7 @@ O APK debug está em `android/app/build/outputs/apk/debug/app-debug.apk`.
 
 | Artefato        | SHA-256                                                            |
 | --------------- | ------------------------------------------------------------------ |
-| `app-debug.apk` | `9a1731acfc80b8311a1f379f985b2591c7678f522687357e30ade30e6d8943f4` |
+| `app-debug.apk` | `72b8cbfdc55230810be299da1573af69e39d4ebedcdc65678e6c707ba7236f5b` |
 
 A suíte PostgreSQL/migrations não foi executada neste sandbox por ausência de `DATABASE_URL_OWNER` e das demais URLs de banco de teste. Os testes DB de telefone, revogação, rate limiting, privilégios e imutabilidade devem ser repetidos no CI ou em ambiente local com PostgreSQL configurado. Isso é uma limitação ambiental, não uma falha dos gates unitários executados.
 
