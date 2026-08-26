@@ -100,9 +100,7 @@ export class ProfileRepository implements ProfileRepositoryPort {
         }
 
         const interests =
-          interestIds.length === 0
-            ? []
-            : await this.listInterestsWithClient(client, interestIds);
+          interestIds.length === 0 ? [] : await this.listInterestsWithClient(client, interestIds);
         await client.query('COMMIT');
         return this.mapProfile(first(profile), interests);
       } catch (error) {
