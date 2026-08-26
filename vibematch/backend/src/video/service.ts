@@ -15,7 +15,15 @@ export type AuthorizedVideoParticipant = {
   userId: string;
 };
 
+export type VideoRateLimitScope = 'SESSION_CREATE' | 'TOKEN';
+
 export interface VideoSessionRepositoryPort {
+  consumeRateLimit(
+    userId: string,
+    scope: VideoRateLimitScope,
+    now: Date,
+    limit: number,
+  ): Promise<boolean>;
   createAuthorized(
     userId: string,
     consentId: string,
@@ -39,7 +47,10 @@ export interface VideoTokenProvider {
 }
 
 export type VideoAuthorizationErrorCode =
-  'INVALID_VIDEO_REQUEST' | 'VIDEO_NOT_AUTHORIZED' | 'VIDEO_PROVIDER_UNAVAILABLE';
+  | 'INVALID_VIDEO_REQUEST'
+  | 'VIDEO_NOT_AUTHORIZED'
+  | 'VIDEO_PROVIDER_UNAVAILABLE'
+  | 'RATE_LIMITED';
 
 export class VideoAuthorizationError extends Error {
   constructor(
@@ -59,14 +70,20 @@ export class VideoSessionService {
     private readonly tokenProvider: VideoTokenProvider,
     private readonly now: () => Date = () => new Date(),
     private readonly tokenTtlSeconds = 120,
+    private readonly requestRateLimit = 30,
   ) {}
 
   async create(userId: string, consentId: string): Promise<VideoSession> {
     if (!UUID.test(consentId)) {
       throw new VideoAuthorizationError('INVALID_VIDEO_REQUEST', 'Consent id is invalid');
     }
+    const now = this.now();
+    if (!(await this.repository.consumeRateLimit(userId, 'SESSION_CREATE', now, this.requestRateLimit))) {
+      throw new VideoAuthorizationError('RATE_LIMITED', 'Video session rate limit exceeded');
+    }
+
     const roomName = `vibematch-${randomUUID()}`;
-    const session = await this.repository.createAuthorized(userId, consentId, roomName, this.now());
+    const session = await this.repository.createAuthorized(userId, consentId, roomName, now);
     if (!session) {
       throw new VideoAuthorizationError('VIDEO_NOT_AUTHORIZED', 'Video session is not authorized');
     }
@@ -78,9 +95,14 @@ export class VideoSessionService {
       throw new VideoAuthorizationError('INVALID_VIDEO_REQUEST', 'Session id is invalid');
     }
 
+    const now = this.now();
+    if (!(await this.repository.consumeRateLimit(userId, 'TOKEN', now, this.requestRateLimit))) {
+      throw new VideoAuthorizationError('RATE_LIMITED', 'Video token rate limit exceeded');
+    }
+
     // Security boundary: this database revalidation happens immediately before token signing.
-    // The Android client cannot supply consent, age, block, or session authorization state.
-    const authorized = await this.repository.revalidateParticipant(userId, sessionId, this.now());
+    // The Android client cannot supply consent, age, block, phone, or session authorization state.
+    const authorized = await this.repository.revalidateParticipant(userId, sessionId, now);
     if (!authorized) {
       throw new VideoAuthorizationError('VIDEO_NOT_AUTHORIZED', 'Video token is not authorized');
     }
