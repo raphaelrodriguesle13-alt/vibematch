@@ -1,5 +1,4 @@
 import {
-  ProfileError,
   ProfileService,
   type ProfileRepositoryPort,
   type UpdateProfileInput,
@@ -62,7 +61,7 @@ describe('ProfileService', () => {
     const input = validInput();
     input.avatarUrl = 'http://example.com/avatar.png';
 
-    await expect(service.update('user-1', input)).rejects.toMatchObject<ProfileError>({
+    await expect(service.update('user-1', input)).rejects.toMatchObject({
       code: 'INVALID_PROFILE',
     });
   });
@@ -72,7 +71,7 @@ describe('ProfileService', () => {
     const input = validInput();
     input.interestIds = ['not-a-uuid'];
 
-    await expect(service.update('user-1', input)).rejects.toMatchObject<ProfileError>({
+    await expect(service.update('user-1', input)).rejects.toMatchObject({
       code: 'INVALID_INTERESTS',
     });
   });
