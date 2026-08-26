@@ -66,6 +66,9 @@ import com.vibematch.app.auth.PhoneVerificationViewModel
 import com.vibematch.app.auth.PhoneVerificationViewModelFactory
 import com.vibematch.app.auth.SecureSessionStore
 import com.vibematch.app.chat.ChatMessage
+import com.vibematch.app.matching.MatchIntentApiClient
+import com.vibematch.app.matching.MatchIntentViewModel
+import com.vibematch.app.matching.MatchIntentViewModelFactory
 import com.vibematch.app.profile.ProfileApiClient
 import com.vibematch.app.profile.ProfileGate
 import com.vibematch.app.profile.ProfileViewModel
@@ -117,12 +120,20 @@ class MainActivity : ComponentActivity() {
                         onPhoneVerified = authViewModel::markPhoneVerified,
                     ),
                 )
+                val matchIntentViewModel: MatchIntentViewModel = viewModel(
+                    factory = MatchIntentViewModelFactory(
+                        gateway = MatchIntentApiClient(BuildConfig.API_BASE_URL),
+                        accessTokenProvider = sessionStore::readAccessToken,
+                        onSessionExpired = authViewModel::signOut,
+                    ),
+                )
                 VibeMatchApp(
                     activity = this@MainActivity,
                     authViewModel = authViewModel,
                     chatViewModel = chatViewModel,
                     profileViewModel = profileViewModel,
                     phoneViewModel = phoneViewModel,
+                    matchIntentViewModel = matchIntentViewModel,
                 )
             }
         }
@@ -148,15 +159,18 @@ private fun VibeMatchApp(
     chatViewModel: ChatViewModel,
     profileViewModel: ProfileViewModel,
     phoneViewModel: PhoneVerificationViewModel,
+    matchIntentViewModel: MatchIntentViewModel,
 ) {
     val authState by authViewModel.state
     val session = authState.session
     val sessionId = session?.userId
     var showProfile by remember(sessionId) { mutableStateOf(false) }
+    var showMatchIntents by remember(sessionId) { mutableStateOf(false) }
 
     LaunchedEffect(sessionId) {
         profileViewModel.reset()
         phoneViewModel.reset()
+        matchIntentViewModel.reset()
         if (sessionId != null) profileViewModel.load()
     }
 
@@ -164,42 +178,60 @@ private fun VibeMatchApp(
         LoginScreen(activity, authViewModel)
     } else {
         val profileState by profileViewModel.state
-        if (
-            !profileState.hasLoaded ||
+        when {
+            showProfile ||
+                !profileState.hasLoaded ||
                 profileState.profileIncomplete ||
-                profileState.gate != ProfileGate.READY ||
-                showProfile
-        ) {
-            ProfileScreen(
-                viewModel = profileViewModel,
-                onClose = { showProfile = false },
-                onLogout = {
-                    profileViewModel.reset()
-                    chatViewModel.clearConversation()
-                    phoneViewModel.reset()
-                    authViewModel.signOut()
-                },
-            )
-        } else if (!session.phoneVerified) {
-            PhoneVerificationScreen(
-                viewModel = phoneViewModel,
-                onLogout = {
-                    phoneViewModel.reset()
-                    chatViewModel.clearConversation()
-                    authViewModel.signOut()
-                },
-            )
-        } else {
-            ChatScreen(
-                viewModel = chatViewModel,
-                isSigningOut = authState.isLoading,
-                onLogout = {
-                    chatViewModel.clearConversation()
-                    phoneViewModel.reset()
-                    authViewModel.signOut()
-                },
-                onOpenProfile = { showProfile = true },
-            )
+                profileState.gate != ProfileGate.READY -> {
+                ProfileScreen(
+                    viewModel = profileViewModel,
+                    onClose = { showProfile = false },
+                    onLogout = {
+                        profileViewModel.reset()
+                        matchIntentViewModel.reset()
+                        chatViewModel.clearConversation()
+                        phoneViewModel.reset()
+                        authViewModel.signOut()
+                    },
+                )
+            }
+            showMatchIntents -> {
+                MatchIntentScreen(
+                    viewModel = matchIntentViewModel,
+                    onClose = { showMatchIntents = false },
+                    onLogout = {
+                        matchIntentViewModel.reset()
+                        chatViewModel.clearConversation()
+                        phoneViewModel.reset()
+                        authViewModel.signOut()
+                    },
+                )
+            }
+            !session.phoneVerified -> {
+                PhoneVerificationScreen(
+                    viewModel = phoneViewModel,
+                    onLogout = {
+                        phoneViewModel.reset()
+                        matchIntentViewModel.reset()
+                        chatViewModel.clearConversation()
+                        authViewModel.signOut()
+                    },
+                )
+            }
+            else -> {
+                ChatScreen(
+                    viewModel = chatViewModel,
+                    isSigningOut = authState.isLoading,
+                    onLogout = {
+                        chatViewModel.clearConversation()
+                        matchIntentViewModel.reset()
+                        phoneViewModel.reset()
+                        authViewModel.signOut()
+                    },
+                    onOpenProfile = { showProfile = true },
+                    onOpenMatchIntents = { showMatchIntents = true },
+                )
+            }
         }
     }
 }
@@ -278,6 +310,7 @@ private fun ChatScreen(
     isSigningOut: Boolean,
     onLogout: () -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenMatchIntents: () -> Unit,
 ) {
     val state by viewModel.state
     var draft by remember { mutableStateOf("") }
@@ -298,6 +331,7 @@ private fun ChatScreen(
                 isSigningOut = isSigningOut,
                 onLogout = onLogout,
                 onOpenProfile = onOpenProfile,
+                onOpenMatchIntents = onOpenMatchIntents,
             )
             if (state.messages.isEmpty()) {
                 EmptyChat(modifier = Modifier.weight(1f))
@@ -342,6 +376,7 @@ private fun ChatHeader(
     isSigningOut: Boolean,
     onLogout: () -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenMatchIntents: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -378,6 +413,9 @@ private fun ChatHeader(
         }
         TextButton(onClick = onOpenProfile, enabled = !isSigningOut) {
             Text("Perfil", color = VibePurple)
+        }
+        TextButton(onClick = onOpenMatchIntents, enabled = !isSigningOut) {
+            Text("Solicitações", color = VibePurple)
         }
         TextButton(onClick = onLogout, enabled = !isSigningOut) {
             Text("Sair", color = VibePurple)
@@ -611,6 +649,209 @@ private fun ProfileScreen(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun MatchIntentScreen(
+    viewModel: MatchIntentViewModel,
+    onClose: () -> Unit,
+    onLogout: () -> Unit,
+) {
+    val state by viewModel.state
+
+    LaunchedEffect(Unit) {
+        viewModel.load(refresh = true)
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = VibeBackground,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = onClose) {
+                    Text("Voltar", color = VibePurple)
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Solicitações",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = "Conexões recebidas",
+                        modifier = Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF72717D),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                TextButton(onClick = onLogout, enabled = !state.isLoading && state.respondingIntentId == null) {
+                    Text("Sair", color = VibePurple)
+                }
+            }
+
+            state.errorMessage?.let { error ->
+                ErrorBanner(error) { viewModel.clearMessages() }
+            }
+            state.infoMessage?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF2F7D4A),
+                )
+            }
+
+            when {
+                state.isLoading -> {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(color = VibePurple)
+                    }
+                }
+                state.ageBlocked -> {
+                    MatchIntentBlockedCard(modifier = Modifier.weight(1f))
+                }
+                state.incoming.isEmpty() -> {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            text = "Nenhuma solicitação no momento.",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                        )
+                        Text(
+                            text = "Novas conexões aparecerão aqui quando o backend as disponibilizar.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFF72717D),
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        contentPadding = PaddingValues(bottom = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        items(state.incoming, key = { it.id }) { intent ->
+                            MatchIntentCard(
+                                intent = intent,
+                                isResponding = state.respondingIntentId == intent.id,
+                                onDecision = { decision -> viewModel.respond(intent.id, decision) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MatchIntentCard(
+    intent: com.vibematch.app.matching.MatchIntent,
+    isResponding: Boolean,
+    onDecision: (com.vibematch.app.matching.MatchIntentDecision) -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color.White,
+        shape = RoundedCornerShape(20.dp),
+        tonalElevation = 2.dp,
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = "Nova intenção de conexão",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = "Alguém quer iniciar uma conexão com você. Aceitar a intenção não cria uma sessão de vídeo: qualquer recurso de vídeo dependerá de consentimento mútuo e revalidação do backend.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF5E5D68),
+            )
+            if (intent.status == com.vibematch.app.matching.MatchIntentStatus.SENT) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    TextButton(
+                        onClick = { onDecision(com.vibematch.app.matching.MatchIntentDecision.DECLINED) },
+                        enabled = !isResponding,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Recusar", color = Color(0xFF8A3D4A))
+                    }
+                    Button(
+                        onClick = { onDecision(com.vibematch.app.matching.MatchIntentDecision.ACCEPTED) },
+                        enabled = !isResponding,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = VibePurple),
+                        shape = RoundedCornerShape(14.dp),
+                    ) {
+                        if (isResponding) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            Text("Aceitar")
+                        }
+                    }
+                }
+            } else {
+                Text(
+                    text = "Esta solicitação não pode mais ser decidida.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF72717D),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MatchIntentBlockedCard(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = "Matchmaking indisponível",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = "O backend ainda não autorizou o uso de solicitações. Nenhuma ação local pode liberar este recurso.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF72717D),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 8.dp),
+        )
     }
 }
 

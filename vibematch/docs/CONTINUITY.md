@@ -17,15 +17,17 @@ Atualizado em 2026-08-26.
 - O Android consulta `GET /api/age-assurance/status` e mantém o usuário no cartão de bloqueio para qualquer status não aprovado ou desconhecido.
 - O Android agora possui onboarding telefônico em duas etapas, com `POST /auth/phone/start` e `POST /auth/phone/confirm`, antes de exibir o chat.
 - A confirmação server-side atualiza apenas a dica local `phone_verified`; o JWT existente não é renovado pelo cliente.
-- A próxima barreira legítima é validar SMS/OAuth em dispositivo, renovar/expirar sessões e obter evidência verde de CI/migrations/testes.
+- O Android agora possui uma inbox de MatchIntent para `GET /api/match-intents/incoming` e respostas `ACCEPTED`/`DECLINED`, sempre depois de perfil, Age Assurance e telefone confirmados.
+- O backend reforçou os gates de telefone para MatchIntent, Consent e Video e revoga estados restritos quando a verificação é perdida.
+- A próxima barreira legítima é validar SMS/OAuth/MatchIntent em dispositivo, renovar/expirar sessões e obter evidência verde de CI/migrations/testes.
 
 ## Ordem de continuidade
 
 1. Validar CI e migrations Up/Down/Up.
 2. Corrigir qualquer falha das etapas 0–1.
-3. Validar o onboarding de telefone com provedor SMS real e tratar expiração/renovação de sessão.
+3. Validar telefone e MatchIntent com provedores/ambiente reais e tratar expiração/renovação de sessão.
 4. Consolidar o chat Android: HTTPS, rate limiting, persistência e observabilidade.
-5. Consumir MatchIntent no Android somente após a UX e os contratos de consentimento existirem.
+5. Adicionar rota HTTP pública de Consent antes de implementar consentimento mútuo no Android.
 6. Etapa 6: Consent mútuo.
 7. Etapa 7: Video Session/LiveKit com revalidação JIT.
 8. Etapa 8: denúncia, bloqueio e moderação.

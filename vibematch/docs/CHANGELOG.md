@@ -21,12 +21,16 @@
 - Status desconhecido, indisponibilidade do endpoint e `AGE_ASSURANCE_REQUIRED` não liberam recursos restritos localmente.
 - Onboarding Android de telefone em duas etapas, consumindo `POST /auth/phone/start` e `POST /auth/phone/confirm`.
 - Atualização local de `phone_verified` somente após confirmação positiva do backend, com retorno ao login em HTTP 401.
-- Testes Android de contrato JSON, Age Assurance, telefone, AuthViewModel e ProfileViewModel.
+- Cliente e ViewModel Android de MatchIntent para listar solicitações recebidas e responder `ACCEPTED` ou `DECLINED`.
+- Tela Compose de solicitações acessível pelo Chat somente após perfil, Age Assurance e telefone confirmados.
+- Aceite de MatchIntent sem criação local de Consent, vídeo, token RTC ou entitlement.
+- Testes Android de contrato JSON, Age Assurance, telefone, MatchIntent, AuthViewModel e ProfileViewModel.
 
 ### Limitações conhecidas
 
 - A validação OAuth Google em dispositivo, renovação de sessão, rate limiting, persistência de conversas e observabilidade ainda estão pendentes.
 - A configuração real do Web client ID e a validação OAuth em dispositivo ainda dependem do ambiente Google do projeto.
+- O backend ainda não expõe uma rota HTTP pública de Consent; a UX Android de consentimento mútuo permanece bloqueada até esse contrato existir.
 
 ## [0.1.0] — Etapa 0 + Etapa 1 (implementação de schema e fundação)
 
