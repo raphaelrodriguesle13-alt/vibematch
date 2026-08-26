@@ -43,22 +43,34 @@ describe('Direct invocation of administrative SECURITY DEFINER functions is deni
   });
 });
 
-describe('PUBLIC has no EXECUTE on administrative functions (catalog check)', () => {
+describe('PUBLIC has no EXECUTE on protected database functions', () => {
   test('effective ACL contains no PUBLIC execute grant', async () => {
-    const r = await ownerPool.query<FunctionAclRow>(`
-      SELECT p.proname,
-             EXISTS (
-               SELECT 1
-               FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS a
-               WHERE a.grantee = 0
-                 AND a.privilege_type = 'EXECUTE'
-             ) AS public_execute
-      FROM pg_proc AS p
-      WHERE p.proname IN ('verify_audit_chain','verify_consent_decision_chain',
-                           'audit_logs_hash_chain','consent_decisions_hash_chain')
-    `);
+    const protectedFunctions = [
+      'verify_audit_chain',
+      'verify_consent_decision_chain',
+      'audit_logs_hash_chain',
+      'consent_decisions_hash_chain',
+      'enforce_match_intent_phone_verification',
+      'enforce_consent_phone_verification',
+      'enforce_session_phone_verification',
+      'revoke_restricted_state_on_phone_unverified',
+      'revoke_restricted_state_on_block',
+    ];
+    const r = await ownerPool.query<FunctionAclRow>(
+      `SELECT p.proname,
+              EXISTS (
+                SELECT 1
+                FROM aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS a
+                WHERE a.grantee = 0
+                  AND a.privilege_type = 'EXECUTE'
+              ) AS public_execute
+       FROM pg_proc AS p
+       WHERE p.proname = ANY($1::text[])
+       ORDER BY p.proname`,
+      [protectedFunctions],
+    );
 
-    expect(r.rows.length).toBeGreaterThan(0);
+    expect(new Set(r.rows.map((row) => row.proname))).toEqual(new Set(protectedFunctions));
     for (const row of r.rows) {
       expect(row.public_execute).toBe(false);
     }
