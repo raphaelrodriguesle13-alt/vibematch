@@ -29,6 +29,7 @@ export interface BillingRepositoryPort {
     currentPeriodEnd: Date;
     now: Date;
   }): Promise<SubscriptionEntitlement | null>;
+  findLatestEntitlementForUser(userId: string): Promise<SubscriptionEntitlement | null>;
   findUserIdByPurchaseToken(purchaseToken: string): Promise<string | null>;
   recordBillingEvent(input: {
     notificationId: string;
@@ -65,6 +66,22 @@ export class BillingService {
     private readonly verifier: GooglePlaySubscriptionVerifier,
     private readonly now: () => Date = () => new Date(),
   ) {}
+
+  async getEntitlement(userId: string): Promise<SubscriptionEntitlement | null> {
+    if (!UUID.test(userId)) {
+      throw new BillingError('INVALID_BILLING_REQUEST', 'Billing request is invalid');
+    }
+    if (!(await this.repository.isUserActive(userId))) {
+      throw new BillingError('ACCOUNT_UNAVAILABLE', 'Account is not eligible for billing');
+    }
+
+    const stored = await this.repository.findLatestEntitlementForUser(userId);
+    if (!stored) return null;
+    return {
+      ...stored,
+      entitled: isEntitled(stored.status, stored.currentPeriodEnd, this.now()),
+    };
+  }
 
   async verifyPurchase(userId: string, purchaseToken: string): Promise<SubscriptionEntitlement> {
     if (!UUID.test(userId) || !purchaseToken.trim()) {
