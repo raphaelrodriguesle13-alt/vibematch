@@ -1,9 +1,16 @@
+import { jest } from '@jest/globals';
+
 import {
   AgeAssuranceService,
   type AgeAssuranceRepositoryPort,
   type AgeAssuranceSession,
   type AgeAssuranceStatus,
 } from '../../backend/src/profile/age-assurance';
+import type {
+  AgeAssuranceProvider,
+  AgeAssuranceResult,
+  AgeAssuranceStart,
+} from '../../backend/src/shared/providers';
 
 class FakeAgeAssuranceRepository implements AgeAssuranceRepositoryPort {
   session: AgeAssuranceSession | null = null;
@@ -62,13 +69,20 @@ describe('AgeAssuranceService', () => {
 
   test('starts a hosted provider session and persists only its reference and URL', async () => {
     const repository = new FakeAgeAssuranceRepository('NOT_STARTED');
-    const provider = {
-      start: jest.fn().mockResolvedValue({
-        sessionRef: 'didit-session-1',
-        verificationUrl: 'https://verify.didit.me/session/example',
-      }),
-      getResult: jest.fn(),
-      verifyWebhookSignature: jest.fn(),
+    const provider: AgeAssuranceProvider = {
+      start: jest.fn(() =>
+        Promise.resolve<AgeAssuranceStart>({
+          sessionRef: 'didit-session-1',
+          verificationUrl: 'https://verify.didit.me/session/example',
+        }),
+      ),
+      getResult: jest.fn(() =>
+        Promise.resolve<AgeAssuranceResult>({
+          decision: 'PENDING',
+          providerTransactionId: 'didit-session-1',
+        }),
+      ),
+      verifyWebhookSignature: jest.fn(() => true),
     };
     const service = new AgeAssuranceService(repository, provider);
 
@@ -87,13 +101,20 @@ describe('AgeAssuranceService', () => {
       verificationUrl: 'https://verify.didit.me/session/example',
       status: 'PENDING',
     };
-    const provider = {
-      start: jest.fn(),
-      getResult: jest.fn().mockResolvedValue({
-        decision: 'APPROVED' as const,
-        providerTransactionId: 'didit-session-1',
-      }),
-      verifyWebhookSignature: jest.fn(),
+    const provider: AgeAssuranceProvider = {
+      start: jest.fn(() =>
+        Promise.resolve<AgeAssuranceStart>({
+          sessionRef: 'unused',
+          verificationUrl: 'https://verify.didit.me/session/example',
+        }),
+      ),
+      getResult: jest.fn(() =>
+        Promise.resolve<AgeAssuranceResult>({
+          decision: 'APPROVED',
+          providerTransactionId: 'didit-session-1',
+        }),
+      ),
+      verifyWebhookSignature: jest.fn(() => true),
     };
     const service = new AgeAssuranceService(repository, provider);
 
@@ -110,9 +131,14 @@ describe('AgeAssuranceService', () => {
       status: 'PENDING',
     };
     const service = new AgeAssuranceService(repository, {
-      start: jest.fn(),
-      getResult: jest.fn().mockRejectedValue(new Error('provider down')),
-      verifyWebhookSignature: jest.fn(),
+      start: jest.fn(() =>
+        Promise.resolve<AgeAssuranceStart>({
+          sessionRef: 'unused',
+          verificationUrl: 'https://verify.didit.me/session/example',
+        }),
+      ),
+      getResult: jest.fn(() => Promise.reject(new Error('provider down'))),
+      verifyWebhookSignature: jest.fn(() => true),
     });
 
     await expect(service.refresh('user-1')).rejects.toMatchObject({

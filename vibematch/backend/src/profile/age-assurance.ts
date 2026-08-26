@@ -10,9 +10,7 @@ export type AgeAssuranceSession = {
 };
 
 export type AgeAssuranceErrorCode =
-  | 'ACCOUNT_UNAVAILABLE'
-  | 'AGE_PROVIDER_UNAVAILABLE'
-  | 'AGE_SESSION_NOT_AVAILABLE';
+  'ACCOUNT_UNAVAILABLE' | 'AGE_PROVIDER_UNAVAILABLE' | 'AGE_SESSION_NOT_AVAILABLE';
 
 export class AgeAssuranceError extends Error {
   constructor(

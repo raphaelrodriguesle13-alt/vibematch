@@ -1,8 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import type {
-  AgeAssuranceProvider,
-  AgeAssuranceResult,
-} from '../../shared/providers';
+import type { AgeAssuranceProvider, AgeAssuranceResult } from '../../shared/providers';
 
 type DiditOptions = {
   apiKey: string;

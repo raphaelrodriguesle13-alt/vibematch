@@ -58,9 +58,9 @@ export class TwilioVerifyProvider implements SmsVerificationProvider {
   }
 
   private async request(path: string, body: URLSearchParams): Promise<TwilioVerificationResponse> {
-    const credentials = Buffer.from(`${this.options.accountSid}:${this.options.authToken}`).toString(
-      'base64',
-    );
+    const credentials = Buffer.from(
+      `${this.options.accountSid}:${this.options.authToken}`,
+    ).toString('base64');
     const response = await this.fetchImpl(`${this.baseUrl}${path}`, {
       method: 'POST',
       headers: {

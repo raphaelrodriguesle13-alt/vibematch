@@ -1,8 +1,11 @@
+import { jest } from '@jest/globals';
+
 import {
   BillingError,
   BillingService,
   type BillingRepositoryPort,
   type SubscriptionEntitlement,
+  type VerifiedPlaySubscription,
 } from '../../backend/src/billing/service';
 
 const userId = '11111111-1111-4111-8111-111111111111';
@@ -63,12 +66,14 @@ describe('BillingService', () => {
   it('grants entitlement only after server-side Play verification', async () => {
     const repository = new FakeBillingRepository();
     const verifier = {
-      verifySubscription: jest.fn().mockResolvedValue({
-        purchaseToken: 'purchase-1',
-        productId: 'premium_monthly',
-        status: 'ACTIVE' as const,
-        currentPeriodEnd: new Date('2026-09-26T00:00:00.000Z'),
-      }),
+      verifySubscription: jest.fn(() =>
+        Promise.resolve<VerifiedPlaySubscription>({
+          purchaseToken: 'purchase-1',
+          productId: 'premium_monthly',
+          status: 'ACTIVE',
+          currentPeriodEnd: new Date('2026-09-26T00:00:00.000Z'),
+        }),
+      ),
     };
     const service = new BillingService(
       repository,
@@ -131,12 +136,14 @@ describe('BillingService', () => {
     const repository = new FakeBillingRepository();
     repository.ownerByToken.set('purchase-1', userId);
     const verifier = {
-      verifySubscription: jest.fn().mockResolvedValue({
-        purchaseToken: 'purchase-1',
-        productId: 'premium_monthly',
-        status: 'REVOKED' as const,
-        currentPeriodEnd: new Date('2026-09-26T00:00:00.000Z'),
-      }),
+      verifySubscription: jest.fn(() =>
+        Promise.resolve<VerifiedPlaySubscription>({
+          purchaseToken: 'purchase-1',
+          productId: 'premium_monthly',
+          status: 'REVOKED',
+          currentPeriodEnd: new Date('2026-09-26T00:00:00.000Z'),
+        }),
+      ),
     };
     const service = new BillingService(repository, verifier);
     const input = {

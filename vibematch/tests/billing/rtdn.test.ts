@@ -1,4 +1,6 @@
-import type { OAuth2Client } from 'google-auth-library';
+import type { LoginTicket, OAuth2Client } from 'google-auth-library';
+import { jest } from '@jest/globals';
+
 import { PubSubPushVerifier, parseRtdnEnvelope } from '../../backend/src/billing/rtdn';
 
 const encodedRtdn = (overrides: Record<string, unknown> = {}): string =>
@@ -47,12 +49,19 @@ describe('Google Play RTDN', () => {
   });
 
   it('verifies audience and expected Pub/Sub service-account identity', async () => {
-    const verifyIdToken = jest.fn().mockResolvedValue({
-      getPayload: () => ({
-        email: 'pubsub-push@example.iam.gserviceaccount.com',
-        email_verified: true,
-      }),
-    });
+    const verifyIdToken = jest.fn(() =>
+      Promise.resolve({
+        getPayload: () => ({
+          iss: 'https://accounts.google.com',
+          sub: 'pubsub-subject',
+          aud: 'https://api.example.test/webhooks/google-play/rtdn',
+          iat: 1787785200,
+          exp: 1787788800,
+          email: 'pubsub-push@example.iam.gserviceaccount.com',
+          email_verified: true,
+        }),
+      } as unknown as LoginTicket),
+    );
     const client = { verifyIdToken } as unknown as Pick<OAuth2Client, 'verifyIdToken'>;
     const verifier = new PubSubPushVerifier({
       audience: 'https://api.example.test/webhooks/google-play/rtdn',
@@ -70,12 +79,19 @@ describe('Google Play RTDN', () => {
 
   it('rejects a valid Google token from the wrong service account', async () => {
     const client = {
-      verifyIdToken: jest.fn().mockResolvedValue({
-        getPayload: () => ({
-          email: 'other@example.iam.gserviceaccount.com',
-          email_verified: true,
-        }),
-      }),
+      verifyIdToken: jest.fn(() =>
+        Promise.resolve({
+          getPayload: () => ({
+            iss: 'https://accounts.google.com',
+            sub: 'pubsub-subject',
+            aud: 'https://api.example.test/webhooks/google-play/rtdn',
+            iat: 1787785200,
+            exp: 1787788800,
+            email: 'other@example.iam.gserviceaccount.com',
+            email_verified: true,
+          }),
+        } as unknown as LoginTicket),
+      ),
     } as unknown as Pick<OAuth2Client, 'verifyIdToken'>;
     const verifier = new PubSubPushVerifier({
       audience: 'https://api.example.test/webhooks/google-play/rtdn',

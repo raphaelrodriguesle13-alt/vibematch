@@ -1,4 +1,6 @@
 import fastify from 'fastify';
+import { jest } from '@jest/globals';
+
 import { registerBillingRoutes } from '../../backend/src/billing/http';
 
 const userId = '11111111-1111-4111-8111-111111111111';
@@ -14,19 +16,19 @@ const entitlement = {
 
 const buildDeps = () => ({
   service: {
-    getEntitlement: jest.fn().mockResolvedValue(entitlement),
-    verifyPurchase: jest.fn().mockResolvedValue(entitlement),
-    processRtdn: jest.fn().mockResolvedValue({ duplicate: false, entitlement }),
+    getEntitlement: jest.fn((): Promise<typeof entitlement | null> => Promise.resolve(entitlement)),
+    verifyPurchase: jest.fn(() => Promise.resolve(entitlement)),
+    processRtdn: jest.fn(() => Promise.resolve({ duplicate: false, entitlement })),
   },
   sessionTokenVerifier: {
-    verify: jest.fn().mockResolvedValue({ userId, sessionId, phoneVerified: true }),
+    verify: jest.fn(() => Promise.resolve({ userId, sessionId, phoneVerified: true })),
   },
   activeSessionStore: {
-    findActiveSession: jest.fn().mockResolvedValue({ id: sessionId }),
-    touchSession: jest.fn().mockResolvedValue(undefined),
+    findActiveSession: jest.fn(() => Promise.resolve({ id: sessionId })),
+    touchSession: jest.fn(() => Promise.resolve()),
   },
   rtdnVerifier: {
-    verifyAuthorizationHeader: jest.fn().mockResolvedValue(undefined),
+    verifyAuthorizationHeader: jest.fn(() => Promise.resolve()),
   },
   googlePlayPackageName: 'com.vibematch.app',
   now: () => new Date('2026-08-26T23:00:00.000Z'),
