@@ -1,86 +1,97 @@
-# VibeMatch — Handoff Manus ↔ ChatGPT
+# Handoff Manus → ChatGPT — VibeMatch
 
 Atualizado em **2026-08-26** após a publicação na branch exclusiva `continuity`.
 
 ## Resumo da entrega
 
-A etapa atual conclui o onboarding e a edição de perfil no Android com Jetpack Compose, consumindo o backend Fastify real. Após uma sessão Google válida, o app carrega os interesses disponíveis, consulta o perfil existente e abre o onboarding quando o backend responde `404 PROFILE_NOT_FOUND`. O botão de continuidade só libera a navegação após um `PUT /api/profile` bem-sucedido. Depois do perfil, usuários com `phone_verified=false` passam pela confirmação telefônica antes de acessar o chat.
+Esta etapa adiciona ao Android a primeira UX de consentimento mútuo sobre as novas rotas HTTP públicas do backend. Depois de perfil completo, Age Assurance aprovado, telefone confirmado e MatchIntent aceita, o app cria Consent, mostra os estados dos dois participantes e envia a decisão do usuário com um `request_id` UUID. O Android exibe o resultado server-controlled e não cria sessão de vídeo, token RTC ou entitlement localmente.
 
-A branch também foi reconciliada com os commits cooperativos mais recentes do ChatGPT, que adicionaram Age Assurance, MatchIntent, Consent, Video e a migration 008. O Android agora consulta o status real de Age Assurance e permanece em estado fail-closed para qualquer resultado diferente de `APPROVED`; o cliente não aprova idade, consentimento, matchmaking, vídeo ou entitlement localmente.
+O fluxo autenticado permanece **Perfil → Age Assurance → Telefone → Chat → MatchIntent → Consent**. A identidade, a elegibilidade, os participantes, os prazos, a transição para `ACCEPTED_BOTH` e a autorização de vídeo continuam sendo decisões do backend e do banco.
 
-> **Fonte de verdade:** identidade, sessão, idade, bloqueio, suspensão, consentimento, elegibilidade e autorização de recursos restritos continuam sendo decisões do backend e do banco.
+> **Fonte de verdade:** o cliente Android apresenta estados e solicita transições; ele não aprova localmente idade, telefone, matchmaking, consentimento, vídeo, bloqueio, suspensão ou entitlement.
 
 ## Estado do Git
 
-| Item                          | Valor                                                                 |
-| ----------------------------- | --------------------------------------------------------------------- |
-| Repositório                   | `raphaelrodriguesle13-alt/vibematch`                                  |
-| Branch utilizada              | `continuity`                                                          |
-| HEAD inicial desta retomada   | `d9487c9`                                                             |
-| HEAD da implementação Android | `84039c7`                                                             |
-| Estado final                  | `continuity` sincronizada com `origin/continuity`, working tree limpo |
-| Push                          | Realizado sem force-push e sem tocar na `main`                        |
+| Item                                           | Valor                                                                 |
+| ---------------------------------------------- | --------------------------------------------------------------------- |
+| Repositório                                    | `raphaelrodriguesle13-alt/vibematch`                                  |
+| Branch utilizada                               | `continuity`                                                          |
+| HEAD inicial histórico desta retomada          | `d9487c9`                                                             |
+| Base cooperativa reconciliada antes de Consent | `b3743c7`                                                             |
+| HEAD final desta etapa                         | `c9dbed8`                                                             |
+| Estado final                                   | `continuity` sincronizada com `origin/continuity`, working tree limpo |
+| Push                                           | Realizado sem force-push e sem tocar na `main`                        |
 
-Durante a execução, a branch remota recebeu commits backend em paralelo. O trabalho Android foi preservado por rebases lineares sucessivos sobre o HEAD remoto, sem reset destrutivo ou sobrescrita de Auth, JWT, migrations, Fastify ou controles de segurança.
+Durante a implementação, o ChatGPT publicou em paralelo reforços de telefone, revogação ativa, rate limiting, APIs públicas de Consent/Video/Moderation e testes de banco. O trabalho Android foi preservado por rebases lineares sucessivos; não houve reset destrutivo nem sobrescrita de Auth, JWT, migrations, Fastify ou controles server-side.
 
-## Commits produzidos nesta retomada
+## Commits relevantes
 
-| Commit    | Descrição                                         |
-| --------- | ------------------------------------------------- |
-| `ae69a14` | `feat: add Android profile onboarding`            |
-| `23466e3` | `style: format cooperative backend additions`     |
-| `88d6d30` | `fix: gate Android chat on age assurance`         |
-| `adbcacf` | `test: include video unit suite`                  |
-| `13e1273` | `style: normalize DB helper type formatting`      |
-| `84039c7` | `feat: add Android phone verification onboarding` |
+| Commit    | Descrição                                 |
+| --------- | ----------------------------------------- |
+| `4c99eda` | `feat: add Android match intent inbox`    |
+| `b241431` | `fix: complete restricted error mappings` |
+| `c9dbed8` | `feat: add Android mutual consent flow`   |
 
-Os commits de estilo alteram apenas a formatação necessária para o gate estrito de Prettier nos arquivos cooperativos remotos; não alteram a lógica de Consent, Video, Profile ou banco.
+O commit `b241431` contém o fallback mínimo exigido pelo TypeScript para os mapeadores de erro de Consent/Video e a formatação dos arquivos cooperativos que bloqueavam o Prettier. Nenhum código desse ajuste altera os códigos HTTP públicos conhecidos.
+
+## Contratos Android integrados
+
+| Endpoint                               | Uso no Android                        | Regras preservadas                                                              |
+| -------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------- |
+| `GET /api/interests`                   | Chips do onboarding/perfil            | Catálogo server-side; máximo visual de 10 interesses                            |
+| `GET /api/profile`                     | Perfil existente ou onboarding        | `404 PROFILE_NOT_FOUND` inicia onboarding; `401` encerra sessão                 |
+| `PUT /api/profile`                     | Criação/edição do perfil              | Validação final permanece no backend                                            |
+| `GET /api/age-assurance/status`        | Gate etário                           | Somente `APPROVED` libera recursos restritos                                    |
+| `POST /auth/phone/start`               | Início do SMS                         | `verification_id` fica somente no estado da tela                                |
+| `POST /auth/phone/confirm`             | Confirmação SMS                       | A dica local só muda após resposta positiva server-side                         |
+| `GET /api/match-intents/incoming`      | Inbox de solicitações recebidas       | Backend controla elegibilidade, validade e participantes                        |
+| `POST /api/match-intents/{id}/respond` | Aceitar ou recusar MatchIntent        | Envia somente `ACCEPTED` ou `DECLINED`                                          |
+| `POST /api/consents`                   | Criar Consent após MatchIntent aceita | Envia somente `match_intent_id`                                                 |
+| `POST /api/consents/{id}/decision`     | Decidir Consent                       | Envia `decision` e `request_id` UUID; sessão autenticada é anexada pelo backend |
+
+O Android trata `AGE_ASSURANCE_REQUIRED`, `PHONE_VERIFICATION_REQUIRED`, `401`, `429`, indisponibilidade, respostas inválidas e estados desconhecidos sem liberar recursos. Quando MatchIntent ou Consent informa que telefone foi revogado, o estado local volta ao onboarding telefônico. Quando idade deixa de ser elegível, o fluxo retorna ao cartão fail-closed de Age Assurance.
 
 ## Implementação Android
 
-O módulo `android/.../profile/` contém os modelos `UserProfile`, `ProfileInterest`, `ProfileDraft`, o contrato `ProfileGateway`, o cliente `ProfileApiClient` e o `ProfileViewModel`. O cliente envia sempre o Bearer token da sessão segura e implementa os contratos abaixo.
+O novo módulo `android/.../consent/` contém `Consent`, `ConsentDecision`, `ConsentStatus`, `ConsentParticipantStatus`, `ConsentGateway`, `ConsentApiClient` e `ConsentViewModel`. O cliente usa o mesmo Bearer token da sessão segura, serializa campos snake_case e gera um UUID novo para cada decisão. Os campos `expires_at`, `video_deadline` e `accepted_both_at` são apenas exibidos como dados controlados pelo servidor.
 
-| Endpoint                        | Uso no Android                             | Comportamento relevante                                                                        |
-| ------------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| `GET /api/interests`            | Carrega os chips de interesses             | A resposta vem do backend; a seleção visual é limitada a 10 itens                              |
-| `GET /api/profile`              | Carrega o perfil atual                     | `404 PROFILE_NOT_FOUND` abre onboarding; `401` encerra a sessão                                |
-| `PUT /api/profile`              | Cria ou atualiza o perfil                  | Envia `display_name`, `avatar_url`, `language`, `region` e `interest_ids` com nomes snake_case |
-| `GET /api/age-assurance/status` | Consulta a elegibilidade etária do usuário | Somente `APPROVED` permite sair do perfil e abrir o chat                                       |
+A `MainActivity` passou a instanciar o `ConsentViewModel` e a abrir a tela de Consent a partir de uma MatchIntent aceita. A tela mostra o estado de cada participante, permite aceitar ou recusar quando o participante atual está `PENDING`, comunica espera quando apenas uma pessoa aceitou e informa claramente que `ACCEPTED_BOTH` ainda não significa que vídeo esteja autorizado.
 
-A `MainActivity` agora possui tela de onboarding e tela de perfil reutilizando o mesmo formulário. Os campos são nome de exibição, idioma, região, avatar HTTPS opcional e interesses. Há estados explícitos para carregamento, salvamento, erro, sessão expirada, idade necessária, idade pendente, idade rejeitada e indisponibilidade do serviço. O estado desconhecido nunca é tratado como aprovação.
-
-O roteamento autenticado permanece protegido: sem perfil, o usuário fica no onboarding; com perfil mas Age Assurance não aprovado, fica no cartão fail-closed; com perfil e idade aprovada, mas sem telefone confirmado, fica na tela de verificação; somente depois de `phone_verified=true` o chat é exibido. O backend continua sendo a autoridade final e pode rejeitar qualquer operação mesmo que o estado local esteja desatualizado.
-
-O cliente telefônico usa `POST /auth/phone/start` e `POST /auth/phone/confirm`. O primeiro envia `phone_e164` e recebe `verification_id` e `expires_at`; o segundo envia `verification_id` e `code`. O Android mantém esses valores somente no estado da tela, apresenta mensagens públicas para erros do provedor e encerra a sessão em HTTP 401. Após a confirmação positiva do backend, o `AuthViewModel` atualiza a dica local `phone_verified` para permitir a navegação; o JWT existente não é reemitido nem tratado como renovado.
+Nenhuma chamada Android foi adicionada para criar sessão de vídeo ou emitir token RTC. A próxima integração de vídeo deve consumir exclusivamente os endpoints server-side, aguardar autorização JIT e revalidar Consent, idade, telefone, bloqueio e prazo imediatamente antes de qualquer token.
 
 ## Testes e builds
 
-| Comando                                                        | Resultado                                                                                    |
-| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `npm run typecheck`                                            | Aprovado                                                                                     |
-| `npm run lint`                                                 | Aprovado                                                                                     |
-| `npm run format:check`                                         | Aprovado                                                                                     |
-| `npm run test:unit`                                            | Aprovado: 11 suítes e 54 testes, incluindo Auth, Chat, Profile, MatchIntent, Consent e Video |
-| `./gradlew test :app:assembleDebug :app:lintDebug --no-daemon` | Aprovado: `BUILD SUCCESSFUL`, incluindo o fluxo de telefone                                  |
-| Scanner local de padrões de segredo no Android                 | Aprovado; nenhuma chave real encontrada                                                      |
-| `git diff --check` e working tree                              | Aprovados; branch limpa e sincronizada                                                       |
+| Comando                                                        | Resultado                                    |
+| -------------------------------------------------------------- | -------------------------------------------- |
+| `npm run typecheck`                                            | Aprovado                                     |
+| `npm run lint`                                                 | Aprovado                                     |
+| `npm run format:check`                                         | Aprovado                                     |
+| `npm run test:unit`                                            | Aprovado: 13 suítes e 65 testes              |
+| `./gradlew test :app:assembleDebug :app:lintDebug --no-daemon` | Aprovado: `BUILD SUCCESSFUL`                 |
+| Scanner local de padrões de segredo no Android                 | Aprovado; nenhuma chave real encontrada      |
+| `git diff --check`                                             | Aprovado                                     |
+| Branch/working tree                                            | Limpa e sincronizada com `origin/continuity` |
 
-O APK debug atualizado foi gerado em `android/app/build/outputs/apk/debug/app-debug.apk`. O build de release não foi repetido nesta última rodada porque a entrega solicitada é debug; a política já existente de HTTPS obrigatório para release e de `GOOGLE_SERVER_CLIENT_ID` configurado permanece preservada.
+O APK debug atualizado foi gerado em `android/app/build/outputs/apk/debug/app-debug.apk`.
 
-A tentativa de `npm run test:db` não executou nenhuma suíte porque este sandbox não possui `DATABASE_URL_OWNER` nem as demais URLs de banco configuradas. A falha é ambiental (`Missing required env var: DATABASE_URL_OWNER`), não uma falha de teste de domínio. A execução de migrations Up/Down/Up e os testes PostgreSQL devem ser repetidos no ambiente CI/local com PostgreSQL e credenciais de teste.
+| Artefato        | SHA-256                                                            |
+| --------------- | ------------------------------------------------------------------ |
+| `app-debug.apk` | `cdc1269118083879ef694941914bf81fc74a0e48ae655a5c432e833a4d2b7835` |
 
-## Pendências externas e incompatibilidades conhecidas
+Os testes PostgreSQL/migrations não foram executados neste sandbox por ausência de `DATABASE_URL_OWNER` e das demais URLs de banco de teste. Os novos testes DB de telefone, revogação, rate limiting e privilégios devem ser repetidos no CI ou em ambiente local com PostgreSQL configurado; isso é uma pendência ambiental, não uma falha dos testes unitários executados.
 
-A validação ponta a ponta do telefone ainda depende de um provedor SMS configurado e de um dispositivo/emulador que receba o código. A validação ponta a ponta do Google OAuth ainda depende de um Web client ID real, audience equivalente no backend e uma conta Google em emulador ou dispositivo. A coordenação de nonce server-side continua pendente; não foi implementado nonce apenas no cliente para evitar proteção ilusória.
+## Pendências externas e riscos
 
-O backend já expõe Age Assurance, MatchIntent, Consent e Video, mas a UX Android de MatchIntent, consentimento mútuo e sessão de vídeo ainda não foi implementada. Nenhum token RTC, decisão de consentimento ou autorização de vídeo é criado pelo Android.
+A validação ponta a ponta ainda depende de um provedor SMS real, de um dispositivo/emulador que receba o código, de um Web client ID Google real e de credenciais/ambiente para exercer MatchIntent e Consent com participantes reais. A renovação de sessão e a coordenação de nonce server-side continuam pendentes; não foi implementado nonce apenas no cliente para evitar proteção ilusória.
 
-A sessão curta ainda precisa de um contrato de renovação/revogação antes da release. Rate limiting por usuário no chat, persistência de conversas, observabilidade, moderação operacional e evidência de execução em CI continuam pendentes. `EncryptedSharedPreferences` e `MasterKey` emitem avisos de depreciação que devem ser revisados antes da release final.
+A criação de MatchIntent de saída ainda não possui uma UX Android porque o branch não oferece, nesta etapa, uma API de descoberta de candidatos/perfis para selecionar o `receiver_id`. A inbox recebida e a resposta de intenções estão integradas; a origem da intenção permanece dependente de uma tela/API de descoberta futura.
+
+A sessão de vídeo, LiveKit/RTC, notificações, persistência de conversas, rate limiting específico do chat, observabilidade, moderação operacional e execução comprovada das migrations Up/Down/Up ainda precisam ser concluídos. Os avisos de depreciação de `EncryptedSharedPreferences`/`MasterKey` devem ser revisados antes da release.
 
 ## Próximo passo recomendado
 
-Validar o fluxo telefônico em dispositivo com um provedor SMS real, executar OAuth Google em dispositivo e repetir as migrations/testes de banco no ambiente CI. Depois, desenhar a UX Android de MatchIntent e Consent sobre os contratos já presentes, mantendo revalidação server-side e JIT para qualquer recurso de vídeo.
+Validar telefone, MatchIntent e Consent em dispositivo com ambiente real. Em seguida, implementar o cliente Android de Video Session somente para Consent `ACCEPTED_BOTH`, usando a API de criação de sessão e emissão de token do backend, com tratamento explícito de `VIDEO_NOT_AUTHORIZED`, `PHONE_VERIFICATION_REQUIRED`, `AGE_ASSURANCE_REQUIRED`, `RATE_LIMITED` e revogação. A implementação não deve iniciar câmera, WebRTC ou LiveKit antes da autorização JIT server-side.
 
 ## Invariantes preservados
 
-Nenhuma chave OpenAI ou segredo foi incluído no Android ou no repositório. O `OPENAI_API_KEY` continua exclusivamente no backend. O branch utilizado foi somente `continuity`; não houve merge ou push na `main`, nem force-push. As decisões críticas permanecem fail-closed e dependentes do backend.
+Nenhuma chave OpenAI ou segredo foi incluído no Android ou no repositório. O `OPENAI_API_KEY` continua exclusivamente no backend. O único branch utilizado foi `continuity`; não houve merge ou push na `main`, nem force-push. O Android mantém HTTPS obrigatório em release, sessão segura local e comportamento fail-closed para qualquer estado restrito desconhecido ou não aprovado.
