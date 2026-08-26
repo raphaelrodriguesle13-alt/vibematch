@@ -1,5 +1,8 @@
 import { jest } from '@jest/globals';
-import { VideoRevocationService } from '../../backend/src/video/revocation-service';
+import {
+  VideoRevocationRepository,
+  VideoRevocationService,
+} from '../../backend/src/video/revocation-service';
 
 describe('VideoRevocationService', () => {
   it('marks a session revoked only after provider room termination succeeds', async () => {
@@ -57,5 +60,24 @@ describe('VideoRevocationService', () => {
 
     await expect(service.reconcile()).resolves.toEqual({ revoked: 0, failed: 1 });
     expect(repository.markRevoked).not.toHaveBeenCalled();
+  });
+
+  it('queues every revocation_pending row even when DB already marked it ENDED/revoked', async () => {
+    const query = jest.fn().mockResolvedValue({
+      rows: [
+        {
+          session_id: '11111111-1111-4111-8111-111111111111',
+          room_name: 'vibematch-room-1',
+          end_reason: 'BLOCK',
+        },
+      ],
+    });
+    const repository = new VideoRevocationRepository({ query } as never);
+
+    await expect(repository.listPending()).resolves.toHaveLength(1);
+    const sql = String(query.mock.calls[0]?.[0]);
+    expect(sql).toContain('WHERE revocation_pending = TRUE');
+    expect(sql).not.toContain('revoked_at IS NULL');
+    expect(sql).not.toContain("status <> 'ENDED'");
   });
 });
