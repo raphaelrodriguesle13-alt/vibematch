@@ -53,6 +53,7 @@ type PhoneVerificationRow = {
 };
 
 type IdRow = { id: string };
+type PhoneStateRow = { phone_verified: boolean };
 
 const first = <T extends QueryResultRow>(result: QueryResult<T>): T => {
   const row = result.rows[0];
@@ -135,6 +136,16 @@ export class AuthRepository {
        WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL`,
       [sessionId, userId, seenAt],
     );
+  }
+
+  async isPhoneVerified(userId: string): Promise<boolean> {
+    const result = await this.pool.query<PhoneStateRow>(
+      `SELECT phone_verified
+       FROM users
+       WHERE id = $1 AND status = 'ACTIVE'`,
+      [userId],
+    );
+    return result.rows[0]?.phone_verified === true;
   }
 
   async createPhoneVerification(params: {
