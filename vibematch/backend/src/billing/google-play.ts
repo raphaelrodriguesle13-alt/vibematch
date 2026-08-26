@@ -90,12 +90,16 @@ export class GooglePlaySubscriptionVerifierImpl implements GooglePlaySubscriptio
       }))
       .filter(
         (item): item is { productId: string; expiryTime: Date } =>
-          item.productId.length > 0 && item.expiryTime !== null && !Number.isNaN(item.expiryTime.getTime()),
+          item.productId.length > 0 &&
+          item.expiryTime !== null &&
+          !Number.isNaN(item.expiryTime.getTime()),
       )
       .sort((a, b) => b.expiryTime.getTime() - a.expiryTime.getTime());
 
     const selected = validLineItems[0];
-    if (!selected) throw new Error('Google Play response did not contain a valid subscription line item');
+    if (!selected) {
+      throw new Error('Google Play response did not contain a valid subscription line item');
+    }
 
     return {
       purchaseToken: token,
