@@ -1,7 +1,12 @@
 import { Pool, PoolClient } from 'pg';
 
 type RuntimeRole =
-  'svc_auth' | 'svc_profile' | 'svc_matchmaking' | 'svc_video' | 'svc_moderation' | 'svc_billing';
+  | 'svc_auth'
+  | 'svc_profile'
+  | 'svc_matchmaking'
+  | 'svc_video'
+  | 'svc_moderation'
+  | 'svc_billing';
 
 type IdRow = { id: string };
 
