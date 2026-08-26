@@ -16,8 +16,8 @@
     "db:roles": "bash scripts/db-roles.sh",
     "migrate": "node-pg-migrate up -m migrations --migrations-schema public",
     "migrate:down": "node-pg-migrate down -m migrations --migrations-schema public",
-    "test": "jest --runInBand",
-    "test:unit": "jest tests/auth tests/chat tests/profile tests/matchmaking tests/consent tests/video tests/moderation tests/restricted --runInBand",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
+    "test:unit": "NODE_OPTIONS=--experimental-vm-modules jest tests/auth tests/chat tests/profile tests/matchmaking tests/consent tests/video tests/moderation tests/restricted --runInBand",
     "test:db": "jest tests/db --runInBand",
     "verify": "npm run typecheck && npm run lint && npm run migrate && npm run test"
   },

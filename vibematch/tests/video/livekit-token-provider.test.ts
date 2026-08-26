@@ -1,9 +1,38 @@
-import { jwtVerify } from 'jose';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { LiveKitTokenProvider } from '../../backend/src/video/livekit-token-provider';
 
 const secret = 'test-livekit-secret-at-least-32-bytes';
-const key = new TextEncoder().encode(secret);
 const fixedNow = new Date('2026-08-26T20:00:00.000Z');
+
+type DecodedToken = {
+  protectedHeader: Record<string, unknown>;
+  payload: Record<string, unknown>;
+};
+
+function decodeAndVerifyHs256(token: string): DecodedToken {
+  const [encodedHeader, encodedPayload, encodedSignature] = token.split('.');
+  if (!encodedHeader || !encodedPayload || !encodedSignature) {
+    throw new Error('Invalid JWT produced by LiveKitTokenProvider');
+  }
+
+  const signingInput = `${encodedHeader}.${encodedPayload}`;
+  const expectedSignature = createHmac('sha256', secret).update(signingInput).digest();
+  const actualSignature = Buffer.from(encodedSignature, 'base64url');
+
+  expect(actualSignature.length).toBe(expectedSignature.length);
+  expect(timingSafeEqual(actualSignature, expectedSignature)).toBe(true);
+
+  return {
+    protectedHeader: JSON.parse(Buffer.from(encodedHeader, 'base64url').toString('utf8')) as Record<
+      string,
+      unknown
+    >,
+    payload: JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8')) as Record<
+      string,
+      unknown
+    >,
+  };
+}
 
 describe('LiveKitTokenProvider', () => {
   test('mints a short-lived room-scoped participant token', async () => {
@@ -20,15 +49,13 @@ describe('LiveKitTokenProvider', () => {
       ttlSeconds: 120,
     });
 
-    const { payload, protectedHeader } = await jwtVerify(token, key, {
-      issuer: 'test-api-key',
-      clockTolerance: 5,
-      currentDate: fixedNow,
-    });
+    const { payload, protectedHeader } = decodeAndVerifyHs256(token);
 
     expect(protectedHeader.alg).toBe('HS256');
+    expect(payload.iss).toBe('test-api-key');
     expect(payload.sub).toBe('33333333-3333-4333-8333-333333333333');
-    expect(payload.exp! - payload.iat!).toBe(120);
+    expect(Number(payload.exp) - Number(payload.iat)).toBe(120);
+    expect(Number(payload.iat)).toBe(Math.floor(fixedNow.getTime() / 1000));
     expect(payload.video).toEqual({
       room: 'vibematch-11111111-1111-4111-8111-111111111111',
       roomJoin: true,
