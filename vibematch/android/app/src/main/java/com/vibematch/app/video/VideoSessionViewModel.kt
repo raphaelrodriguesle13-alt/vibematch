@@ -104,7 +104,7 @@ class VideoSessionViewModel(
                 mutableState.value = mutableState.value.copy(
                     isIssuingToken = false,
                     tokenIssued = true,
-                    infoMessage = "O backend emitiu uma credencial JIT. A integração de câmera/RTC ainda não está ativa.",
+                    infoMessage = "O backend emitiu uma credencial JIT. Permita câmera e microfone apenas se quiser entrar na chamada.",
                     errorMessage = null,
                 )
             } catch (error: Exception) {

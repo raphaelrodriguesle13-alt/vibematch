@@ -32,8 +32,12 @@ android {
             val debugGoogleClientId = providers.gradleProperty("GOOGLE_SERVER_CLIENT_ID")
                 .orElse("")
                 .get()
+            val debugLiveKitUrl = providers.gradleProperty("LIVEKIT_URL")
+                .orElse("")
+                .get()
             buildConfigField("String", "API_BASE_URL", debugApiBaseUrl.toBuildConfigString())
             buildConfigField("String", "GOOGLE_SERVER_CLIENT_ID", debugGoogleClientId.toBuildConfigString())
+            buildConfigField("String", "LIVEKIT_URL", debugLiveKitUrl.toBuildConfigString())
         }
         release {
             val releaseApiBaseUrl = providers.gradleProperty("API_BASE_URL")
@@ -42,6 +46,9 @@ android {
             val releaseGoogleClientId = providers.gradleProperty("GOOGLE_SERVER_CLIENT_ID")
                 .orElse("MISSING_GOOGLE_SERVER_CLIENT_ID")
                 .get()
+            val releaseLiveKitUrl = providers.gradleProperty("LIVEKIT_URL")
+                .orElse("MISSING_LIVEKIT_URL")
+                .get()
             require(releaseApiBaseUrl.startsWith("https://")) {
                 "Release API_BASE_URL must use HTTPS"
             }
@@ -49,9 +56,13 @@ android {
                 require(releaseGoogleClientId != "MISSING_GOOGLE_SERVER_CLIENT_ID") {
                     "Release GOOGLE_SERVER_CLIENT_ID must be configured"
                 }
+                require(releaseLiveKitUrl.startsWith("wss://")) {
+                    "Release LIVEKIT_URL must use wss://"
+                }
             }
             buildConfigField("String", "API_BASE_URL", releaseApiBaseUrl.toBuildConfigString())
             buildConfigField("String", "GOOGLE_SERVER_CLIENT_ID", releaseGoogleClientId.toBuildConfigString())
+            buildConfigField("String", "LIVEKIT_URL", releaseLiveKitUrl.toBuildConfigString())
             isDebuggable = false
         }
     }
@@ -93,6 +104,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("io.livekit:livekit-android:2.28.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 

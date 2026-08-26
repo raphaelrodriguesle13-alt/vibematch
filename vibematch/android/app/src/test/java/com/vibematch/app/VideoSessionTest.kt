@@ -80,6 +80,7 @@ class VideoSessionTest {
         assertEquals("session-1", emittedSession?.id)
         assertTrue(viewModel.state.value.tokenIssued)
         assertFalse(viewModel.state.value.isIssuingToken)
+        assertFalse(viewModel.state.value.toString().contains("server-token"))
     }
 
     @Test

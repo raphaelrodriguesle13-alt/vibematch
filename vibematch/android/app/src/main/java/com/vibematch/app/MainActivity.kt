@@ -1,9 +1,13 @@
 package com.vibematch.app
 
+import android.Manifest
 import android.app.Activity
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,11 +40,14 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +62,9 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vibematch.app.auth.AuthApiClient
 import com.vibematch.app.consent.Consent
@@ -85,6 +95,12 @@ import com.vibematch.app.moderation.ModerationApiClient
 import com.vibematch.app.moderation.ReportCategory
 import com.vibematch.app.moderation.ModerationViewModel
 import com.vibematch.app.moderation.ModerationViewModelFactory
+import com.vibematch.app.video.rtc.LiveKitRtcRoomGateway
+import com.vibematch.app.video.rtc.RtcRoomViewModel
+import com.vibematch.app.video.rtc.RtcRoomStatus
+import com.vibematch.app.video.rtc.RtcRoomUiState
+import com.vibematch.app.video.rtc.RtcRoomViewModelFactory
+import io.livekit.android.renderer.SurfaceViewRenderer
 import com.vibematch.app.profile.ProfileApiClient
 import com.vibematch.app.profile.ProfileGate
 import com.vibematch.app.profile.ProfileViewModel
@@ -157,6 +173,10 @@ class MainActivity : ComponentActivity() {
                         },
                     ),
                 )
+                val rtcGateway = remember { LiveKitRtcRoomGateway(applicationContext) }
+                val rtcRoomViewModel: RtcRoomViewModel = viewModel(
+                    factory = RtcRoomViewModelFactory(rtcGateway),
+                )
                 val videoViewModel: VideoSessionViewModel = viewModel(
                     factory = VideoSessionViewModelFactory(
                         gateway = VideoSessionApiClient(BuildConfig.API_BASE_URL),
@@ -167,6 +187,9 @@ class MainActivity : ComponentActivity() {
                             profileViewModel.reset()
                             profileViewModel.load()
                         },
+                        onTokenIssued = { token, _ ->
+                            rtcRoomViewModel.setPendingJitToken(token)
+                        },
                     ),
                 )
                 val moderationViewModel: ModerationViewModel = viewModel(
@@ -174,6 +197,7 @@ class MainActivity : ComponentActivity() {
                         gateway = ModerationApiClient(BuildConfig.API_BASE_URL),
                         accessTokenProvider = sessionStore::readAccessToken,
                         onSessionExpired = authViewModel::signOut,
+                        onBlocked = rtcRoomViewModel::disconnect,
                     ),
                 )
                 VibeMatchApp(
@@ -186,6 +210,7 @@ class MainActivity : ComponentActivity() {
                     consentViewModel = consentViewModel,
                     videoViewModel = videoViewModel,
                     moderationViewModel = moderationViewModel,
+                    rtcRoomViewModel = rtcRoomViewModel,
                 )
             }
         }
@@ -215,6 +240,7 @@ private fun VibeMatchApp(
     consentViewModel: ConsentViewModel,
     videoViewModel: VideoSessionViewModel,
     moderationViewModel: ModerationViewModel,
+    rtcRoomViewModel: RtcRoomViewModel,
 ) {
     val authState by authViewModel.state
     val session = authState.session
@@ -227,7 +253,12 @@ private fun VibeMatchApp(
     var videoConsentId by remember(sessionId) { mutableStateOf<String?>(null) }
     var showModeration by remember(sessionId) { mutableStateOf(false) }
     var moderationTargetUserId by remember(sessionId) { mutableStateOf<String?>(null) }
+    var moderationSessionId by remember(sessionId) { mutableStateOf<String?>(null) }
     var moderationReturnsToConsent by remember(sessionId) { mutableStateOf(false) }
+
+    DisposableEffect(Unit) {
+        onDispose { rtcRoomViewModel.disconnect() }
+    }
 
     LaunchedEffect(sessionId) {
         profileViewModel.reset()
@@ -236,12 +267,14 @@ private fun VibeMatchApp(
         consentViewModel.reset()
         videoViewModel.reset()
         moderationViewModel.reset()
+        rtcRoomViewModel.disconnect()
         showConsent = false
         consentMatchIntentId = null
         showVideo = false
         videoConsentId = null
         showModeration = false
         moderationTargetUserId = null
+        moderationSessionId = null
         moderationReturnsToConsent = false
         if (sessionId != null) profileViewModel.load()
     }
@@ -250,9 +283,17 @@ private fun VibeMatchApp(
         LoginScreen(activity, authViewModel)
     } else {
         val profileState by profileViewModel.state
+        val consentState by consentViewModel.state
         val selectedConsentMatchIntentId = consentMatchIntentId
         val selectedVideoConsentId = videoConsentId
         val selectedModerationTargetUserId = moderationTargetUserId
+        val videoOtherParticipantId = consentState.consent?.let { consent ->
+            when (session.userId) {
+                consent.userAId -> consent.userBId
+                consent.userBId -> consent.userAId
+                else -> null
+            }
+        }
         when {
             showProfile ||
                 !profileState.hasLoaded ||
@@ -285,10 +326,11 @@ private fun VibeMatchApp(
                 ModerationScreen(
                     viewModel = moderationViewModel,
                     targetUserId = selectedModerationTargetUserId,
-                    sessionId = null,
+                    sessionId = moderationSessionId,
                     onClose = {
                         showModeration = false
                         moderationTargetUserId = null
+                        moderationSessionId = null
                         moderationViewModel.reset()
                         if (moderationReturnsToConsent) {
                             showConsent = true
@@ -310,13 +352,30 @@ private fun VibeMatchApp(
             showVideo && selectedVideoConsentId != null -> {
                 VideoSessionScreen(
                     viewModel = videoViewModel,
+                    rtcViewModel = rtcRoomViewModel,
+                    liveKitUrl = BuildConfig.LIVEKIT_URL,
                     consentId = selectedVideoConsentId,
+                    onOpenModeration = {
+                        rtcRoomViewModel.disconnect()
+                        val targetUserId = videoOtherParticipantId
+                        if (targetUserId != null) {
+                            moderationViewModel.reset()
+                            moderationTargetUserId = targetUserId
+                            moderationSessionId = videoViewModel.state.value.session?.id
+                            moderationReturnsToConsent = false
+                            showVideo = false
+                            showModeration = true
+                        }
+                    },
                     onClose = {
+                        rtcRoomViewModel.disconnect()
+                        rtcRoomViewModel.discardPendingJitToken()
                         showVideo = false
                         videoConsentId = null
                         showConsent = true
                     },
                     onLogout = {
+                        rtcRoomViewModel.disconnect()
                         videoViewModel.reset()
                         consentViewModel.reset()
                         matchIntentViewModel.reset()
@@ -942,17 +1001,46 @@ private fun reportCategoryLabel(category: ReportCategory): String = when (catego
 @Composable
 private fun VideoSessionScreen(
     viewModel: VideoSessionViewModel,
+    rtcViewModel: RtcRoomViewModel,
+    liveKitUrl: String,
     consentId: String,
+    onOpenModeration: () -> Unit,
     onClose: () -> Unit,
     onLogout: () -> Unit,
 ) {
     val state by viewModel.state
+    val rtcState by rtcViewModel.state.collectAsState()
     val session = state.session
     val isBusy = state.isCreating || state.isIssuingToken
+    val requestedPermissions = remember {
+        arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
+    }
+    val hasRtcPermissions = requestedPermissions.all { permission ->
+        ContextCompat.checkSelfPermission(
+            LocalContext.current,
+            permission,
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { grants ->
+        if (requestedPermissions.all { grants[it] == true }) {
+            rtcViewModel.connectWithPendingJitToken(liveKitUrl)
+        } else {
+            rtcViewModel.markPermissionDenied()
+        }
+    }
 
     LaunchedEffect(consentId) {
         viewModel.reset()
+        rtcViewModel.disconnect()
         viewModel.create(consentId)
+    }
+    DisposableEffect(consentId) {
+        onDispose {
+            rtcViewModel.disconnect()
+            rtcViewModel.discardPendingJitToken()
+        }
     }
 
     Surface(
@@ -1002,6 +1090,9 @@ private fun VideoSessionScreen(
                     color = Color(0xFF2F7D4A),
                 )
             }
+            rtcState.errorMessage?.let { error ->
+                ErrorBanner(error) { rtcViewModel.disconnect() }
+            }
 
             when {
                 state.isCreating -> {
@@ -1033,6 +1124,16 @@ private fun VideoSessionScreen(
                         )
                     }
                 }
+                rtcState.status == RtcRoomStatus.CONNECTED ||
+                    rtcState.status == RtcRoomStatus.RECONNECTING -> {
+                    RtcCallPanel(
+                        modifier = Modifier.weight(1f),
+                        state = rtcState,
+                        rtcViewModel = rtcViewModel,
+                        onHangup = rtcViewModel::disconnect,
+                        onOpenModeration = onOpenModeration,
+                    )
+                }
                 else -> {
                     if (session != null) {
                         VideoSessionCard(
@@ -1040,9 +1141,109 @@ private fun VideoSessionScreen(
                             session = session,
                             isIssuingToken = state.isIssuingToken,
                             tokenIssued = state.tokenIssued,
+                            rtcTokenReady = rtcState.jitTokenReady,
+                            rtcStatus = rtcState.status,
                             onIssueToken = viewModel::issueToken,
+                            onConnectRtc = {
+                                if (liveKitUrl.isBlank()) {
+                                    rtcViewModel.connectWithPendingJitToken(liveKitUrl)
+                                } else if (hasRtcPermissions) {
+                                    rtcViewModel.connectWithPendingJitToken(liveKitUrl)
+                                } else {
+                                    permissionLauncher.launch(requestedPermissions)
+                                }
+                            },
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RtcCallPanel(
+    modifier: Modifier = Modifier,
+    state: RtcRoomUiState,
+    rtcViewModel: RtcRoomViewModel,
+    onHangup: () -> Unit,
+    onOpenModeration: () -> Unit,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = Color.Black,
+        shape = RoundedCornerShape(20.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AndroidView(
+                    factory = { context -> SurfaceViewRenderer(context) },
+                    update = rtcViewModel::attachRemoteRenderer,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(250.dp),
+                )
+                AndroidView(
+                    factory = { context -> SurfaceViewRenderer(context) },
+                    update = rtcViewModel::attachLocalRenderer,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(250.dp),
+                )
+            }
+            Text(
+                text = if (state.status == RtcRoomStatus.RECONNECTING) {
+                    "Reconectando com segurança…"
+                } else {
+                    "Conectado • ${state.remoteParticipantCount} participante(s) remoto(s)"
+                },
+                color = Color.White,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(
+                    onClick = { rtcViewModel.setMicrophoneEnabled(!state.microphoneEnabled) },
+                    enabled = state.status == RtcRoomStatus.CONNECTED,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(if (state.microphoneEnabled) "Silenciar" else "Ativar áudio")
+                }
+                OutlinedButton(
+                    onClick = { rtcViewModel.setCameraEnabled(!state.localVideoEnabled) },
+                    enabled = state.status == RtcRoomStatus.CONNECTED,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(if (state.localVideoEnabled) "Desligar câmera" else "Ativar câmera")
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                TextButton(
+                    onClick = onOpenModeration,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Bloquear/denunciar", color = Color.White)
+                }
+                Button(
+                    onClick = onHangup,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8A3D4A)),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Text("Encerrar")
                 }
             }
         }
@@ -1055,7 +1256,10 @@ private fun VideoSessionCard(
     session: VideoSession,
     isIssuingToken: Boolean,
     tokenIssued: Boolean,
+    rtcTokenReady: Boolean,
+    rtcStatus: RtcRoomStatus,
     onIssueToken: () -> Unit,
+    onConnectRtc: () -> Unit,
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -1090,7 +1294,7 @@ private fun VideoSessionCard(
             )
             Button(
                 onClick = onIssueToken,
-                enabled = !isIssuingToken && !tokenIssued && session.status != VideoSessionStatus.ENDED,
+                enabled = !isIssuingToken && !rtcTokenReady && session.status != VideoSessionStatus.ENDED,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = VibePurple),
                 shape = RoundedCornerShape(14.dp),
@@ -1101,14 +1305,35 @@ private fun VideoSessionCard(
                         color = Color.White,
                         strokeWidth = 2.dp,
                     )
-                } else if (tokenIssued) {
+                } else if (tokenIssued && rtcTokenReady) {
                     Text("Credencial JIT emitida")
+                } else if (tokenIssued) {
+                    Text("Solicitar nova credencial JIT")
                 } else {
                     Text("Solicitar credencial JIT")
                 }
             }
+            if (rtcTokenReady) {
+                Button(
+                    onClick = onConnectRtc,
+                    enabled = rtcStatus != RtcRoomStatus.CONNECTED &&
+                        rtcStatus != RtcRoomStatus.CONNECTING &&
+                        rtcStatus != RtcRoomStatus.RECONNECTING,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2F7D4A)),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Text(
+                        if (rtcStatus == RtcRoomStatus.PERMISSION_DENIED) {
+                            "Tentar permissões novamente"
+                        } else {
+                            "Entrar na chamada"
+                        },
+                    )
+                }
+            }
             Text(
-                text = "A credencial não é exibida nem persistida pelo app nesta etapa. Câmera, WebRTC e LiveKit permanecem desativados até a integração segura de mídia.",
+                text = "A credencial não é exibida nem persistida pelo app. O LiveKit só é conectado após token JIT novo, permissões aprovadas e ação explícita do usuário.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color(0xFF72717D),
             )
