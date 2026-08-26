@@ -28,6 +28,8 @@ const consent = (overrides: Partial<Consent> = {}): Consent => ({
 class FakeConsentRepository implements ConsentRepositoryPort {
   createResult: Consent | null = consent();
   decisionResult: Consent | null = consent({ userAStatus: 'ACCEPTED' });
+  rateLimitAllowed = true;
+  rateLimitCall: { userId: string; now: Date; limit: number } | null = null;
   created: { userId: string; matchIntentId: string; expiresAt: Date } | null = null;
   decided: {
     actingUserId: string;
@@ -42,6 +44,11 @@ class FakeConsentRepository implements ConsentRepositoryPort {
   createEligible(userId: string, matchIntentId: string, expiresAt: Date): Promise<Consent | null> {
     this.created = { userId, matchIntentId, expiresAt };
     return Promise.resolve(this.createResult);
+  }
+
+  consumeDecisionRateLimit(userId: string, now: Date, limit: number): Promise<boolean> {
+    this.rateLimitCall = { userId, now, limit };
+    return Promise.resolve(this.rateLimitAllowed);
   }
 
   decide(
@@ -80,6 +87,24 @@ describe('ConsentService', () => {
     });
   });
 
+  test('rate limits consent decisions before touching consent state', async () => {
+    const repository = new FakeConsentRepository();
+    repository.rateLimitAllowed = false;
+    const service = new ConsentService(
+      repository,
+      () => NOW,
+      10 * 60 * 1000,
+      5 * 60 * 1000,
+      30,
+    );
+
+    await expect(
+      service.decide(USER_A, CONSENT_ID, 'ACCEPTED', 'session-1', REQUEST_ID),
+    ).rejects.toMatchObject({ code: 'RATE_LIMITED' });
+    expect(repository.rateLimitCall).toEqual({ userId: USER_A, now: NOW, limit: 30 });
+    expect(repository.decided).toBeNull();
+  });
+
   test('uses authenticated session metadata and a server-controlled video window', async () => {
     const repository = new FakeConsentRepository();
     const service = new ConsentService(repository, () => NOW, 10 * 60 * 1000, 5 * 60 * 1000);
@@ -108,6 +133,7 @@ describe('ConsentService', () => {
       service.decide(USER_A, CONSENT_ID, 'ACCEPTED', 'session-1', 'invalid'),
     ).rejects.toMatchObject({ code: 'INVALID_CONSENT' });
     expect(repository.created).toBeNull();
+    expect(repository.rateLimitCall).toBeNull();
     expect(repository.decided).toBeNull();
   });
 
