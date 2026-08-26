@@ -147,7 +147,12 @@ private fun VibeMatchApp(
         LoginScreen(activity, authViewModel)
     } else {
         val profileState by profileViewModel.state
-        if (!profileState.hasLoaded || profileState.profileIncomplete || showProfile) {
+        if (
+            !profileState.hasLoaded ||
+                profileState.profileIncomplete ||
+                profileState.gate != ProfileGate.READY ||
+                showProfile
+        ) {
             ProfileScreen(
                 viewModel = profileViewModel,
                 onClose = { showProfile = false },
@@ -513,7 +518,7 @@ private fun ProfileScreen(
     onLogout: () -> Unit,
 ) {
     val state by viewModel.state
-    val canClose = !state.profileIncomplete
+    val canClose = !state.profileIncomplete && state.gate == ProfileGate.READY
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -586,6 +591,10 @@ private fun ProfileGateCard(modifier: Modifier = Modifier, gate: ProfileGate) {
     val title: String
     val description: String
     when (gate) {
+        ProfileGate.AGE_NOT_STARTED -> {
+            title = "Verificação de idade necessária"
+            description = "Conclua a verificação de idade para liberar recursos restritos."
+        }
         ProfileGate.AGE_PENDING -> {
             title = "Verificação de idade pendente"
             description = "Aguarde a confirmação do backend antes de continuar."
@@ -593,6 +602,10 @@ private fun ProfileGateCard(modifier: Modifier = Modifier, gate: ProfileGate) {
         ProfileGate.AGE_REJECTED -> {
             title = "Não foi possível confirmar sua idade"
             description = "O acesso permanece bloqueado até uma nova orientação do suporte."
+        }
+        ProfileGate.AGE_UNAVAILABLE -> {
+            title = "Verificação de idade indisponível"
+            description = "O backend não confirmou sua elegibilidade. Tente novamente mais tarde."
         }
         ProfileGate.BLOCKED -> {
             title = "Conta bloqueada"

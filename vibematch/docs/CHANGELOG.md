@@ -17,7 +17,9 @@
 - Tela Compose de onboarding com nome, idioma, região, avatar opcional e seleção de até 10 interesses.
 - Tela de perfil acessível a partir do chat, com confirmação de salvamento e estados de erro/sessão.
 - Estados fail-closed para idade pendente/rejeitada e conta bloqueada ou suspensa.
-- Testes Android de contrato JSON e ProfileViewModel.
+- Consulta autenticada de `GET /api/age-assurance/status`; somente `APPROVED` permite sair do perfil e abrir o chat.
+- Status desconhecido, indisponibilidade do endpoint e `AGE_ASSURANCE_REQUIRED` não liberam recursos restritos localmente.
+- Testes Android de contrato JSON, Age Assurance e ProfileViewModel.
 
 ### Limitações conhecidas
 

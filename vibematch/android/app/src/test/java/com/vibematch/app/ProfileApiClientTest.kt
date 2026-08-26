@@ -1,7 +1,9 @@
 package com.vibematch.app
 
+import com.vibematch.app.profile.AgeAssuranceStatus
 import com.vibematch.app.profile.ProfileDraft
 import com.vibematch.app.profile.buildProfileUpdateRequestBody
+import com.vibematch.app.profile.parseAgeAssuranceStatus
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -12,6 +14,15 @@ import org.junit.Test
 
 class ProfileApiClientTest {
     private val json = Json { ignoreUnknownKeys = true }
+
+    @Test
+    fun `maps backend age assurance status without granting unknown values`() {
+        assertEquals(AgeAssuranceStatus.NOT_STARTED, parseAgeAssuranceStatus("NOT_STARTED"))
+        assertEquals(AgeAssuranceStatus.PENDING, parseAgeAssuranceStatus("PENDING"))
+        assertEquals(AgeAssuranceStatus.APPROVED, parseAgeAssuranceStatus("APPROVED"))
+        assertEquals(AgeAssuranceStatus.REJECTED, parseAgeAssuranceStatus("REJECTED"))
+        assertEquals(AgeAssuranceStatus.UNKNOWN, parseAgeAssuranceStatus("FUTURE_STATUS"))
+    }
 
     @Test
     fun `builds profile update request with backend field names`() {

@@ -14,6 +14,14 @@ data class UserProfile(
     val interests: List<ProfileInterest>,
 )
 
+enum class AgeAssuranceStatus {
+    NOT_STARTED,
+    PENDING,
+    APPROVED,
+    REJECTED,
+    UNKNOWN,
+}
+
 data class ProfileDraft(
     val displayName: String,
     val avatarUrl: String,
@@ -25,6 +33,7 @@ data class ProfileDraft(
 interface ProfileGateway {
     suspend fun getProfile(accessToken: String): UserProfile?
     suspend fun listInterests(accessToken: String): List<ProfileInterest>
+    suspend fun getAgeAssuranceStatus(accessToken: String): AgeAssuranceStatus
     suspend fun updateProfile(accessToken: String, draft: ProfileDraft): UserProfile
 }
 

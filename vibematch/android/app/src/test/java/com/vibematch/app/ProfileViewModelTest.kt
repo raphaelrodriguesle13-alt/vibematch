@@ -1,7 +1,9 @@
 package com.vibematch.app
 
+import com.vibematch.app.profile.AgeAssuranceStatus
 import com.vibematch.app.profile.ProfileDraft
 import com.vibematch.app.profile.ProfileGateway
+import com.vibematch.app.profile.ProfileGate
 import com.vibematch.app.profile.ProfileInterest
 import com.vibematch.app.profile.ProfileViewModel
 import com.vibematch.app.profile.UserProfile
@@ -64,6 +66,27 @@ class ProfileViewModelTest {
     }
 
     @Test
+    fun `blocks restricted flow when age assurance is pending`() = runTest {
+        gateway.ageStatus = AgeAssuranceStatus.PENDING
+        val viewModel = ProfileViewModel(gateway, { "session-jwt" })
+
+        viewModel.load()
+
+        assertEquals(ProfileGate.AGE_PENDING, viewModel.state.value.gate)
+        assertTrue(viewModel.state.value.hasLoaded)
+    }
+
+    @Test
+    fun `unknown age assurance status fails closed`() = runTest {
+        gateway.ageStatus = AgeAssuranceStatus.UNKNOWN
+        val viewModel = ProfileViewModel(gateway, { "session-jwt" })
+
+        viewModel.load()
+
+        assertEquals(ProfileGate.AGE_UNAVAILABLE, viewModel.state.value.gate)
+    }
+
+    @Test
     fun `does not select more than ten interests`() = runTest {
         gateway.interests = (1..11).map { ProfileInterest("interest-$it", "Interest $it") }
         val viewModel = ProfileViewModel(gateway, { "session-jwt" })
@@ -93,8 +116,11 @@ class ProfileViewModelTest {
             ProfileInterest("interest-2", "Viagens"),
         )
         var lastDraft: ProfileDraft? = null
+        var ageStatus = AgeAssuranceStatus.APPROVED
 
         override suspend fun getProfile(accessToken: String): UserProfile? = null
+
+        override suspend fun getAgeAssuranceStatus(accessToken: String): AgeAssuranceStatus = ageStatus
 
         override suspend fun listInterests(accessToken: String): List<ProfileInterest> = interests
 

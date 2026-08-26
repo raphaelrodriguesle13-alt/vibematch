@@ -1,6 +1,6 @@
 # VibeMatch — Continuidade de Implementação
 
-Atualizado em 2026-08-25.
+Atualizado em 2026-08-26.
 
 ## Estado confirmado
 
@@ -13,6 +13,8 @@ Atualizado em 2026-08-25.
 - O Android agora obtém o Google ID token via Credential Manager, troca-o por sessão backend e guarda a sessão com AndroidX Security Crypto.
 - Logout Android revoga a sessão no backend, limpa o estado de credencial Google e remove a sessão local.
 - O Android agora possui onboarding e edição de perfil, carregando interesses e salvando o perfil pelas rotas autenticadas do backend.
+- O backend também expõe Age Assurance e MatchIntent; chat e MatchIntent falham fechado quando o status de idade não é `APPROVED`.
+- O Android consulta `GET /api/age-assurance/status` e mantém o usuário no cartão de bloqueio para qualquer status não aprovado ou desconhecido.
 - A próxima barreira legítima é completar onboarding de telefone no Android, renovar/expirar sessões e obter evidência verde de CI/migrations/testes.
 
 ## Ordem de continuidade
@@ -21,13 +23,11 @@ Atualizado em 2026-08-25.
 2. Corrigir qualquer falha das etapas 0–1.
 3. Completar o onboarding de telefone no Android e tratar expiração/renovação de sessão.
 4. Consolidar o chat Android: HTTPS, rate limiting, persistência e observabilidade.
-5. Integrar o próximo contrato de MatchIntent/matching somente após a API backend existir.
-6. Etapa 4: Age Assurance, fail-closed.
-7. Etapa 5: MatchIntent.
-8. Etapa 6: Consent mútuo.
-9. Etapa 7: Video Session/LiveKit com revalidação JIT.
-10. Etapa 8: denúncia, bloqueio e moderação.
-11. Só depois: billing, exclusão, notificações, VibeOS, auditoria e hardening.
+5. Consumir MatchIntent no Android somente após a UX e os contratos de consentimento existirem.
+6. Etapa 6: Consent mútuo.
+7. Etapa 7: Video Session/LiveKit com revalidação JIT.
+8. Etapa 8: denúncia, bloqueio e moderação.
+9. Só depois: billing, exclusão, notificações, VibeOS, auditoria e hardening.
 
 ## Invariantes
 

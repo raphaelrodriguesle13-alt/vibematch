@@ -57,6 +57,24 @@ class ProfileApiClient(
         }
     }
 
+    override suspend fun getAgeAssuranceStatus(accessToken: String): AgeAssuranceStatus {
+        val response = execute(
+            Request.Builder()
+                .url("$baseUrl/api/age-assurance/status")
+                .header("Authorization", "Bearer $accessToken")
+                .header("Accept", "application/json")
+                .get()
+                .build(),
+        )
+        response.use {
+            val body = it.body?.string().orEmpty()
+            if (it.code == 404) return AgeAssuranceStatus.UNKNOWN
+            ensureSuccess(it.code, it.isSuccessful, body)
+            val envelope = decode<AgeAssuranceEnvelope>(body, it.code)
+            return parseAgeAssuranceStatus(envelope.data.status)
+        }
+    }
+
     override suspend fun updateProfile(accessToken: String, draft: ProfileDraft): UserProfile {
         val requestBody = buildProfileUpdateRequestBody(json, draft)
             .toRequestBody("application/json; charset=utf-8".toMediaType())
@@ -114,6 +132,12 @@ class ProfileApiClient(
 }
 
 @Serializable
+private data class AgeAssuranceEnvelope(val data: AgeAssuranceBody)
+
+@Serializable
+private data class AgeAssuranceBody(val status: String)
+
+@Serializable
 private data class ProfileEnvelope(val data: ProfileBody)
 
 @Serializable
@@ -155,7 +179,16 @@ private fun ProfileBody.toDomain() = UserProfile(
 
 private fun InterestBody.toDomain() = ProfileInterest(id = id, label = label)
 
-internal fun buildProfileUpdateRequestBody(json: Json, draft: ProfileDraft): String =
+internal fun parseAgeAssuranceStatus(raw: String): AgeAssuranceStatus = when (raw) {
+    "NOT_STARTED" -> AgeAssuranceStatus.NOT_STARTED
+    "PENDING" -> AgeAssuranceStatus.PENDING
+    "APPROVED" -> AgeAssuranceStatus.APPROVED
+    "REJECTED" -> AgeAssuranceStatus.REJECTED
+    else -> AgeAssuranceStatus.UNKNOWN
+}
+
+internal fun buildProfileUpdateRequestBody(
+json: Json, draft: ProfileDraft): String =
     json.encodeToString(
         UpdateProfileBody(
             displayName = draft.displayName,

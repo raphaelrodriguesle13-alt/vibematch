@@ -11,8 +11,10 @@ import kotlinx.coroutines.launch
 
 enum class ProfileGate {
     READY,
+    AGE_NOT_STARTED,
     AGE_PENDING,
     AGE_REJECTED,
+    AGE_UNAVAILABLE,
     BLOCKED,
     SUSPENDED,
 }
@@ -55,6 +57,12 @@ class ProfileViewModel(
             try {
                 val interests = gateway.listInterests(token)
                 val profile = gateway.getProfile(token)
+                val ageStatus = try {
+                    gateway.getAgeAssuranceStatus(token)
+                } catch (error: Exception) {
+                    if (error is ProfileApiException && error.statusCode == 401) throw error
+                    AgeAssuranceStatus.UNKNOWN
+                }
                 mutableState.value = mutableState.value.copy(
                     isLoading = false,
                     hasLoaded = true,
@@ -62,6 +70,7 @@ class ProfileViewModel(
                     availableInterests = interests,
                     draft = profile?.toDraft() ?: defaultProfileDraft(),
                     profileIncomplete = profile == null,
+                    gate = gateFor(ageStatus),
                     errorMessage = null,
                 )
             } catch (error: Exception) {
@@ -194,10 +203,19 @@ class ProfileViewModel(
         return false
     }
 
+    private fun gateFor(status: AgeAssuranceStatus): ProfileGate = when (status) {
+        AgeAssuranceStatus.NOT_STARTED -> ProfileGate.AGE_NOT_STARTED
+        AgeAssuranceStatus.PENDING -> ProfileGate.AGE_PENDING
+        AgeAssuranceStatus.APPROVED -> ProfileGate.READY
+        AgeAssuranceStatus.REJECTED -> ProfileGate.AGE_REJECTED
+        AgeAssuranceStatus.UNKNOWN -> ProfileGate.AGE_UNAVAILABLE
+    }
+
     private fun gateFor(error: Exception): ProfileGate? {
         val code = (error as? ProfileApiException)?.errorCode ?: return null
         return when (code) {
-            "AGE_PENDING" -> ProfileGate.AGE_PENDING
+            "AGE_NOT_STARTED" -> ProfileGate.AGE_NOT_STARTED
+            "AGE_PENDING", "AGE_ASSURANCE_REQUIRED" -> ProfileGate.AGE_PENDING
             "AGE_REJECTED" -> ProfileGate.AGE_REJECTED
             "USER_BLOCKED" -> ProfileGate.BLOCKED
             "USER_SUSPENDED" -> ProfileGate.SUSPENDED
