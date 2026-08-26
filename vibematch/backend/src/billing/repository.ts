@@ -8,6 +8,14 @@ interface SubscriptionRow extends QueryResultRow {
   current_period_end: Date;
 }
 
+const toEntitlement = (row: SubscriptionRow): SubscriptionEntitlement => ({
+  userId: row.user_id,
+  plan: row.plan,
+  status: row.status,
+  currentPeriodEnd: new Date(row.current_period_end),
+  entitled: false,
+});
+
 export class BillingRepository implements BillingRepositoryPort {
   constructor(private readonly pool: Pool) {}
 
@@ -50,14 +58,20 @@ export class BillingRepository implements BillingRepositoryPort {
       ],
     );
     const row = result.rows[0];
-    if (!row) return null;
-    return {
-      userId: row.user_id,
-      plan: row.plan,
-      status: row.status,
-      currentPeriodEnd: new Date(row.current_period_end),
-      entitled: false,
-    };
+    return row ? toEntitlement(row) : null;
+  }
+
+  async findLatestEntitlementForUser(userId: string): Promise<SubscriptionEntitlement | null> {
+    const result = await this.pool.query<SubscriptionRow>(
+      `SELECT user_id, plan, status, current_period_end
+       FROM subscriptions
+       WHERE user_id = $1
+       ORDER BY current_period_end DESC, updated_at DESC
+       LIMIT 1`,
+      [userId],
+    );
+    const row = result.rows[0];
+    return row ? toEntitlement(row) : null;
   }
 
   async findUserIdByPurchaseToken(purchaseToken: string): Promise<string | null> {
