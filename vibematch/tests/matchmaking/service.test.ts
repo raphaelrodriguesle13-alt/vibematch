@@ -26,9 +26,18 @@ class FakeMatchIntentRepository implements MatchIntentRepositoryPort {
   created: { senderId: string; receiverId: string; expiresAt: Date } | null = null;
   createResult: MatchIntent | null = intent();
   respondResult: MatchIntent | null = intent({ status: 'ACCEPTED', respondedAt: NOW });
-  response: { receiverId: string; intentId: string; decision: MatchIntentDecision; now: Date } | null = null;
+  response: {
+    receiverId: string;
+    intentId: string;
+    decision: MatchIntentDecision;
+    now: Date;
+  } | null = null;
 
-  createEligible(senderId: string, receiverId: string, expiresAt: Date): Promise<MatchIntent | null> {
+  createEligible(
+    senderId: string,
+    receiverId: string,
+    expiresAt: Date,
+  ): Promise<MatchIntent | null> {
     this.created = { senderId, receiverId, expiresAt };
     return Promise.resolve(this.createResult);
   }
