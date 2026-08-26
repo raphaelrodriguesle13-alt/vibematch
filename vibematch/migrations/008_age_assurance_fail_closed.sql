@@ -35,6 +35,9 @@ BEFORE INSERT ON sessions
 FOR EACH ROW
 EXECUTE FUNCTION enforce_session_age_assurance();
 
+-- SECURITY DEFINER is intentional: svc_profile owns the age status transition but must
+-- not receive UPDATE privileges on sessions. The trigger performs only the narrowly
+-- scoped revocation while using a fixed search_path and no caller-controlled SQL.
 CREATE OR REPLACE FUNCTION revoke_sessions_on_user_restriction()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -43,7 +46,8 @@ BEGIN
     UPDATE sessions s
        SET status = 'ENDED',
            end_reason = CASE
-             WHEN NEW.status IS DISTINCT FROM 'ACTIVE' THEN 'USER_SUSPENDED'
+             WHEN NEW.status = 'SUSPENDED' THEN 'USER_SUSPENDED'
+             WHEN NEW.status IN ('PENDING_DELETION', 'DELETED') THEN 'ACCOUNT_DELETION'
              ELSE 'CONSENT_INVALIDATED'
            END,
            revocation_pending = TRUE,
@@ -57,7 +61,9 @@ BEGIN
 
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SET search_path = pg_catalog, public;
+$$ LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public;
 
 CREATE TRIGGER trg_revoke_sessions_on_user_restriction
 AFTER UPDATE OF status, age_assurance_status ON users
