@@ -13,7 +13,11 @@ export type MatchIntent = {
 };
 
 export interface MatchIntentRepositoryPort {
-  createEligible(senderId: string, receiverId: string, expiresAt: Date): Promise<MatchIntent | null>;
+  createEligible(
+    senderId: string,
+    receiverId: string,
+    expiresAt: Date,
+  ): Promise<MatchIntent | null>;
   listIncoming(receiverId: string, now: Date): Promise<MatchIntent[]>;
   respond(
     receiverId: string,
