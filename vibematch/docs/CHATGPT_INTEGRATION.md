@@ -79,11 +79,15 @@ O módulo `android/` contém telas Compose de login, onboarding/perfil e chat, u
 ./gradlew :app:assembleDebug -PAPI_BASE_URL=http://10.0.2.2:3000
 ```
 
-O cliente obtém o Google ID token com Credential Manager, troca-o em `/auth/google` por um JWT curto do backend e guarda somente a sessão em `EncryptedSharedPreferences`. O logout revoga a sessão, limpa o estado de credencial Google e apaga o armazenamento local. Depois do login, o onboarding chama `GET /api/interests` e `GET /api/profile`; perfil inexistente entra em onboarding e o salvamento chama `PUT /api/profile`. O Android também consulta `GET /api/age-assurance/status`: só o status `APPROVED` permite sair do perfil e abrir o chat; `NOT_STARTED`, `PENDING`, `REJECTED`, respostas desconhecidas ou indisponibilidade permanecem bloqueados. O app nunca aprova idade localmente. O manifest debug é a única variante que habilita HTTP local; o manifest release força `android:usesCleartextTraffic=false` e o Gradle rejeita `API_BASE_URL` sem HTTPS.
+O cliente obtém o Google ID token com Credential Manager, troca-o em `/auth/google` por um JWT curto do backend e guarda somente a sessão em `EncryptedSharedPreferences`. O logout revoga a sessão, limpa o estado de credencial Google e apaga o armazenamento local. Depois do login, o onboarding chama `GET /api/interests` e `GET /api/profile`; perfil inexistente entra em onboarding e o salvamento chama `PUT /api/profile`. O Android também consulta `GET /api/age-assurance/status`: só o status `APPROVED` permite sair do perfil e abrir o chat; `NOT_STARTED`, `PENDING`, `REJECTED`, respostas desconhecidas ou indisponibilidade permanecem bloqueados. O app nunca aprova idade localmente.
+
+Quando a sessão informa `phone_verified=false`, o Android chama `POST /auth/phone/start` com `{ "phone_e164": "+5511999999999" }`, guarda o `verification_id` apenas no estado da tela e envia o código em `POST /auth/phone/confirm`. A sessão local é marcada como verificada somente depois de `{ "ok": true, "phone_verified": true }`; o JWT existente não é reemitido pelo cliente. Erros de telefone são exibidos como mensagens públicas e HTTP 401 encerra a sessão.
+
+O manifest debug é a única variante que habilita HTTP local; o manifest release força `android:usesCleartextTraffic=false` e o Gradle rejeita `API_BASE_URL` sem HTTPS.
 
 ## Próxima etapa
 
-A próxima entrega deve completar o onboarding de telefone no Android e, depois, consumir MatchIntent quando a UX existir. Também deve tratar renovação/expiração de sessão conforme o contrato do backend e revisar rate limiting, persistência de conversas, observabilidade e moderação antes de produção. O cliente não autoriza localmente idade, matchmaking, consentimento ou vídeo.
+A próxima entrega deve validar o onboarding de telefone com um provedor SMS real e em dispositivo, definir renovação/expiração de sessão conforme o contrato do backend e, depois, consumir MatchIntent quando a UX existir. Rate limiting, persistência de conversas, observabilidade e moderação ainda precisam ser revisados antes de produção. O cliente não autoriza localmente idade, matchmaking, consentimento ou vídeo.
 
 ## Referências oficiais
 

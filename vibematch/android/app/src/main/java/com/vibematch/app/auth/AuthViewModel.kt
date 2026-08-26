@@ -43,6 +43,13 @@ class AuthViewModel(
         }
     }
 
+    fun markPhoneVerified() {
+        val session = mutableState.value.session ?: return
+        val updatedSession = session.copy(phoneVerified = true)
+        sessionStore.save(updatedSession)
+        mutableState.value = mutableState.value.copy(session = updatedSession)
+    }
+
     fun signOut() {
         if (mutableState.value.isLoading) return
         val session = mutableState.value.session

@@ -54,6 +54,18 @@ class AuthViewModelTest {
     }
 
     @Test
+    fun `marks phone verified after server confirmation and persists local session hint`() {
+        store.session = testSession()
+        val viewModel = AuthViewModel(google, auth, store)
+
+        viewModel.markPhoneVerified()
+
+        assertTrue(viewModel.state.value.session?.phoneVerified == true)
+        assertTrue(store.session?.phoneVerified == true)
+        assertEquals("session-jwt", viewModel.state.value.session?.sessionJwt)
+    }
+
+    @Test
     fun `sign out revokes backend session clears Google state and local session`() = runTest {
         store.session = testSession()
         val viewModel = AuthViewModel(google, auth, store)

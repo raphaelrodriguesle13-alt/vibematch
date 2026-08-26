@@ -48,3 +48,9 @@ O botão de continuidade envia `PUT /api/profile` com o contrato abaixo:
 ```
 
 O backend continua sendo a fonte da verdade para validação, interesses válidos e estados de idade, bloqueio ou suspensão. A tela mostra esses estados de forma fail-closed quando o backend os reportar; ela não libera matchmaking, consentimento ou vídeo localmente.
+
+## Verificação telefônica
+
+Quando a sessão informa `phone_verified=false`, o app apresenta a etapa de telefone antes do chat. O usuário informa o número em formato internacional E.164 e o Android chama `POST /auth/phone/start` com `{ "phone_e164": "+5511999999999" }`. O backend valida o número e retorna `verification_id` e `expires_at`; esses valores permanecem somente no estado da tela.
+
+Na segunda etapa, o app chama `POST /auth/phone/confirm` com `{ "verification_id": "...", "code": "..." }`. Somente a resposta server-side `{ "ok": true, "phone_verified": true }` atualiza a dica local da sessão e libera a navegação. Erros `INVALID_PHONE`, `INVALID_CODE`, `VERIFICATION_NOT_AVAILABLE`, `TOO_MANY_ATTEMPTS`, `SMS_PROVIDER_UNAVAILABLE` e HTTP 401 são tratados sem expor detalhes internos; 401 encerra a sessão local e retorna ao login.

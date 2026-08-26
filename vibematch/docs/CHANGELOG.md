@@ -19,12 +19,13 @@
 - Estados fail-closed para idade pendente/rejeitada e conta bloqueada ou suspensa.
 - Consulta autenticada de `GET /api/age-assurance/status`; somente `APPROVED` permite sair do perfil e abrir o chat.
 - Status desconhecido, indisponibilidade do endpoint e `AGE_ASSURANCE_REQUIRED` não liberam recursos restritos localmente.
-- Testes Android de contrato JSON, Age Assurance e ProfileViewModel.
+- Onboarding Android de telefone em duas etapas, consumindo `POST /auth/phone/start` e `POST /auth/phone/confirm`.
+- Atualização local de `phone_verified` somente após confirmação positiva do backend, com retorno ao login em HTTP 401.
+- Testes Android de contrato JSON, Age Assurance, telefone, AuthViewModel e ProfileViewModel.
 
 ### Limitações conhecidas
 
-- O onboarding de telefone ainda não está ligado à Activity.
-- Renovação de sessão, rate limiting, persistência de conversas e observabilidade ainda estão pendentes.
+- A validação OAuth Google em dispositivo, renovação de sessão, rate limiting, persistência de conversas e observabilidade ainda estão pendentes.
 - A configuração real do Web client ID e a validação OAuth em dispositivo ainda dependem do ambiente Google do projeto.
 
 ## [0.1.0] — Etapa 0 + Etapa 1 (implementação de schema e fundação)

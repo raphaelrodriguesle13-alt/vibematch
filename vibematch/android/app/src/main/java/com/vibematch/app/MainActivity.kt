@@ -52,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -59,6 +60,10 @@ import com.vibematch.app.auth.AuthApiClient
 import com.vibematch.app.auth.AuthViewModel
 import com.vibematch.app.auth.AuthViewModelFactory
 import com.vibematch.app.auth.GoogleOidcClient
+import com.vibematch.app.auth.PhoneVerificationApiClient
+import com.vibematch.app.auth.PhoneVerificationStep
+import com.vibematch.app.auth.PhoneVerificationViewModel
+import com.vibematch.app.auth.PhoneVerificationViewModelFactory
 import com.vibematch.app.auth.SecureSessionStore
 import com.vibematch.app.chat.ChatMessage
 import com.vibematch.app.profile.ProfileApiClient
@@ -104,11 +109,20 @@ class MainActivity : ComponentActivity() {
                         onSessionExpired = authViewModel::signOut,
                     ),
                 )
+                val phoneViewModel: PhoneVerificationViewModel = viewModel(
+                    factory = PhoneVerificationViewModelFactory(
+                        gateway = PhoneVerificationApiClient(BuildConfig.API_BASE_URL),
+                        accessTokenProvider = sessionStore::readAccessToken,
+                        onSessionExpired = authViewModel::signOut,
+                        onPhoneVerified = authViewModel::markPhoneVerified,
+                    ),
+                )
                 VibeMatchApp(
                     activity = this@MainActivity,
                     authViewModel = authViewModel,
                     chatViewModel = chatViewModel,
                     profileViewModel = profileViewModel,
+                    phoneViewModel = phoneViewModel,
                 )
             }
         }
@@ -133,17 +147,20 @@ private fun VibeMatchApp(
     authViewModel: AuthViewModel,
     chatViewModel: ChatViewModel,
     profileViewModel: ProfileViewModel,
+    phoneViewModel: PhoneVerificationViewModel,
 ) {
     val authState by authViewModel.state
-    val sessionId = authState.session?.userId
+    val session = authState.session
+    val sessionId = session?.userId
     var showProfile by remember(sessionId) { mutableStateOf(false) }
 
     LaunchedEffect(sessionId) {
         profileViewModel.reset()
+        phoneViewModel.reset()
         if (sessionId != null) profileViewModel.load()
     }
 
-    if (authState.session == null) {
+    if (session == null) {
         LoginScreen(activity, authViewModel)
     } else {
         val profileState by profileViewModel.state
@@ -159,6 +176,16 @@ private fun VibeMatchApp(
                 onLogout = {
                     profileViewModel.reset()
                     chatViewModel.clearConversation()
+                    phoneViewModel.reset()
+                    authViewModel.signOut()
+                },
+            )
+        } else if (!session.phoneVerified) {
+            PhoneVerificationScreen(
+                viewModel = phoneViewModel,
+                onLogout = {
+                    phoneViewModel.reset()
+                    chatViewModel.clearConversation()
                     authViewModel.signOut()
                 },
             )
@@ -168,6 +195,7 @@ private fun VibeMatchApp(
                 isSigningOut = authState.isLoading,
                 onLogout = {
                     chatViewModel.clearConversation()
+                    phoneViewModel.reset()
                     authViewModel.signOut()
                 },
                 onOpenProfile = { showProfile = true },
@@ -582,6 +610,133 @@ private fun ProfileScreen(
                     viewModel = viewModel,
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun PhoneVerificationScreen(
+    viewModel: PhoneVerificationViewModel,
+    onLogout: () -> Unit,
+) {
+    val state by viewModel.state
+    val isBusy = state.isLoading || state.isConfirming
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = VibeBackground,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Verifique seu telefone",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = "Uma etapa de segurança antes de continuar.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF72717D),
+                    )
+                }
+                TextButton(onClick = onLogout, enabled = !isBusy) {
+                    Text("Sair", color = VibePurple)
+                }
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+            if (state.step == PhoneVerificationStep.PHONE_INPUT) {
+                Text(
+                    text = "Digite seu telefone no formato internacional. Enviaremos um código para confirmar que ele pertence a você.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = VibeInk,
+                )
+                OutlinedTextField(
+                    value = state.phoneE164,
+                    onValueChange = viewModel::updatePhone,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Telefone") },
+                    placeholder = { Text("+5511999999999") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    enabled = !isBusy,
+                    shape = RoundedCornerShape(16.dp),
+                )
+                state.errorMessage?.let { error ->
+                    ErrorBanner(error) { viewModel.clearError() }
+                }
+                Button(
+                    onClick = viewModel::start,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isBusy,
+                    colors = ButtonDefaults.buttonColors(containerColor = VibePurple),
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    if (state.isLoading) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Text("Enviar código")
+                    }
+                }
+            } else {
+                Text(
+                    text = "Informe o código recebido por SMS para confirmar ${state.phoneE164}.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = VibeInk,
+                )
+                OutlinedTextField(
+                    value = state.code,
+                    onValueChange = viewModel::updateCode,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Código de confirmação") },
+                    placeholder = { Text("Digite o código") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    enabled = !isBusy,
+                    shape = RoundedCornerShape(16.dp),
+                )
+                state.errorMessage?.let { error ->
+                    ErrorBanner(error) { viewModel.clearError() }
+                }
+                Button(
+                    onClick = viewModel::confirm,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isBusy,
+                    colors = ButtonDefaults.buttonColors(containerColor = VibePurple),
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    if (state.isConfirming) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Text("Confirmar telefone")
+                    }
+                }
+                TextButton(
+                    onClick = viewModel::requestNewCode,
+                    enabled = !isBusy,
+                    modifier = Modifier.align(Alignment.CenterHorizontally),
+                ) {
+                    Text("Usar outro número", color = VibePurple)
+                }
+            }
+            Spacer(modifier = Modifier.weight(1f))
         }
     }
 }
