@@ -113,7 +113,11 @@ const parseProfileBody = (body: ProfileBody | undefined): UpdateProfileInput | n
   ) {
     return null;
   }
-  if (body.avatar_url !== undefined && body.avatar_url !== null && typeof body.avatar_url !== 'string') {
+  if (
+    body.avatar_url !== undefined &&
+    body.avatar_url !== null &&
+    typeof body.avatar_url !== 'string'
+  ) {
     return null;
   }
   if (
@@ -124,10 +128,10 @@ const parseProfileBody = (body: ProfileBody | undefined): UpdateProfileInput | n
   }
   return {
     displayName: body.display_name,
-    avatarUrl: body.avatar_url as string | null | undefined,
     language: body.language,
     region: body.region,
-    interestIds: body.interest_ids as string[] | undefined,
+    ...(body.avatar_url !== undefined ? { avatarUrl: body.avatar_url as string | null } : {}),
+    ...(body.interest_ids !== undefined ? { interestIds: body.interest_ids as string[] } : {}),
   };
 };
 
