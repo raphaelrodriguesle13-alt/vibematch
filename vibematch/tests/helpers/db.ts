@@ -1,7 +1,12 @@
 import { Pool, PoolClient } from 'pg';
 
 type RuntimeRole =
-  'svc_auth' | 'svc_profile' | 'svc_matchmaking' | 'svc_video' | 'svc_moderation' | 'svc_billing';
+  | 'svc_auth'
+  | 'svc_profile'
+  | 'svc_matchmaking'
+  | 'svc_video'
+  | 'svc_moderation'
+  | 'svc_billing';
 
 type IdRow = { id: string };
 
@@ -67,18 +72,20 @@ export async function withRollback<T>(pool: Pool, fn: (c: PoolClient) => Promise
   }
 }
 
-/** Cria dois usuários ACTIVE e um MatchIntent ACCEPTED entre eles. */
+/** Cria dois usuários ACTIVE/APPROVED e um MatchIntent ACCEPTED entre eles. */
 export async function seedAcceptedIntent(client: PoolClient): Promise<{
   userA: string;
   userB: string;
   intentId: string;
 }> {
   const a = await client.query<IdRow>(
-    'INSERT INTO users (google_subject_id) VALUES ($1) RETURNING id',
+    `INSERT INTO users (google_subject_id, age_assurance_status)
+     VALUES ($1, 'APPROVED') RETURNING id`,
     [`sub-a-${Math.random()}`],
   );
   const b = await client.query<IdRow>(
-    'INSERT INTO users (google_subject_id) VALUES ($1) RETURNING id',
+    `INSERT INTO users (google_subject_id, age_assurance_status)
+     VALUES ($1, 'APPROVED') RETURNING id`,
     [`sub-b-${Math.random()}`],
   );
 
