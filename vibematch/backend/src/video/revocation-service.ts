@@ -35,8 +35,6 @@ export class VideoRevocationRepository {
       `SELECT id AS session_id, livekit_room AS room_name, end_reason
        FROM sessions
        WHERE revocation_pending = TRUE
-         AND revoked_at IS NULL
-         AND status <> 'ENDED'
        ORDER BY created_at ASC
        LIMIT $1`,
       [limit],
@@ -58,8 +56,7 @@ export class VideoRevocationRepository {
            revoked_at = COALESCE(revoked_at, $3),
            ended_at = COALESCE(ended_at, $3)
        WHERE id = $1
-         AND revocation_pending = TRUE
-         AND revoked_at IS NULL`,
+         AND revocation_pending = TRUE`,
       [sessionId, endReason, now],
     );
   }
