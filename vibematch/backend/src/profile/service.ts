@@ -26,10 +26,7 @@ export interface ProfileRepositoryPort {
   upsertProfile(userId: string, input: UpdateProfileInput): Promise<UserProfile>;
 }
 
-export type ProfileErrorCode =
-  | 'INVALID_PROFILE'
-  | 'PROFILE_NOT_FOUND'
-  | 'INVALID_INTERESTS';
+export type ProfileErrorCode = 'INVALID_PROFILE' | 'PROFILE_NOT_FOUND' | 'INVALID_INTERESTS';
 
 export class ProfileError extends Error {
   constructor(
