@@ -41,11 +41,19 @@ export const env = {
 
   /** V1.2 D2 — configuração server-side, nunca constante embutida. */
   sessionInactivityTimeoutSeconds: intFromEnv('SESSION_INACTIVITY_TIMEOUT_SECONDS', 60),
+  authSessionTtlSeconds: intFromEnv('AUTH_SESSION_TTL_SECONDS', 15 * 60),
 
   /** V1.2 D3 — 1 hora por padrão, ajustável sem alterar regra de negócio. */
   consentVideoDeadlineSeconds: intFromEnv('CONSENT_VIDEO_DEADLINE_SECONDS', 3600),
 
   consentDecisionExpirySeconds: intFromEnv('CONSENT_DECISION_EXPIRY_SECONDS', 86400),
+
+  /** Auth/OIDC/JWT. Chaves privadas são server-side only. */
+  googleOidcAudience: () => required('GOOGLE_OIDC_AUDIENCE'),
+  jwtPrivateKeyPem: () => required('JWT_PRIVATE_KEY_PEM').replace(/\\n/g, '\n'),
+  jwtPublicKeyPem: () => required('JWT_PUBLIC_KEY_PEM').replace(/\\n/g, '\n'),
+  jwtIssuer: () => required('JWT_ISSUER'),
+  jwtAudience: () => required('JWT_AUDIENCE'),
 
   /** LiveKit RTC público consumido pelo cliente. Nunca contém segredo. */
   liveKitRtcUrl: () => requiredUrl('LIVEKIT_URL', 'wss:'),
@@ -74,6 +82,10 @@ export const env = {
 
   /** Owner/migrations. Runtime services must use their least-privilege role. */
   databaseUrl: () => required('DATABASE_URL'),
+  authDatabaseUrl: () => required('DATABASE_URL_AUTH'),
+  profileDatabaseUrl: () => required('DATABASE_URL_PROFILE'),
+  matchmakingDatabaseUrl: () => required('DATABASE_URL_MATCHMAKING'),
+  moderationDatabaseUrl: () => required('DATABASE_URL_MODERATION'),
   videoDatabaseUrl: () => required('DATABASE_URL_VIDEO'),
   billingDatabaseUrl: () => required('DATABASE_URL_BILLING'),
 } as const;
