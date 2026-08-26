@@ -38,6 +38,9 @@ function intFromEnv(name: string, fallback: number): number {
 
 export const env = {
   nodeEnv: (process.env.NODE_ENV ?? 'development') as Environment,
+  port: intFromEnv('PORT', 3000),
+  host: process.env.HOST?.trim() || '0.0.0.0',
+  videoRevocationIntervalMs: intFromEnv('VIDEO_REVOCATION_INTERVAL_MS', 5_000),
 
   /** V1.2 D2 — configuração server-side, nunca constante embutida. */
   sessionInactivityTimeoutSeconds: intFromEnv('SESSION_INACTIVITY_TIMEOUT_SECONDS', 60),
