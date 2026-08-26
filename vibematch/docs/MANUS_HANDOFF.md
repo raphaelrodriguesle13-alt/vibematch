@@ -12,15 +12,16 @@ O fluxo autenticado permanece **Perfil → Age Assurance → Telefone → Chat �
 
 ## Estado do Git
 
-| Item                              | Valor                                                     |
-| --------------------------------- | --------------------------------------------------------- |
-| Repositório                       | `raphaelrodriguesle13-alt/vibematch`                      |
-| Branch utilizada                  | `continuity`                                              |
-| HEAD publicado antes do lote RTC  | `5cf646e` — `feat: add Android community safety controls` |
-| HEAD da implementação Android RTC | `5f8c3a2` — `feat: add Android LiveKit RTC call flow`     |
-| HEAD da documentação inicial RTC  | `5fbd908` — `docs: document Android LiveKit integration`  |
-| HEAD do ajuste Jest/signer        | `72efdb3` — `test: run LiveKit signer under Jest ESM`     |
-| HEAD antes deste handoff final    | `fff515e` — `style: format RTC handoff documentation`     |
+| Item                              | Valor                                                          |
+| --------------------------------- | -------------------------------------------------------------- |
+| Repositório                       | `raphaelrodriguesle13-alt/vibematch`                           |
+| Branch utilizada                  | `continuity`                                                   |
+| HEAD publicado antes do lote RTC  | `5cf646e` — `feat: add Android community safety controls`      |
+| HEAD da implementação Android RTC | `5f8c3a2` — `feat: add Android LiveKit RTC call flow`          |
+| HEAD da documentação inicial RTC  | `5fbd908` — `docs: document Android LiveKit integration`       |
+| HEAD do ajuste Jest/signer        | `72efdb3` — `test: run LiveKit signer under Jest ESM`          |
+| HEAD antes desta continuação RTC  | `c40f683` — `docs: refresh RTC handoff after rebase`           |
+| HEAD da continuação Android       | `5cdd254` — `fix: harden Android RTC lifecycle and revocation` |
 
 | Publicação | Deve ser feita somente em `origin/continuity`, sem force-push e sem tocar na `main` |
 
@@ -28,18 +29,27 @@ O `MANUS_HANDOFF.md` é o commit documental imediatamente posterior ao HEAD indi
 
 ## Commits relevantes
 
-| Commit    | Descrição                                     |
-| --------- | --------------------------------------------- |
-| `6f9b44f` | `feat: add LiveKit JIT token provider`        |
-| `719db57` | `test: verify LiveKit JIT token claims`       |
-| `3bc4183` | `docs: advance Manus Android RTC handoff`     |
-| `5cf646e` | `feat: add Android community safety controls` |
-| `5f8c3a2` | `feat: add Android LiveKit RTC call flow`     |
-| `5fbd908` | `docs: document Android LiveKit integration`  |
-| `72efdb3` | `test: run LiveKit signer under Jest ESM`     |
-| `fff515e` | `style: format RTC handoff documentation`     |
+| Commit    | Descrição                                          |
+| --------- | -------------------------------------------------- |
+| `6f9b44f` | `feat: add LiveKit JIT token provider`             |
+| `719db57` | `test: verify LiveKit JIT token claims`            |
+| `3bc4183` | `docs: advance Manus Android RTC handoff`          |
+| `5cf646e` | `feat: add Android community safety controls`      |
+| `5f8c3a2` | `feat: add Android LiveKit RTC call flow`          |
+| `5fbd908` | `docs: document Android LiveKit integration`       |
+| `72efdb3` | `test: run LiveKit signer under Jest ESM`          |
+| `fff515e` | `style: format RTC handoff documentation`          |
+| `253fce3` | `feat: add LiveKit room revocation adapter`        |
+| `5d62cdb` | `feat: add video revocation reconciler`            |
+| `fd6ae65` | `feat: add LiveKit runtime configuration`          |
+| `939ecb2` | `docs: add LiveKit runtime URL`                    |
+| `0d8f3a7` | `test: cover LiveKit room revocation`              |
+| `3f29ccf` | `test: clean LiveKit room admin coverage`          |
+| `713ccff` | `test: cover video revocation reconciliation`      |
+| `5cdd254` | `fix: harden Android RTC lifecycle and revocation` |
+| `f23f611` | `test: align LiveKit revocation test contracts`    |
 
-O commit `5f8c3a2` contém dependência, configuração, Manifest, gateway, ViewModel, tela Compose, wiring de moderação e testes Android RTC. O commit `72efdb3` é uma correção mínima de infraestrutura de testes: Jest passou a carregar `jose` ESM em Node 22 e o teste do signer verifica HS256 com `node:crypto`. Nenhuma regra de autorização ou lógica de produção do backend foi enfraquecida.
+O commit `5f8c3a2` contém dependência, configuração, Manifest, gateway, ViewModel, tela Compose, wiring de moderação e testes Android RTC. O commit `5cdd254` reforça o lifecycle com `detach`/`onRelease` de renderers, parada centralizada em logout/saída/troca de sessão, desconexão em `VIDEO_NOT_AUTHORIZED` e bloqueio de controles de mídia antes de `CONNECTED`. O commit `72efdb3` é uma correção mínima de infraestrutura de testes: Jest passou a carregar `jose` ESM em Node 22 e o teste do signer verifica HS256 com `node:crypto`. Nenhuma regra de autorização ou lógica de produção do backend foi enfraquecida.
 
 ## Contratos HTTP integrados
 
@@ -64,7 +74,7 @@ O Android trata `AGE_ASSURANCE_REQUIRED`, `PHONE_VERIFICATION_REQUIRED`, `VIDEO_
 
 ## Implementação RTC Android
 
-A dependência é `io.livekit:livekit-android:2.28.1`, com JitPack no `dependencyResolutionManagement`. `LiveKitRtcRoomGateway` encapsula `LiveKit.create(applicationContext)`, `Room.connect(serverUrl, token)`, `disconnect/release`, inicialização de `SurfaceViewRenderer`, tracks local/remoto e eventos `Connected`, `Reconnecting`, `Reconnected`, `FailedToConnect`, `Disconnected`, participantes e tracks. A sala, tracks e renderers são removidos em saída, falha terminal, logout, troca de sessão e bloqueio confirmado.
+A dependência é `io.livekit:livekit-android:2.28.1`, com JitPack no `dependencyResolutionManagement`. `LiveKitRtcRoomGateway` encapsula `LiveKit.create(applicationContext)`, `Room.connect(serverUrl, token)`, `disconnect/release`, inicialização de `SurfaceViewRenderer`, tracks local/remoto e eventos `Connected`, `Reconnecting`, `Reconnected`, `FailedToConnect`, `Disconnected`, participantes e tracks. O AndroidView usa `onRelease` para desanexar renderer; a sala, tracks e renderers são removidos em saída, falha terminal, logout, troca de sessão e bloqueio confirmado.
 
 O `VideoSessionViewModel` entrega o token ao `RtcRoomViewModel` por callback transitório. O valor bruto não entra no estado Compose, em `SharedPreferences`, `DataStore`, `SavedStateHandle`, logs, analytics ou crash metadata. O indicador exposto é apenas booleano e o handoff é consumido uma vez; após erro, desconexão ou saída, a UI exige nova emissão JIT.
 
@@ -74,7 +84,7 @@ A tela solicita `CAMERA` e `RECORD_AUDIO` somente no clique **Entrar na chamada*
 
 ## Moderação durante a chamada
 
-`ModerationViewModelFactory` recebe `onBlocked = rtcRoomViewModel::disconnect`. O callback só ocorre depois da confirmação positiva do backend, conforme os testes existentes. Ao abrir moderação durante uma chamada, o Android encerra a sala local imediatamente; a operação server-side continua responsável por revogar MatchIntent, Consent e Video Session do par. Report permanece acessível e encaminha o `session_id` atual quando disponível. O Android não calcula severidade nem aplica punição.
+`ModerationViewModelFactory` recebe `onBlocked = rtcRoomViewModel::disconnect`. O callback só ocorre depois da confirmação positiva do backend, conforme os testes existentes. Ao abrir moderação durante uma chamada, o Android encerra a sala local imediatamente; a operação server-side continua responsável por revogar MatchIntent, Consent e Video Session do par. Report permanece acessível e encaminha o `session_id` atual quando disponível. Se uma tentativa de emissão retornar `VIDEO_NOT_AUTHORIZED`, `VideoSessionViewModel` também chama o callback de revogação, que encerra o RTC. No backend, o reconciliador termina a room LiveKit antes de marcar a sessão como revogada e mantém `revocation_pending=true` em falha para permitir retry. O Android não calcula severidade nem aplica punição.
 
 ## Testes e builds
 
@@ -85,7 +95,7 @@ Os resultados abaixo foram obtidos no sandbox, com código de aplicação public
 | `npm run typecheck`                             | Aprovado                                                           |
 | `npm run lint`                                  | Aprovado                                                           |
 | `npm run format:check`                          | Aprovado                                                           |
-| `npm run test:unit`                             | Aprovado: 14 suítes e 68 testes                                    |
+| `npm run test:unit`                             | Aprovado: 16 suítes e 73 testes                                    |
 | `./gradlew testDebugUnitTest`                   | Aprovado                                                           |
 | `./gradlew :app:compileDebugKotlin`             | Aprovado                                                           |
 | `./gradlew :app:assembleDebug`                  | Aprovado                                                           |
@@ -105,13 +115,13 @@ A suíte PostgreSQL/migrations não foi executada neste sandbox por ausência de
 
 ## Riscos e validação pendente
 
-A validação ponta a ponta ainda depende de backend LiveKit configurado, URL pública `wss://`, Web client ID Google real, provedor SMS, dispositivo/emulador e pelo menos duas contas autenticadas. É necessário confirmar mídia local/remota, expiração de token, revogação durante chamada, bloqueio durante chamada, reconexão transitória e falha de autorização em ambiente real.
+A validação ponta a ponta ainda depende de backend LiveKit configurado, `LIVEKIT_API_URL` server-side, URL pública `wss://`, Web client ID Google real, provedor SMS, dispositivo/emulador e pelo menos duas contas autenticadas. É necessário confirmar mídia local/remota, expiração de token, revogação durante chamada, bloqueio durante chamada, reconexão transitória e falha de autorização em ambiente real.
 
 Renovação de sessão, observabilidade, persistência de conversas, moderação operacional e execução comprovada de migrations Up/Down/Up permanecem pendentes antes da release. Avisos de depreciação de `EncryptedSharedPreferences`/`MasterKey` também devem ser revisados. O cliente não deve ganhar autoridade local para contornar esses gates.
 
 ## Próximo passo para o ChatGPT
 
-Publicar o commit deste handoff somente depois de `git fetch origin continuity`, revisar qualquer avanço cooperativo e executar os gates finais. Em seguida, validar com duas contas em um ambiente LiveKit real, registrar logs sanitizados de sucesso/falha sem token ou PII e decidir a política de renovação/expiração de sessão conforme os contratos server-side.
+Depois de publicar este handoff somente em `continuity`, validar com duas contas em um ambiente LiveKit real, registrar logs sanitizados de sucesso/falha sem token ou PII e decidir a política de renovação/expiração de sessão conforme os contratos server-side.
 
 ## Invariantes preservados
 
