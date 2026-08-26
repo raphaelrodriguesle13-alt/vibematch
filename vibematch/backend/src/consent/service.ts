@@ -16,6 +16,7 @@ export type Consent = {
 
 export interface ConsentRepositoryPort {
   createEligible(userId: string, matchIntentId: string, expiresAt: Date): Promise<Consent | null>;
+  consumeDecisionRateLimit(userId: string, now: Date, limit: number): Promise<boolean>;
   decide(
     actingUserId: string,
     consentId: string,
@@ -27,7 +28,11 @@ export interface ConsentRepositoryPort {
   ): Promise<Consent | null>;
 }
 
-export type ConsentErrorCode = 'INVALID_CONSENT' | 'CONSENT_NOT_ELIGIBLE' | 'CONSENT_NOT_AVAILABLE';
+export type ConsentErrorCode =
+  | 'INVALID_CONSENT'
+  | 'CONSENT_NOT_ELIGIBLE'
+  | 'CONSENT_NOT_AVAILABLE'
+  | 'RATE_LIMITED';
 
 export class ConsentError extends Error {
   constructor(
@@ -47,6 +52,7 @@ export class ConsentService {
     private readonly now: () => Date = () => new Date(),
     private readonly consentTtlMs = 10 * 60 * 1000,
     private readonly videoWindowMs = 5 * 60 * 1000,
+    private readonly decisionRateLimit = 30,
   ) {}
 
   async create(userId: string, matchIntentId: string): Promise<Consent> {
@@ -72,6 +78,10 @@ export class ConsentService {
       throw new ConsentError('INVALID_CONSENT', 'Consent decision metadata is invalid');
     }
     const now = this.now();
+    if (!(await this.repository.consumeDecisionRateLimit(actingUserId, now, this.decisionRateLimit))) {
+      throw new ConsentError('RATE_LIMITED', 'Consent decision rate limit exceeded');
+    }
+
     const videoDeadline = new Date(now.getTime() + this.videoWindowMs);
     const consent = await this.repository.decide(
       actingUserId,
