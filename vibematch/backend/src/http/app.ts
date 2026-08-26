@@ -131,7 +131,7 @@ const parseProfileBody = (body: ProfileBody | undefined): UpdateProfileInput | n
     language: body.language,
     region: body.region,
     ...(body.avatar_url !== undefined ? { avatarUrl: body.avatar_url as string | null } : {}),
-    ...(body.interest_ids !== undefined ? { interestIds: body.interest_ids as string[] } : {}),
+    ...(body.interest_ids !== undefined ? { interestIds: body.interest_ids } : {}),
   };
 };
 
