@@ -12,6 +12,12 @@ import {
   type UpdateProfileInput,
   type UserProfile,
 } from '../profile/service';
+import {
+  MatchIntentError,
+  type MatchIntent,
+  type MatchIntentDecision,
+  type MatchIntentService,
+} from '../matchmaking/service';
 
 export interface ActiveSessionStore {
   findActiveSession(userId: string, sessionId: string, now: Date): Promise<AuthSession | null>;
@@ -25,6 +31,7 @@ export interface AuthHttpDependencies {
   phoneVerificationService?: Pick<PhoneVerificationService, 'start' | 'confirm'>;
   profileService?: Pick<ProfileService, 'get' | 'update' | 'listInterests'>;
   ageAssuranceService?: Pick<AgeAssuranceService, 'getStatus' | 'isApproved'>;
+  matchIntentService?: Pick<MatchIntentService, 'create' | 'listIncoming' | 'respond'>;
   chatService?: Pick<ChatService, 'respond'>;
   now?: () => Date;
 }
@@ -39,6 +46,9 @@ type ProfileBody = {
   region?: unknown;
   interest_ids?: unknown;
 };
+type MatchIntentCreateBody = { receiver_id?: unknown };
+type MatchIntentRespondBody = { decision?: unknown };
+type MatchIntentParams = { id: string };
 type ChatBody = { message?: unknown; history?: unknown };
 
 type AuthenticatedRequest = {
@@ -114,6 +124,17 @@ const phoneErrorStatus = (error: PhoneVerificationError): number => {
   }
 };
 
+const matchIntentErrorStatus = (error: MatchIntentError): number => {
+  switch (error.code) {
+    case 'INVALID_TARGET':
+      return 400;
+    case 'NOT_ELIGIBLE':
+      return 409;
+    case 'INTENT_NOT_AVAILABLE':
+      return 404;
+  }
+};
+
 const serializeProfile = (profile: UserProfile) => ({
   user_id: profile.userId,
   display_name: profile.displayName,
@@ -121,6 +142,17 @@ const serializeProfile = (profile: UserProfile) => ({
   language: profile.language,
   region: profile.region,
   interests: profile.interests,
+});
+
+const serializeMatchIntent = (intent: MatchIntent) => ({
+  id: intent.id,
+  sender_id: intent.senderId,
+  receiver_id: intent.receiverId,
+  status: intent.status,
+  expires_at: intent.expiresAt.toISOString(),
+  responded_at: intent.respondedAt?.toISOString() ?? null,
+  closed_at: intent.closedAt?.toISOString() ?? null,
+  created_at: intent.createdAt.toISOString(),
 });
 
 const parseProfileBody = (body: ProfileBody | undefined): UpdateProfileInput | null => {
@@ -308,6 +340,73 @@ export const buildApp = (deps: AuthHttpDependencies): FastifyInstance => {
     if (!status) return reply.code(404).send({ error: 'ACCOUNT_NOT_FOUND' });
     return reply.code(200).send({ data: { status } });
   });
+
+  app.post<{ Body: MatchIntentCreateBody }>('/api/match-intents', async (request, reply) => {
+    const auth = await authenticate(request, reply, deps, now);
+    if (!auth) return;
+    if (!(await requireAgeApproved(auth.claims.userId, reply, deps))) return;
+    if (!deps.matchIntentService) {
+      return reply.code(503).send({ error: 'MATCHMAKING_NOT_CONFIGURED' });
+    }
+
+    const receiverId = request.body?.receiver_id;
+    if (typeof receiverId !== 'string') {
+      return reply.code(400).send({ error: 'INVALID_REQUEST' });
+    }
+    try {
+      const intent = await deps.matchIntentService.create(auth.claims.userId, receiverId);
+      return reply.code(201).send({ data: serializeMatchIntent(intent) });
+    } catch (error) {
+      if (error instanceof MatchIntentError) {
+        return reply.code(matchIntentErrorStatus(error)).send({ error: error.code });
+      }
+      request.log.error({ err: error }, 'api/match-intents create failed');
+      return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
+  app.get('/api/match-intents/incoming', async (request, reply) => {
+    const auth = await authenticate(request, reply, deps, now);
+    if (!auth) return;
+    if (!(await requireAgeApproved(auth.claims.userId, reply, deps))) return;
+    if (!deps.matchIntentService) {
+      return reply.code(503).send({ error: 'MATCHMAKING_NOT_CONFIGURED' });
+    }
+
+    const intents = await deps.matchIntentService.listIncoming(auth.claims.userId);
+    return reply.code(200).send({ data: intents.map(serializeMatchIntent) });
+  });
+
+  app.post<{ Params: MatchIntentParams; Body: MatchIntentRespondBody }>(
+    '/api/match-intents/:id/respond',
+    async (request, reply) => {
+      const auth = await authenticate(request, reply, deps, now);
+      if (!auth) return;
+      if (!(await requireAgeApproved(auth.claims.userId, reply, deps))) return;
+      if (!deps.matchIntentService) {
+        return reply.code(503).send({ error: 'MATCHMAKING_NOT_CONFIGURED' });
+      }
+
+      const decision = request.body?.decision;
+      if (decision !== 'ACCEPTED' && decision !== 'DECLINED') {
+        return reply.code(400).send({ error: 'INVALID_REQUEST' });
+      }
+      try {
+        const intent = await deps.matchIntentService.respond(
+          auth.claims.userId,
+          request.params.id,
+          decision as MatchIntentDecision,
+        );
+        return reply.code(200).send({ data: serializeMatchIntent(intent) });
+      } catch (error) {
+        if (error instanceof MatchIntentError) {
+          return reply.code(matchIntentErrorStatus(error)).send({ error: error.code });
+        }
+        request.log.error({ err: error }, 'api/match-intents respond failed');
+        return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+      }
+    },
+  );
 
   app.post<{ Body: ChatBody }>('/api/chat', async (request, reply) => {
     const auth = await authenticate(request, reply, deps, now);
