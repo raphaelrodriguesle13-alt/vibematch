@@ -1,85 +1,60 @@
 # VibeMatch — Próximo lote Android (Manus)
 
-Atualizado em 2026-08-26 para coordenação paralela com o backend.
+Atualizado em **2026-08-26** para coordenação com o backend na branch exclusiva `continuity`.
 
 ## Regra de coordenação
 
-Trabalhar somente na branch `continuity`. Antes de cada commit importante, atualizar o HEAD e preservar os commits backend existentes. Não usar force-push, não tocar na `main` e não reverter migrations, Auth, Consent, Video ou Moderation.
+Trabalhar somente na branch `continuity`. Antes de cada commit importante, executar `git fetch origin continuity`, revisar divergências e preservar os commits backend existentes. Não usar force-push, não tocar na `main` e não reverter migrations, Auth, Consent, Video ou Moderation.
 
-O ChatGPT está responsável por backend, banco, segurança, autorização, revogação e CI. O Manus deve priorizar Android, UX, ViewModels, gateways e integração com os contratos reais abaixo.
+O ChatGPT permanece responsável por backend, banco, segurança, autorização, revogação e CI. O Manus prioriza Android, UX, ViewModels, gateways e a integração com os contratos reais abaixo.
 
-## Estado liberado para este lote
+## Estado server-side
 
-O CI #182 ficou totalmente verde antes do início da integração LiveKit real. O backend agora também possui um signer JIT LiveKit server-only em `backend/src/video/livekit-token-provider.ts`, com identidade e room derivados do estado autorizado no servidor e TTL curto. O Android continua sem autoridade para criar, alterar ou prolongar credenciais RTC.
+Matchmaking, Consent e Video são fail-closed no servidor. O Android não é autoridade para telefone, idade, bloqueio, suspensão, consentimento, sessão, entitlement, room, identidade ou autorização de vídeo. Mesmo que um JWT antigo contenha `phoneVerified=false`, as rotas restritas consultam o estado atual do usuário no servidor.
 
-## Pré-condições server-side
+O backend possui signer JIT LiveKit server-only em `backend/src/video/livekit-token-provider.ts`, com identidade e room derivados do estado autorizado no servidor e TTL curto. Chave e segredo LiveKit continuam exclusivamente no backend; o Android recebe apenas a credencial JIT retornada pelo endpoint autorizado.
 
-Matchmaking, Consent e Video são fail-closed no servidor. O Android não é autoridade para telefone, idade, bloqueio, consentimento, sessão ou autorização de vídeo.
+## Contratos HTTP preservados
 
-Mesmo que o JWT antigo ainda contenha `phoneVerified=false`, as rotas restritas consultam o estado atual do usuário no servidor. Não force logout/login depois de confirmar o telefone apenas para atualizar esse claim.
+| Fluxo | Endpoint | Corpo Android | Regra server-side |
+|---|---|---|---|
+| MatchIntent | `GET /api/match-intents/incoming` | Nenhum | Participantes, validade e elegibilidade vêm do backend |
+| MatchIntent | `POST /api/match-intents/:id/respond` | `decision` | Somente `ACCEPTED` ou `DECLINED` |
+| Consent | `POST /api/consents` | `match_intent_id` | Identidade autenticada é derivada da sessão |
+| Consent | `POST /api/consents/:id/decision` | `decision`, `request_id` UUID | Prazo, idempotência e transição são server-controlled |
+| Video Session | `POST /api/video/sessions` | `consent_id` | Revalida Consent, idade, telefone e elegibilidade |
+| Token RTC | `POST /api/video/sessions/:id/token` | Nenhum | Deriva room/identity, grants, TTL e rate limit |
+| Block | `POST /api/blocks` | `blocked_id` | Revoga relações e sessões no backend |
+| Report | `POST /api/reports` | `reported_id`, `session_id`, `category` | Severidade e encaminhamento são server-controlled |
 
-## Contratos HTTP para integrar
+A emissão do token revalida imediatamente antes de assinar sessão, revogação, consentimento mútuo, janela de vídeo, contas ativas, telefone, idade e bloqueios. O Android jamais gera token RTC, decide room authorization ou envia `user_id`, `room_name`, `severity` ou estado de elegibilidade para obter autorização.
 
-### Match Intent
+## Lote RTC/LiveKit concluído
 
-- `POST /api/match-intents`
-  - body: `{ "receiver_id": "uuid" }`
-  - `201` com `{ data: MatchIntent }`
-- `GET /api/match-intents/incoming`
-  - `200` com `{ data: MatchIntent[] }`
-- `POST /api/match-intents/:id/respond`
-  - body: `{ "decision": "ACCEPTED" | "DECLINED" }`
-  - `200` com `{ data: MatchIntent }`
+O SDK `io.livekit:livekit-android:2.28.1` foi adicionado isoladamente em `video/rtc`, com JitPack no `dependencyResolutionManagement`. O `LiveKitRtcRoomGateway` encapsula `LiveKit.create`, `Room.connect`, `disconnect/release`, eventos de conexão, participantes, tracks e renderers local/remoto. O gateway não liga câmera ou microfone ao conectar.
 
-### Consent
+O `RtcRoomViewModel` recebe a credencial somente por callback transitório do `VideoSessionViewModel`. O token bruto fica em memória até o consumo único, não entra no estado Compose e não é persistido em `SharedPreferences`, `DataStore`, `SavedStateHandle`, logs, analytics ou crash metadata. Falha de conexão, falha de autorização e desconexão terminal limpam sala, tracks e renderers; a UI volta a exigir nova emissão server-side.
 
-- `POST /api/consents`
-  - body: `{ "match_intent_id": "uuid" }`
-  - `201` com `{ data: Consent }`
-- `POST /api/consents/:id/decision`
-  - body: `{ "decision": "ACCEPTED" | "DECLINED", "request_id": "uuid" }`
-  - `200` com `{ data: Consent }`
+A tela de chamada só pede `CAMERA` e `RECORD_AUDIO` na ação explícita **Entrar na chamada**, depois de token JIT novo. Qualquer negação mantém o fluxo desconectado e sem publicação de mídia. A chamada oferece vídeo local/remoto, participante remoto, mute, câmera on/off, encerrar e Bloquear/denunciar. O callback de bloqueio confirmado chama `RtcRoomViewModel.disconnect()`.
 
-O `acting_user_id` e o `auth_session_ref` são derivados exclusivamente da sessão autenticada. O Android não deve enviar nem tentar controlar esses campos. `request_id` deve ser um UUID novo por decisão para idempotência/auditoria.
+O endpoint público `LIVEKIT_URL` é fornecido por BuildConfig. Em debug pode ficar vazio para demonstrar o fail-closed; em release o Gradle exige `wss://`. Nenhum endpoint é embutido como fallback e nenhuma chave/segredo LiveKit é aceito no Android.
 
-### Video
+## Testes adicionados
 
-- `POST /api/video/sessions`
-  - body: `{ "consent_id": "uuid" }`
-  - `201` com metadata da sessão autorizada
-- `POST /api/video/sessions/:id/token`
-  - sem identidade, room ou consent no body
-  - `200` com `{ data: { "session_id": "uuid", "token": "..." } }`
+A suíte `RtcRoomGatewayTest` usa um gateway falso para confirmar que não há conexão sem token pendente, que o token é consumido uma única vez, que URL ausente falha fechada, que permissão negada não conecta e que `disconnect()` limpa o handoff pendente. `VideoSessionTest` também verifica que o token aparece apenas no callback transitório e não no estado exposto.
 
-A emissão do token revalida no banco imediatamente antes de assinar: sessão, revogação, consentimento mútuo, janela de vídeo, contas ativas, telefone, idade e bloqueios. O Android jamais deve gerar token RTC ou decidir room authorization localmente.
+Os testes de Moderação já demonstravam que `onBlocked` só ocorre depois da confirmação server-side; nesta etapa esse callback foi conectado à desconexão RTC. A combinação de teste unitário do callback e wiring da factory preserva a regra de que o Android não decide punição nem revogação.
 
-## Lote RTC/LiveKit Android — executar agora
+## Critério de conclusão do lote
 
-1. Adicionar o SDK LiveKit Android de forma isolada na camada `video/rtc`; não misturar chamadas RTC dentro do gateway HTTP.
-2. Criar um `RtcRoomGateway` com operações mínimas `connect(token)`, `disconnect()`, `setMicrophoneEnabled()`, `setCameraEnabled()` e observação de participantes/estado.
-3. O `connect` só pode ser chamado depois que `VideoSessionViewModel` receber um token JIT novo do backend. Não persistir token em DataStore, SharedPreferences, SavedStateHandle, logs, analytics ou crash metadata.
-4. Solicitar permissões de câmera/microfone apenas na entrada efetiva da experiência de vídeo. Negação de permissão deve manter o fluxo seguro e permitir sair/bloquear/reportar.
-5. Desconectar e limpar mídia imediatamente em logout, `401`, `VIDEO_NOT_AUTHORIZED`, revogação, Block, Activity finish ou saída explícita do usuário.
-6. Não implementar reconexão que reutilize indefinidamente o mesmo token. Em caso de credencial expirada/rejeitada, pedir novo token ao backend e passar novamente pela revalidação JIT.
-7. Não usar display name, telefone, e-mail ou outro PII como identidade/room. O SDK deve consumir apenas o token assinado recebido; identidade e room são claims controladas pelo backend.
-8. Tela de chamada deve ter câmera local/remota, mute, câmera on/off, encerrar, Block e Report. Block deve encerrar a experiência local imediatamente após a solicitação e depender do backend para revogação autoritativa.
-9. Tratar desconexão inesperada fail-closed: parar tracks locais, limpar surfaces e voltar para estado não conectado; nunca manter UI de chamada ativa sem Room conectado.
-10. Adicionar testes Android para: token nunca persistido; `connect` não chamado antes da autorização JIT; logout/revogação chama `disconnect`; erro de autorização não abre câmera; novo token requerido após falha/expiração; Block/Report acessíveis durante a chamada.
+O lote Android RTC é considerado implementado quando o código e os testes estiverem publicados em `continuity`, os gates Gradle passarem, nenhuma credencial RTC for persistida, a câmera não abrir antes do token JIT e das permissões, logout/saída/Block/falha terminal encerrarem a sala local e o handoff final registrar commits e resultados.
 
-## Safety
+## Próximo trabalho
 
-- `POST /api/blocks`
-  - body: `{ "blocked_id": "uuid" }`
-  - disponível para usuário autenticado mesmo se telefone/idade não estiverem aprovados
-- `POST /api/reports`
-  - body: `{ "reported_id": "uuid", "session_id": "uuid|null", "category": "..." }`
-  - categorias: `HARASSMENT`, `HATE`, `SEXUAL_CONTENT`, `SCAM`, `SPAM`, `OTHER`
-  - NÃO enviar `severity`; ela é derivada pelo servidor
+A próxima cooperação deve executar validação ponta a ponta com backend LiveKit configurado, URL pública `wss://`, Web client ID Google real e pelo menos duas contas autenticadas. Também permanecem a renovação de sessão, observabilidade, persistência de conversas, moderação operacional, execução DB com PostgreSQL e revisão de avisos de depreciação do armazenamento seguro antes da release.
 
-Bloquear alguém revoga imediatamente MatchIntent aberto, Consent ativo e sessão de vídeo entre o par.
+## Fontes técnicas
 
-## Critério de conclusão deste lote
-
-O lote só é considerado concluído quando o Android compilar/testar no CI, nenhuma credencial RTC for persistida, a câmera não abrir antes do token JIT server-side, logout/Block/revogação encerrarem a room local e o handoff registrar os commits e testes executados.
-
-Depois do lote, registrar commits, testes Gradle, build e qualquer incompatibilidade de contrato em `MANUS_HANDOFF.md`.
+[1]: https://docs.livekit.io/transport/sdk-platforms/android/ "LiveKit Android quickstart"
+[2]: https://docs.livekit.io/intro/basics/connect/ "LiveKit connecting to a room"
+[3]: https://github.com/livekit/client-sdk-android "LiveKit Android SDK"

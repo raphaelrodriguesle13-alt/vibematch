@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] — Onboarding e perfil Android integrados
+## [Unreleased] — MVP Android com RTC LiveKit seguro
 
 ### Adicionado
 
@@ -27,16 +27,22 @@
 - Tela Compose de Consent com estados dos dois participantes e status server-controlled.
 - `ACCEPTED_BOTH` não cria localmente sessão de vídeo, token RTC ou entitlement; a autorização permanece JIT no backend.
 - Cliente e ViewModel Android de Video Session para criar sessão e solicitar token somente após ação explícita do usuário.
-- Token JIT não é persistido; câmera, WebRTC, LiveKit e publicação de mídia permanecem desativados nesta etapa.
+- Callback transitório entre Video Session e RTC: o token bruto não entra no estado Compose, não é persistido e é consumido uma única vez para iniciar a conexão.
+- Dependência fixa `io.livekit:livekit-android:2.28.1`, configuração pública `LIVEKIT_URL` e validação de `wss://` em builds release.
+- Gateway LiveKit Android com eventos de conexão, participantes, tracks de vídeo, renderers local/remoto, desconexão e cleanup de sala.
+- Tela de chamada com entrada após permissões runtime, controles explícitos de microfone/câmera, encerramento e acesso a Bloquear/denunciar.
+- Falhas de conexão, desconexões inesperadas, logout, saída, troca de sessão e bloqueio confirmado encerram a sala local e exigem nova credencial JIT.
 - Tela Android de proteção da comunidade para bloquear e denunciar o participante oposto, usando apenas as rotas server-side de Moderação.
 - O Android não decide severidade, punição ou estado de outra conta; HTTP 401 encerra a sessão e HTTP 429 é recuperável.
-- Testes Android de contrato JSON, Age Assurance, telefone, MatchIntent, Consent, Video Session, Moderação, AuthViewModel e ProfileViewModel.
+- Testes Android de contrato JSON, Age Assurance, telefone, MatchIntent, Consent, Video Session, Moderação, AuthViewModel, ProfileViewModel e RtcRoomViewModel.
 
 ### Limitações conhecidas
 
 - A validação OAuth Google em dispositivo, renovação de sessão, rate limiting, persistência de conversas e observabilidade ainda estão pendentes.
-- A configuração real do Web client ID e a validação OAuth em dispositivo ainda dependem do ambiente Google do projeto.
-- A validação de Consent, MatchIntent, Video Session e Moderação com ambiente real, a integração efetiva de câmera/RTC, renovação de sessão, rate limiting, persistência de conversas e observabilidade ainda estão pendentes.
+- A configuração real do Web client ID e a validação OAuth em dispositivo dependem do ambiente Google do projeto.
+- A chamada RTC real depende de um backend com LiveKit configurado, URL pública `wss://`, credenciais server-side e pelo menos dois usuários autenticados; nenhum segredo LiveKit é distribuído no APK.
+- Os testes locais exercitam contratos, estados e gates, mas não substituem a validação de mídia com duas contas em um ambiente LiveKit real.
+- Testes de banco continuam dependentes das variáveis PostgreSQL do ambiente de CI ou de execução local.
 
 ## [0.1.0] — Etapa 0 + Etapa 1 (implementação de schema e fundação)
 
