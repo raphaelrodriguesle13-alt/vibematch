@@ -1,9 +1,11 @@
 import { Pool } from 'pg';
 import type { FastifyInstance } from 'fastify';
-import { AuthRepository } from '../auth/repository';
-import { AuthService } from '../auth/service';
+import { PhoneVerificationService } from '../auth/phone-service';
 import { GoogleOidcProvider } from '../auth/providers/google';
 import { JwtSessionProvider } from '../auth/providers/jwt';
+import { TwilioVerifyProvider } from '../auth/providers/twilio-verify';
+import { AuthRepository } from '../auth/repository';
+import { AuthService } from '../auth/service';
 import { createBillingRuntime, type BillingRuntime } from '../billing/factory';
 import { registerBillingRoutes } from '../billing/http';
 import { createChatService } from '../chat/factory';
@@ -15,8 +17,10 @@ import { MatchIntentRepository } from '../matchmaking/repository';
 import { MatchIntentService } from '../matchmaking/service';
 import { ModerationRepository } from '../moderation/repository';
 import { ModerationService } from '../moderation/service';
+import { registerAgeAssuranceRoutes } from '../profile/age-http';
 import { AgeAssuranceRepository } from '../profile/age-assurance-repository';
 import { AgeAssuranceService } from '../profile/age-assurance';
+import { DiditAgeAssuranceProvider } from '../profile/providers/didit';
 import { ProfileRepository } from '../profile/repository';
 import { ProfileService } from '../profile/service';
 import { createVideoRuntime, type VideoRuntime } from '../video/factory';
@@ -36,8 +40,8 @@ export type ProductionRuntime = {
  * - each domain receives its least-privilege PostgreSQL connection string;
  * - migration/owner DATABASE_URL is never used by runtime services;
  * - Google OIDC and API-session JWT verification are server-side;
- * - Billing and LiveKit secrets/providers remain server-only;
- * - optional providers that are not configured are not silently emulated.
+ * - Billing, SMS, Didit and LiveKit credentials remain server-only;
+ * - provider absence is a startup/configuration failure, never a local bypass.
  */
 export const createProductionRuntime = (): ProductionRuntime => {
   const authPool = new Pool({ connectionString: env.authDatabaseUrl() });
@@ -58,9 +62,26 @@ export const createProductionRuntime = (): ProductionRuntime => {
     sessionTokens,
     { sessionTtlSeconds: env.authSessionTtlSeconds },
   );
+  const phoneVerificationService = new PhoneVerificationService(
+    authRepository,
+    new TwilioVerifyProvider({
+      accountSid: env.twilioAccountSid(),
+      authToken: env.twilioAuthToken(),
+      serviceSid: env.twilioVerifyServiceSid(),
+      baseUrl: env.twilioVerifyBaseUrl(),
+    }),
+    { phoneHashPepper: env.phoneHashPepper() },
+  );
 
   const profileService = new ProfileService(new ProfileRepository(profilePool));
-  const ageAssuranceService = new AgeAssuranceService(new AgeAssuranceRepository(profilePool));
+  const ageAssuranceService = new AgeAssuranceService(
+    new AgeAssuranceRepository(profilePool),
+    new DiditAgeAssuranceProvider({
+      apiKey: env.diditApiKey(),
+      workflowId: env.diditWorkflowId(),
+      baseUrl: env.diditApiBaseUrl(),
+    }),
+  );
   const matchIntentService = new MatchIntentService(new MatchIntentRepository(matchmakingPool));
   const consentService = new ConsentService(new ConsentRepository(matchmakingPool));
   const moderationService = new ModerationService(new ModerationRepository(moderationPool));
@@ -73,6 +94,7 @@ export const createProductionRuntime = (): ProductionRuntime => {
     sessionTokenVerifier: sessionTokens,
     activeSessionStore: authRepository,
     phoneStateStore: authRepository,
+    phoneVerificationService,
     profileService,
     ageAssuranceService,
     matchIntentService,
@@ -80,6 +102,12 @@ export const createProductionRuntime = (): ProductionRuntime => {
     videoSessionService: video.sessionService,
     moderationService,
     chatService,
+  });
+
+  registerAgeAssuranceRoutes(app, {
+    service: ageAssuranceService,
+    sessionTokenVerifier: sessionTokens,
+    activeSessionStore: authRepository,
   });
 
   registerBillingRoutes(app, {
