@@ -55,6 +55,8 @@ describe('PUBLIC has no EXECUTE on protected database functions', () => {
       'enforce_session_phone_verification',
       'revoke_restricted_state_on_phone_unverified',
       'revoke_restricted_state_on_block',
+      'enforce_report_session_membership',
+      'enforce_moderation_case_escalation',
     ];
     const r = await ownerPool.query<FunctionAclRow>(
       `SELECT p.proname,
