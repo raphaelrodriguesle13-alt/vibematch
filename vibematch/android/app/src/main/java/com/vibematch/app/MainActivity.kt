@@ -76,6 +76,11 @@ import com.vibematch.app.chat.ChatMessage
 import com.vibematch.app.matching.MatchIntentApiClient
 import com.vibematch.app.matching.MatchIntentViewModel
 import com.vibematch.app.matching.MatchIntentViewModelFactory
+import com.vibematch.app.video.VideoSession
+import com.vibematch.app.video.VideoSessionApiClient
+import com.vibematch.app.video.VideoSessionStatus
+import com.vibematch.app.video.VideoSessionViewModel
+import com.vibematch.app.video.VideoSessionViewModelFactory
 import com.vibematch.app.profile.ProfileApiClient
 import com.vibematch.app.profile.ProfileGate
 import com.vibematch.app.profile.ProfileViewModel
@@ -148,6 +153,18 @@ class MainActivity : ComponentActivity() {
                         },
                     ),
                 )
+                val videoViewModel: VideoSessionViewModel = viewModel(
+                    factory = VideoSessionViewModelFactory(
+                        gateway = VideoSessionApiClient(BuildConfig.API_BASE_URL),
+                        accessTokenProvider = sessionStore::readAccessToken,
+                        onSessionExpired = authViewModel::signOut,
+                        onPhoneVerificationRequired = authViewModel::markPhoneUnverified,
+                        onAgeAssuranceRequired = {
+                            profileViewModel.reset()
+                            profileViewModel.load()
+                        },
+                    ),
+                )
                 VibeMatchApp(
                     activity = this@MainActivity,
                     authViewModel = authViewModel,
@@ -156,6 +173,7 @@ class MainActivity : ComponentActivity() {
                     phoneViewModel = phoneViewModel,
                     matchIntentViewModel = matchIntentViewModel,
                     consentViewModel = consentViewModel,
+                    videoViewModel = videoViewModel,
                 )
             }
         }
@@ -183,6 +201,7 @@ private fun VibeMatchApp(
     phoneViewModel: PhoneVerificationViewModel,
     matchIntentViewModel: MatchIntentViewModel,
     consentViewModel: ConsentViewModel,
+    videoViewModel: VideoSessionViewModel,
 ) {
     val authState by authViewModel.state
     val session = authState.session
@@ -191,14 +210,19 @@ private fun VibeMatchApp(
     var showMatchIntents by remember(sessionId) { mutableStateOf(false) }
     var showConsent by remember(sessionId) { mutableStateOf(false) }
     var consentMatchIntentId by remember(sessionId) { mutableStateOf<String?>(null) }
+    var showVideo by remember(sessionId) { mutableStateOf(false) }
+    var videoConsentId by remember(sessionId) { mutableStateOf<String?>(null) }
 
     LaunchedEffect(sessionId) {
         profileViewModel.reset()
         phoneViewModel.reset()
         matchIntentViewModel.reset()
         consentViewModel.reset()
+        videoViewModel.reset()
         showConsent = false
         consentMatchIntentId = null
+        showVideo = false
+        videoConsentId = null
         if (sessionId != null) profileViewModel.load()
     }
 
@@ -207,6 +231,7 @@ private fun VibeMatchApp(
     } else {
         val profileState by profileViewModel.state
         val selectedConsentMatchIntentId = consentMatchIntentId
+        val selectedVideoConsentId = videoConsentId
         when {
             showProfile ||
                 !profileState.hasLoaded ||
@@ -235,11 +260,35 @@ private fun VibeMatchApp(
                     },
                 )
             }
+            showVideo && selectedVideoConsentId != null -> {
+                VideoSessionScreen(
+                    viewModel = videoViewModel,
+                    consentId = selectedVideoConsentId,
+                    onClose = {
+                        showVideo = false
+                        videoConsentId = null
+                        showConsent = true
+                    },
+                    onLogout = {
+                        videoViewModel.reset()
+                        consentViewModel.reset()
+                        matchIntentViewModel.reset()
+                        chatViewModel.clearConversation()
+                        phoneViewModel.reset()
+                        authViewModel.signOut()
+                    },
+                )
+            }
             showConsent && selectedConsentMatchIntentId != null -> {
                 ConsentScreen(
                     viewModel = consentViewModel,
                     matchIntentId = selectedConsentMatchIntentId,
                     currentUserId = session.userId,
+                    onOpenVideo = { consentId ->
+                        videoConsentId = consentId
+                        showConsent = false
+                        showVideo = true
+                    },
                     onClose = {
                         showConsent = false
                         consentMatchIntentId = null
@@ -707,10 +756,195 @@ private fun ProfileScreen(
 }
 
 @Composable
+private fun VideoSessionScreen(
+    viewModel: VideoSessionViewModel,
+    consentId: String,
+    onClose: () -> Unit,
+    onLogout: () -> Unit,
+) {
+    val state by viewModel.state
+    val session = state.session
+    val isBusy = state.isCreating || state.isIssuingToken
+
+    LaunchedEffect(consentId) {
+        viewModel.reset()
+        viewModel.create(consentId)
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = VibeBackground,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = onClose, enabled = !isBusy) {
+                    Text("Voltar", color = VibePurple)
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Sessão de vídeo",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = "Autorização sob demanda",
+                        modifier = Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF72717D),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                TextButton(onClick = onLogout, enabled = !isBusy) {
+                    Text("Sair", color = VibePurple)
+                }
+            }
+
+            state.errorMessage?.let { error ->
+                ErrorBanner(error) { viewModel.clearMessages() }
+            }
+            state.infoMessage?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF2F7D4A),
+                )
+            }
+
+            when {
+                state.isCreating -> {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(color = VibePurple)
+                    }
+                }
+                state.session == null -> {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            text = "A sessão de vídeo não foi autorizada.",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                        )
+                        Text(
+                            text = "Nenhuma câmera ou conexão de vídeo foi iniciada.",
+                            modifier = Modifier.padding(top = 8.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFF72717D),
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+                else -> {
+                    if (session != null) {
+                        VideoSessionCard(
+                            modifier = Modifier.weight(1f),
+                            session = session,
+                            isIssuingToken = state.isIssuingToken,
+                            tokenIssued = state.tokenIssued,
+                            onIssueToken = viewModel::issueToken,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun VideoSessionCard(
+    modifier: Modifier = Modifier,
+    session: VideoSession,
+    isIssuingToken: Boolean,
+    tokenIssued: Boolean,
+    onIssueToken: () -> Unit,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = Color.White,
+        shape = RoundedCornerShape(20.dp),
+        tonalElevation = 2.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = "Sessão autorizada pelo backend",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = "Status: ${videoSessionStatusLabel(session.status)}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = VibeInk,
+            )
+            Text(
+                text = if (session.revocationPending) {
+                    "Esta sessão está pendente de revogação. O servidor deve ser consultado novamente."
+                } else {
+                    "A autorização foi revalidada no servidor. Solicite uma credencial apenas se for continuar para a próxima etapa."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF72717D),
+            )
+            Button(
+                onClick = onIssueToken,
+                enabled = !isIssuingToken && !tokenIssued && session.status != VideoSessionStatus.ENDED,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = VibePurple),
+                shape = RoundedCornerShape(14.dp),
+            ) {
+                if (isIssuingToken) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp,
+                    )
+                } else if (tokenIssued) {
+                    Text("Credencial JIT emitida")
+                } else {
+                    Text("Solicitar credencial JIT")
+                }
+            }
+            Text(
+                text = "A credencial não é exibida nem persistida pelo app nesta etapa. Câmera, WebRTC e LiveKit permanecem desativados até a integração segura de mídia.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF72717D),
+            )
+        }
+    }
+}
+
+private fun videoSessionStatusLabel(status: VideoSessionStatus): String = when (status) {
+    VideoSessionStatus.CREATED -> "criada"
+    VideoSessionStatus.ACTIVE -> "ativa"
+    VideoSessionStatus.ENDED -> "encerrada"
+    VideoSessionStatus.UNKNOWN -> "indisponível"
+}
+
+@Composable
 private fun ConsentScreen(
     viewModel: com.vibematch.app.consent.ConsentViewModel,
     matchIntentId: String,
     currentUserId: String,
+    onOpenVideo: (String) -> Unit,
     onClose: () -> Unit,
     onLogout: () -> Unit,
 ) {
@@ -802,9 +1036,15 @@ private fun ConsentScreen(
                         ConsentCard(
                             modifier = Modifier.weight(1f),
                             consent = consent,
-                            currentUserId = currentUserId,
-                            isDeciding = state.isDeciding,
-                            onDecision = viewModel::decide,
+                                                    currentUserId = currentUserId,
+                        isDeciding = state.isDeciding,
+                        onDecision = viewModel::decide,
+                        onOpenVideo = {
+                            if (consent.status == ConsentStatus.ACCEPTED_BOTH) {
+                                onOpenVideo(consent.id)
+                            }
+                        },
+
                         )
                     }
                 }
@@ -820,6 +1060,7 @@ private fun ConsentCard(
     currentUserId: String,
     isDeciding: Boolean,
     onDecision: (ConsentDecision) -> Unit,
+    onOpenVideo: () -> Unit,
 ) {
     val ownStatus = when (currentUserId) {
         consent.userAId -> consent.userAStatus
@@ -909,6 +1150,17 @@ private fun ConsentCard(
                             Text("Aceitar")
                         }
                     }
+                }
+            }
+            if (consent.status == ConsentStatus.ACCEPTED_BOTH) {
+                Button(
+                    onClick = onOpenVideo,
+                    enabled = !isDeciding,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = VibePurple),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Text("Preparar vídeo com o servidor")
                 }
             }
         }

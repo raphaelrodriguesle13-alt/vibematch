@@ -65,4 +65,10 @@ O status `AGE_ASSURANCE_REQUIRED`, `PHONE_VERIFICATION_REQUIRED`, HTTP 403, HTTP
 
 Depois de aceitar uma MatchIntent, o app pode abrir Consent e chama `POST /api/consents` com `{ "match_intent_id": "..." }`. A resposta contém os estados dos dois participantes e os prazos controlados pelo servidor. Para decidir, o Android chama `POST /api/consents/{id}/decision` com `{ "decision": "ACCEPTED", "request_id": "uuid" }` ou a decisão `DECLINED`; o `request_id` é gerado como UUID por ação.
 
-O Android exibe `PENDING`, `ACCEPTED_BOTH`, `DECLINED`, `EXPIRED`, `CANCELLED` e estados desconhecidos sem inferir autorização. Mesmo em `ACCEPTED_BOTH`, o app não cria sessão de vídeo nem token RTC: a etapa de vídeo permanece dependente dos endpoints server-side e de revalidação JIT.
+O Android exibe `PENDING`, `ACCEPTED_BOTH`, `DECLINED`, `EXPIRED`, `CANCELLED` e estados desconhecidos sem inferir autorização. Mesmo em `ACCEPTED_BOTH`, o app não cria sessão de vídeo automaticamente: a etapa de vídeo permanece dependente dos endpoints server-side e de revalidação JIT.
+
+## Video Session e token JIT
+
+Quando o usuário solicita explicitamente a próxima etapa após `ACCEPTED_BOTH`, o Android chama `POST /api/video/sessions` com `{ "consent_id": "..." }`. Se o backend autorizar, a tela oferece a solicitação de token por `POST /api/video/sessions/{id}/token`. A credencial recebida é mantida apenas em memória transitória durante o callback da operação; não é gravada em `SharedPreferences`, logs ou arquivos.
+
+Os estados `CREATED`, `ACTIVE`, `ENDED` e desconhecidos, além de `VIDEO_NOT_AUTHORIZED`, `PHONE_VERIFICATION_REQUIRED`, `AGE_ASSURANCE_REQUIRED`, `RATE_LIMITED`, HTTP 401 e erros do provedor, são tratados sem liberação local. Nesta etapa não há câmera, WebRTC, LiveKit, publicação de mídia ou reconexão automática; a integração de mídia deve ser feita somente depois de revisar o fornecedor RTC e o contrato JIT.

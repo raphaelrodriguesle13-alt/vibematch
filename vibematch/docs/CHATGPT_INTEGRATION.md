@@ -87,11 +87,13 @@ Após perfil, Age Assurance e telefone confirmados, o Android consome `GET /api/
 
 Após uma MatchIntent aceita, o Android pode criar Consent com `POST /api/consents` e decidir com `POST /api/consents/{id}/decision`, enviando `decision` e um `request_id` UUID. O backend é responsável pela identidade, elegibilidade, prazo, `video_deadline` e transição `ACCEPTED_BOTH`; o Android apenas exibe os estados devolvidos. Mesmo em `ACCEPTED_BOTH`, nenhum vídeo é iniciado localmente e qualquer sessão/token depende de autorização JIT server-side.
 
+Quando o usuário solicita explicitamente a etapa seguinte, o Android chama `POST /api/video/sessions` com `consent_id` e, após criação autorizada, `POST /api/video/sessions/{id}/token`. O cliente não envia `user_id`, `room_name`, consentimento, idade, telefone ou estado de bloqueio para obter autorização; esses dados são derivados e revalidados no backend. O token retorna somente para um callback transitório em memória, sem persistência. Câmera, WebRTC e LiveKit permanecem fora desta etapa.
+
 O manifest debug é a única variante que habilita HTTP local; o manifest release força `android:usesCleartextTraffic=false` e o Gradle rejeita `API_BASE_URL` sem HTTPS.
 
 ## Próxima etapa
 
-A próxima entrega deve validar telefone, MatchIntent e Consent em dispositivo com provedores/ambiente reais, definir renovação/expiração de sessão conforme o contrato do backend e conectar a futura sessão de vídeo somente por autorização JIT. Rate limiting, persistência de conversas, observabilidade e moderação ainda precisam ser revisados antes de produção. O cliente não autoriza localmente idade, matchmaking, consentimento ou vídeo.
+A próxima entrega deve validar telefone, MatchIntent, Consent e Video Session em dispositivo com provedores/ambiente reais, definir renovação/expiração de sessão conforme o contrato do backend e conectar câmera/RTC somente por autorização JIT. Rate limiting, persistência de conversas, observabilidade e moderação ainda precisam ser revisados antes de produção. O cliente não autoriza localmente idade, matchmaking, consentimento ou vídeo.
 
 ## Referências oficiais
 
