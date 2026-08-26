@@ -17,6 +17,11 @@ class FakeBillingRepository implements BillingRepositoryPort {
     return Promise.resolve(this.active);
   }
 
+  findLatestEntitlementForUser(userId: string): Promise<SubscriptionEntitlement | null> {
+    if (!this.stored || this.stored.userId !== userId) return Promise.resolve(null);
+    return Promise.resolve(this.stored);
+  }
+
   upsertVerifiedSubscription(input: {
     userId: string;
     purchaseToken: string;
