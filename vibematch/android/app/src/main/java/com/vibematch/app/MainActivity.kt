@@ -57,6 +57,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vibematch.app.auth.AuthApiClient
+import com.vibematch.app.consent.Consent
+import com.vibematch.app.consent.ConsentApiClient
+import com.vibematch.app.consent.ConsentDecision
+import com.vibematch.app.consent.ConsentParticipantStatus
+import com.vibematch.app.consent.ConsentStatus
+import com.vibematch.app.consent.ConsentViewModel
+import com.vibematch.app.consent.ConsentViewModelFactory
 import com.vibematch.app.auth.AuthViewModel
 import com.vibematch.app.auth.AuthViewModelFactory
 import com.vibematch.app.auth.GoogleOidcClient
@@ -125,6 +132,20 @@ class MainActivity : ComponentActivity() {
                         gateway = MatchIntentApiClient(BuildConfig.API_BASE_URL),
                         accessTokenProvider = sessionStore::readAccessToken,
                         onSessionExpired = authViewModel::signOut,
+                        onPhoneVerificationRequired = authViewModel::markPhoneUnverified,
+                    ),
+                )
+                val consentViewModel: ConsentViewModel = viewModel(
+                    factory = ConsentViewModelFactory(
+                        gateway = ConsentApiClient(BuildConfig.API_BASE_URL),
+                        accessTokenProvider = sessionStore::readAccessToken,
+                        currentUserIdProvider = { authViewModel.state.value.session?.userId },
+                        onSessionExpired = authViewModel::signOut,
+                        onPhoneVerificationRequired = authViewModel::markPhoneUnverified,
+                        onAgeAssuranceRequired = {
+                            profileViewModel.reset()
+                            profileViewModel.load()
+                        },
                     ),
                 )
                 VibeMatchApp(
@@ -134,6 +155,7 @@ class MainActivity : ComponentActivity() {
                     profileViewModel = profileViewModel,
                     phoneViewModel = phoneViewModel,
                     matchIntentViewModel = matchIntentViewModel,
+                    consentViewModel = consentViewModel,
                 )
             }
         }
@@ -160,17 +182,23 @@ private fun VibeMatchApp(
     profileViewModel: ProfileViewModel,
     phoneViewModel: PhoneVerificationViewModel,
     matchIntentViewModel: MatchIntentViewModel,
+    consentViewModel: ConsentViewModel,
 ) {
     val authState by authViewModel.state
     val session = authState.session
     val sessionId = session?.userId
     var showProfile by remember(sessionId) { mutableStateOf(false) }
     var showMatchIntents by remember(sessionId) { mutableStateOf(false) }
+    var showConsent by remember(sessionId) { mutableStateOf(false) }
+    var consentMatchIntentId by remember(sessionId) { mutableStateOf<String?>(null) }
 
     LaunchedEffect(sessionId) {
         profileViewModel.reset()
         phoneViewModel.reset()
         matchIntentViewModel.reset()
+        consentViewModel.reset()
+        showConsent = false
+        consentMatchIntentId = null
         if (sessionId != null) profileViewModel.load()
     }
 
@@ -178,6 +206,7 @@ private fun VibeMatchApp(
         LoginScreen(activity, authViewModel)
     } else {
         val profileState by profileViewModel.state
+        val selectedConsentMatchIntentId = consentMatchIntentId
         when {
             showProfile ||
                 !profileState.hasLoaded ||
@@ -195,18 +224,6 @@ private fun VibeMatchApp(
                     },
                 )
             }
-            showMatchIntents -> {
-                MatchIntentScreen(
-                    viewModel = matchIntentViewModel,
-                    onClose = { showMatchIntents = false },
-                    onLogout = {
-                        matchIntentViewModel.reset()
-                        chatViewModel.clearConversation()
-                        phoneViewModel.reset()
-                        authViewModel.signOut()
-                    },
-                )
-            }
             !session.phoneVerified -> {
                 PhoneVerificationScreen(
                     viewModel = phoneViewModel,
@@ -214,6 +231,43 @@ private fun VibeMatchApp(
                         phoneViewModel.reset()
                         matchIntentViewModel.reset()
                         chatViewModel.clearConversation()
+                        authViewModel.signOut()
+                    },
+                )
+            }
+            showConsent && selectedConsentMatchIntentId != null -> {
+                ConsentScreen(
+                    viewModel = consentViewModel,
+                    matchIntentId = selectedConsentMatchIntentId,
+                    currentUserId = session.userId,
+                    onClose = {
+                        showConsent = false
+                        consentMatchIntentId = null
+                        showMatchIntents = true
+                    },
+                    onLogout = {
+                        consentViewModel.reset()
+                        matchIntentViewModel.reset()
+                        chatViewModel.clearConversation()
+                        phoneViewModel.reset()
+                        authViewModel.signOut()
+                    },
+                )
+            }
+            showMatchIntents -> {
+                MatchIntentScreen(
+                    viewModel = matchIntentViewModel,
+                    onClose = { showMatchIntents = false },
+                    onOpenConsent = { matchIntentId ->
+                        consentMatchIntentId = matchIntentId
+                        showMatchIntents = false
+                        showConsent = true
+                    },
+                    onLogout = {
+                        matchIntentViewModel.reset()
+                        consentViewModel.reset()
+                        chatViewModel.clearConversation()
+                        phoneViewModel.reset()
                         authViewModel.signOut()
                     },
                 )
@@ -653,9 +707,249 @@ private fun ProfileScreen(
 }
 
 @Composable
+private fun ConsentScreen(
+    viewModel: com.vibematch.app.consent.ConsentViewModel,
+    matchIntentId: String,
+    currentUserId: String,
+    onClose: () -> Unit,
+    onLogout: () -> Unit,
+) {
+    val state by viewModel.state
+    val isBusy = state.isLoading || state.isDeciding
+
+    LaunchedEffect(matchIntentId) {
+        viewModel.reset()
+        viewModel.create(matchIntentId)
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = VibeBackground,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = onClose, enabled = !isBusy) {
+                    Text("Voltar", color = VibePurple)
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Consentimento",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                    )
+                    Text(
+                        text = "Decisão mútua e controlada",
+                        modifier = Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF72717D),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                TextButton(onClick = onLogout, enabled = !isBusy) {
+                    Text("Sair", color = VibePurple)
+                }
+            }
+
+            state.errorMessage?.let { error ->
+                ErrorBanner(error) { viewModel.clearMessages() }
+            }
+            state.infoMessage?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF2F7D4A),
+                )
+            }
+
+            when {
+                state.isLoading -> {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(color = VibePurple)
+                    }
+                }
+                state.ageBlocked -> {
+                    ConsentBlockedCard(modifier = Modifier.weight(1f))
+                }
+                state.consent == null -> {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            text = "Não foi possível abrir o consentimento.",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+                else -> {
+                    val consent = state.consent
+                    if (consent != null) {
+                        ConsentCard(
+                            modifier = Modifier.weight(1f),
+                            consent = consent,
+                            currentUserId = currentUserId,
+                            isDeciding = state.isDeciding,
+                            onDecision = viewModel::decide,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConsentCard(
+    modifier: Modifier = Modifier,
+    consent: Consent,
+    currentUserId: String,
+    isDeciding: Boolean,
+    onDecision: (ConsentDecision) -> Unit,
+) {
+    val ownStatus = when (currentUserId) {
+        consent.userAId -> consent.userAStatus
+        consent.userBId -> consent.userBStatus
+        else -> ConsentParticipantStatus.UNKNOWN
+    }
+    val otherStatus = when (currentUserId) {
+        consent.userAId -> consent.userBStatus
+        consent.userBId -> consent.userAStatus
+        else -> ConsentParticipantStatus.UNKNOWN
+    }
+    val canDecide = consent.status == ConsentStatus.PENDING &&
+        ownStatus == ConsentParticipantStatus.PENDING
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = Color.White,
+        shape = RoundedCornerShape(20.dp),
+        tonalElevation = 2.dp,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = when (consent.status) {
+                    ConsentStatus.ACCEPTED_BOTH -> "Consentimento mútuo registrado"
+                    ConsentStatus.DECLINED -> "Consentimento recusado"
+                    ConsentStatus.EXPIRED -> "Consentimento expirado"
+                    ConsentStatus.CANCELLED -> "Consentimento cancelado"
+                    ConsentStatus.PENDING -> "Consentimento pendente"
+                    ConsentStatus.UNKNOWN -> "Consentimento indisponível"
+                },
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = "Seu estado: ${participantStatusLabel(ownStatus)}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = VibeInk,
+            )
+            Text(
+                text = "Estado da outra pessoa: ${participantStatusLabel(otherStatus)}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF5E5D68),
+            )
+            Text(
+                text = when (consent.status) {
+                    ConsentStatus.ACCEPTED_BOTH ->
+                        "As duas pessoas aceitaram. Isso não cria uma sessão de vídeo automaticamente; o backend ainda precisa autorizar e revalidar essa etapa."
+                    ConsentStatus.PENDING ->
+                        "Escolha sua decisão. O resultado será registrado pelo backend com a sessão autenticada e um request_id único."
+                    ConsentStatus.DECLINED -> "Nenhuma sessão de vídeo pode ser criada a partir deste consentimento."
+                    else -> "Este consentimento não está disponível para novas decisões."
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF72717D),
+            )
+            if (canDecide) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    TextButton(
+                        onClick = { onDecision(ConsentDecision.DECLINED) },
+                        enabled = !isDeciding,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text("Recusar", color = Color(0xFF8A3D4A))
+                    }
+                    Button(
+                        onClick = { onDecision(ConsentDecision.ACCEPTED) },
+                        enabled = !isDeciding,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = VibePurple),
+                        shape = RoundedCornerShape(14.dp),
+                    ) {
+                        if (isDeciding) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp,
+                            )
+                        } else {
+                            Text("Aceitar")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun participantStatusLabel(status: ConsentParticipantStatus): String = when (status) {
+    ConsentParticipantStatus.PENDING -> "pendente"
+    ConsentParticipantStatus.ACCEPTED -> "aceito"
+    ConsentParticipantStatus.DECLINED -> "recusado"
+    ConsentParticipantStatus.UNKNOWN -> "indisponível"
+}
+
+@Composable
+private fun ConsentBlockedCard(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = "Consentimento indisponível",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = "O backend não autorizou esta operação. Nenhuma ação local pode liberar consentimento ou vídeo.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF72717D),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+    }
+}
+
+@Composable
 private fun MatchIntentScreen(
     viewModel: MatchIntentViewModel,
     onClose: () -> Unit,
+    onOpenConsent: (String) -> Unit,
     onLogout: () -> Unit,
 ) {
     val state by viewModel.state
@@ -756,6 +1050,7 @@ private fun MatchIntentScreen(
                                 intent = intent,
                                 isResponding = state.respondingIntentId == intent.id,
                                 onDecision = { decision -> viewModel.respond(intent.id, decision) },
+                                onOpenConsent = { onOpenConsent(intent.id) },
                             )
                         }
                     }
@@ -770,6 +1065,7 @@ private fun MatchIntentCard(
     intent: com.vibematch.app.matching.MatchIntent,
     isResponding: Boolean,
     onDecision: (com.vibematch.app.matching.MatchIntentDecision) -> Unit,
+    onOpenConsent: () -> Unit,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -820,6 +1116,19 @@ private fun MatchIntentCard(
                             Text("Aceitar")
                         }
                     }
+                }
+            } else if (intent.status == com.vibematch.app.matching.MatchIntentStatus.ACCEPTED) {
+                Text(
+                    text = "A intenção foi aceita. O próximo passo requer consentimento mútuo no backend.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFF72717D),
+                )
+                TextButton(
+                    onClick = onOpenConsent,
+                    enabled = !isResponding,
+                    modifier = Modifier.align(Alignment.End),
+                ) {
+                    Text("Abrir consentimento", color = VibePurple)
                 }
             } else {
                 Text(

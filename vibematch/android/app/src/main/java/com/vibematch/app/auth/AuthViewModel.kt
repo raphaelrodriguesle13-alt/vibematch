@@ -44,8 +44,16 @@ class AuthViewModel(
     }
 
     fun markPhoneVerified() {
+        updatePhoneVerificationHint(true)
+    }
+
+    fun markPhoneUnverified() {
+        updatePhoneVerificationHint(false)
+    }
+
+    private fun updatePhoneVerificationHint(phoneVerified: Boolean) {
         val session = mutableState.value.session ?: return
-        val updatedSession = session.copy(phoneVerified = true)
+        val updatedSession = session.copy(phoneVerified = phoneVerified)
         sessionStore.save(updatedSession)
         mutableState.value = mutableState.value.copy(session = updatedSession)
     }

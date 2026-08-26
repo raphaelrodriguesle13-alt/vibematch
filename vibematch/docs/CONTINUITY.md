@@ -13,13 +13,14 @@ Atualizado em 2026-08-26.
 - O Android agora obtém o Google ID token via Credential Manager, troca-o por sessão backend e guarda a sessão com AndroidX Security Crypto.
 - Logout Android revoga a sessão no backend, limpa o estado de credencial Google e remove a sessão local.
 - O Android agora possui onboarding e edição de perfil, carregando interesses e salvando o perfil pelas rotas autenticadas do backend.
-- O backend também expõe Age Assurance e MatchIntent; chat e MatchIntent falham fechado quando o status de idade não é `APPROVED`.
+- O backend também expõe Age Assurance, MatchIntent, Consent e Video; os recursos restritos falham fechado quando idade, telefone ou elegibilidade não estão aprovados.
 - O Android consulta `GET /api/age-assurance/status` e mantém o usuário no cartão de bloqueio para qualquer status não aprovado ou desconhecido.
 - O Android agora possui onboarding telefônico em duas etapas, com `POST /auth/phone/start` e `POST /auth/phone/confirm`, antes de exibir o chat.
 - A confirmação server-side atualiza apenas a dica local `phone_verified`; o JWT existente não é renovado pelo cliente.
 - O Android agora possui uma inbox de MatchIntent para `GET /api/match-intents/incoming` e respostas `ACCEPTED`/`DECLINED`, sempre depois de perfil, Age Assurance e telefone confirmados.
 - O backend reforçou os gates de telefone para MatchIntent, Consent e Video e revoga estados restritos quando a verificação é perdida.
-- A próxima barreira legítima é validar SMS/OAuth/MatchIntent em dispositivo, renovar/expirar sessões e obter evidência verde de CI/migrations/testes.
+- O Android agora está integrando Consent sobre as rotas públicas do backend, mantendo `ACCEPTED_BOTH` separado de qualquer autorização de vídeo.
+- A próxima barreira legítima é validar SMS/OAuth/MatchIntent/Consent em dispositivo, renovar/expirar sessões e obter evidência verde de CI/migrations/testes.
 
 ## Ordem de continuidade
 
@@ -27,8 +28,8 @@ Atualizado em 2026-08-26.
 2. Corrigir qualquer falha das etapas 0–1.
 3. Validar telefone e MatchIntent com provedores/ambiente reais e tratar expiração/renovação de sessão.
 4. Consolidar o chat Android: HTTPS, rate limiting, persistência e observabilidade.
-5. Adicionar rota HTTP pública de Consent antes de implementar consentimento mútuo no Android.
-6. Etapa 6: Consent mútuo.
+5. Validar a UX Android de Consent e integrar Video Session somente por autorização JIT.
+6. Etapa 6: Consent mútuo operacional e notificações.
 7. Etapa 7: Video Session/LiveKit com revalidação JIT.
 8. Etapa 8: denúncia, bloqueio e moderação.
 9. Só depois: billing, exclusão, notificações, VibeOS, auditoria e hardening.

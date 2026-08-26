@@ -23,6 +23,7 @@ class MatchIntentViewModel(
     private val gateway: MatchIntentGateway,
     private val accessTokenProvider: () -> String?,
     private val onSessionExpired: () -> Unit = {},
+    private val onPhoneVerificationRequired: () -> Unit = {},
 ) : ViewModel() {
     private val mutableState: MutableState<MatchIntentUiState> =
         mutableStateOf(MatchIntentUiState())
@@ -126,6 +127,15 @@ class MatchIntentViewModel(
             expireSession()
             return true
         }
+        if (error is MatchIntentApiException && error.errorCode == "PHONE_VERIFICATION_REQUIRED") {
+            mutableState.value = mutableState.value.copy(
+                isLoading = false,
+                respondingIntentId = null,
+                errorMessage = "Confirme seu telefone novamente para usar matchmaking.",
+            )
+            onPhoneVerificationRequired()
+            return true
+        }
         if (error is MatchIntentApiException &&
             (error.statusCode == 403 || error.errorCode == "AGE_ASSURANCE_REQUIRED")
         ) {
@@ -160,6 +170,7 @@ class MatchIntentViewModelFactory(
     private val gateway: MatchIntentGateway,
     private val accessTokenProvider: () -> String?,
     private val onSessionExpired: () -> Unit = {},
+    private val onPhoneVerificationRequired: () -> Unit = {},
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -168,6 +179,7 @@ class MatchIntentViewModelFactory(
                 gateway = gateway,
                 accessTokenProvider = accessTokenProvider,
                 onSessionExpired = onSessionExpired,
+                onPhoneVerificationRequired = onPhoneVerificationRequired,
             ) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")

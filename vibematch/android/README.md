@@ -59,4 +59,10 @@ Na segunda etapa, o app chama `POST /auth/phone/confirm` com `{ "verification_id
 
 Depois de perfil, Age Assurance aprovado e telefone confirmado, a tela de Chat oferece acesso a solicitações recebidas. A tela chama `GET /api/match-intents/incoming` e responde uma solicitação com `POST /api/match-intents/{id}/respond`, enviando somente `decision: "ACCEPTED"` ou `decision: "DECLINED"`. O `sender_id`, o `receiver_id`, a validade e a elegibilidade são determinados pelo backend; o Android não envia identidade de usuário para decidir em nome da sessão.
 
-O status `AGE_ASSURANCE_REQUIRED`, HTTP 403, HTTP 401, estados desconhecidos e respostas inválidas permanecem bloqueados ou são tratados com mensagens públicas. Aceitar uma intenção não cria consentimento nem sessão de vídeo. O backend ainda não expõe uma rota HTTP de Consent neste branch; por isso o Android não simula consentimento, não cria tokens RTC e não libera vídeo localmente.
+O status `AGE_ASSURANCE_REQUIRED`, `PHONE_VERIFICATION_REQUIRED`, HTTP 403, HTTP 401, estados desconhecidos e respostas inválidas permanecem bloqueados ou são tratados com mensagens públicas. Aceitar uma intenção não cria consentimento nem sessão de vídeo automaticamente.
+
+## Consentimento mútuo
+
+Depois de aceitar uma MatchIntent, o app pode abrir Consent e chama `POST /api/consents` com `{ "match_intent_id": "..." }`. A resposta contém os estados dos dois participantes e os prazos controlados pelo servidor. Para decidir, o Android chama `POST /api/consents/{id}/decision` com `{ "decision": "ACCEPTED", "request_id": "uuid" }` ou a decisão `DECLINED`; o `request_id` é gerado como UUID por ação.
+
+O Android exibe `PENDING`, `ACCEPTED_BOTH`, `DECLINED`, `EXPIRED`, `CANCELLED` e estados desconhecidos sem inferir autorização. Mesmo em `ACCEPTED_BOTH`, o app não cria sessão de vídeo nem token RTC: a etapa de vídeo permanece dependente dos endpoints server-side e de revalidação JIT.

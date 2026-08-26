@@ -83,13 +83,15 @@ O cliente obtém o Google ID token com Credential Manager, troca-o em `/auth/goo
 
 Quando a sessão informa `phone_verified=false`, o Android chama `POST /auth/phone/start` com `{ "phone_e164": "+5511999999999" }`, guarda o `verification_id` apenas no estado da tela e envia o código em `POST /auth/phone/confirm`. A sessão local é marcada como verificada somente depois de `{ "ok": true, "phone_verified": true }`; o JWT existente não é reemitido pelo cliente. Erros de telefone são exibidos como mensagens públicas e HTTP 401 encerra a sessão.
 
-Após perfil, Age Assurance e telefone confirmados, o Android consome `GET /api/match-intents/incoming` e responde solicitações com `POST /api/match-intents/{id}/respond`, enviando apenas `decision: ACCEPTED|DECLINED`. O backend deriva a identidade autenticada, valida elegibilidade e controla validade; 403 `AGE_ASSURANCE_REQUIRED`, 401, estados desconhecidos e respostas inválidas permanecem bloqueados. Aceitar uma intenção não cria Consent, sessão de vídeo ou token RTC. Como o branch ainda não expõe rota HTTP pública de Consent, a camada Android não simula esse estado.
+Após perfil, Age Assurance e telefone confirmados, o Android consome `GET /api/match-intents/incoming` e responde solicitações com `POST /api/match-intents/{id}/respond`, enviando apenas `decision: ACCEPTED|DECLINED`. O backend deriva a identidade autenticada, valida elegibilidade e controla validade; 403 `AGE_ASSURANCE_REQUIRED`, `PHONE_VERIFICATION_REQUIRED`, 401, estados desconhecidos e respostas inválidas permanecem bloqueados. Aceitar uma intenção não cria Consent, sessão de vídeo ou token RTC.
+
+Após uma MatchIntent aceita, o Android pode criar Consent com `POST /api/consents` e decidir com `POST /api/consents/{id}/decision`, enviando `decision` e um `request_id` UUID. O backend é responsável pela identidade, elegibilidade, prazo, `video_deadline` e transição `ACCEPTED_BOTH`; o Android apenas exibe os estados devolvidos. Mesmo em `ACCEPTED_BOTH`, nenhum vídeo é iniciado localmente e qualquer sessão/token depende de autorização JIT server-side.
 
 O manifest debug é a única variante que habilita HTTP local; o manifest release força `android:usesCleartextTraffic=false` e o Gradle rejeita `API_BASE_URL` sem HTTPS.
 
 ## Próxima etapa
 
-A próxima entrega deve validar telefone e MatchIntent em dispositivo com provedores/ambiente reais, definir renovação/expiração de sessão conforme o contrato do backend e aguardar uma rota HTTP pública de Consent antes de implementar consentimento mútuo no Android. Rate limiting, persistência de conversas, observabilidade e moderação ainda precisam ser revisados antes de produção. O cliente não autoriza localmente idade, matchmaking, consentimento ou vídeo.
+A próxima entrega deve validar telefone, MatchIntent e Consent em dispositivo com provedores/ambiente reais, definir renovação/expiração de sessão conforme o contrato do backend e conectar a futura sessão de vídeo somente por autorização JIT. Rate limiting, persistência de conversas, observabilidade e moderação ainda precisam ser revisados antes de produção. O cliente não autoriza localmente idade, matchmaking, consentimento ou vídeo.
 
 ## Referências oficiais
 
