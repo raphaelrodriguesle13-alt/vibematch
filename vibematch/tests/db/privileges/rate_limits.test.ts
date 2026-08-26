@@ -1,8 +1,6 @@
 import type { Pool } from 'pg';
 import { closeAll, expectDbError, ownerPool, rolePools } from '../../helpers/db';
 
-afterAll(closeAll);
-
 const PERMISSION_DENIED = '42501';
 
 const consume = async (
@@ -41,6 +39,7 @@ describe('Restricted rate-limit persistence and least privilege', () => {
 
   afterAll(async () => {
     if (userId) await ownerPool.query('DELETE FROM users WHERE id = $1', [userId]);
+    await closeAll();
   });
 
   test('svc_matchmaking atomically rejects the 31st consent decision in one minute', async () => {
