@@ -5,10 +5,7 @@ import {
   type ActiveSessionStore,
   type AuthHttpDependencies,
 } from '../../backend/src/http/app';
-import type {
-  SessionTokenClaims,
-  SessionTokenVerifier,
-} from '../../backend/src/shared/providers';
+import type { SessionTokenClaims, SessionTokenVerifier } from '../../backend/src/shared/providers';
 
 const USER_A = '11111111-1111-4111-8111-111111111111';
 const USER_B = '22222222-2222-4222-8222-222222222222';
@@ -20,7 +17,10 @@ const matchIntent = (status: MatchIntent['status'] = 'SENT'): MatchIntent => ({
   receiverId: USER_B,
   status,
   expiresAt: new Date('2026-08-26T10:10:00.000Z'),
-  respondedAt: status === 'ACCEPTED' || status === 'DECLINED' ? new Date('2026-08-26T10:01:00.000Z') : null,
+  respondedAt:
+    status === 'ACCEPTED' || status === 'DECLINED'
+      ? new Date('2026-08-26T10:01:00.000Z')
+      : null,
   closedAt: null,
   createdAt: new Date('2026-08-26T10:00:00.000Z'),
 });
@@ -50,7 +50,11 @@ class FakeSessionStore implements ActiveSessionStore {
 
 class FakeMatchIntentService {
   createCall: { senderId: string; receiverId: string } | null = null;
-  respondCall: { receiverId: string; intentId: string; decision: MatchIntentDecision } | null = null;
+  respondCall: {
+    receiverId: string;
+    intentId: string;
+    decision: MatchIntentDecision;
+  } | null = null;
 
   create(senderId: string, receiverId: string): Promise<MatchIntent> {
     this.createCall = { senderId, receiverId };
