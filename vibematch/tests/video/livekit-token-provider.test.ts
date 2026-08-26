@@ -58,11 +58,11 @@ describe('LiveKitTokenProvider', () => {
   });
 
   test('fails closed when signing configuration is absent', () => {
-    expect(
-      () => new LiveKitTokenProvider({ apiKey: '', apiSecret: secret }),
-    ).toThrow(/API key is required/);
-    expect(
-      () => new LiveKitTokenProvider({ apiKey: 'key', apiSecret: '' }),
-    ).toThrow(/API secret is required/);
+    expect(() => new LiveKitTokenProvider({ apiKey: '', apiSecret: secret })).toThrow(
+      /API key is required/,
+    );
+    expect(() => new LiveKitTokenProvider({ apiKey: 'key', apiSecret: '' })).toThrow(
+      /API secret is required/,
+    );
   });
 });
