@@ -52,9 +52,14 @@ export interface AgeAssuranceResult {
   providerTransactionId: string;
 }
 
+export interface AgeAssuranceStart {
+  sessionRef: string;
+  verificationUrl: string;
+}
+
 /** V1.2 §6.7 — o cliente NUNCA decide aprovação; falha do provedor é fail-closed. */
 export interface AgeAssuranceProvider {
-  start(userId: string): Promise<{ sessionRef: string }>;
+  start(userId: string): Promise<AgeAssuranceStart>;
   getResult(sessionRef: string): Promise<AgeAssuranceResult>;
   verifyWebhookSignature(rawBody: Buffer, signature: string): boolean;
 }
