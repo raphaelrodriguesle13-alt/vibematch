@@ -78,10 +78,23 @@ BEFORE INSERT ON sessions
 FOR EACH ROW
 EXECUTE FUNCTION enforce_session_phone_verification();
 
-CREATE OR REPLACE FUNCTION revoke_sessions_on_phone_unverified()
+CREATE OR REPLACE FUNCTION revoke_restricted_state_on_phone_unverified()
 RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.phone_verified IS DISTINCT FROM TRUE THEN
+    UPDATE match_intents
+       SET status = 'CANCELLED',
+           closed_at = COALESCE(closed_at, now())
+     WHERE status = 'SENT'
+       AND (sender_id = NEW.id OR receiver_id = NEW.id);
+
+    UPDATE consents
+       SET status = 'CANCELLED',
+           cancellation_reason = 'SYSTEM',
+           updated_at = now()
+     WHERE status IN ('PENDING', 'ACCEPTED_BOTH')
+       AND (user_a_id = NEW.id OR user_b_id = NEW.id);
+
     UPDATE sessions s
        SET status = 'ENDED',
            end_reason = 'CONSENT_INVALIDATED',
@@ -98,20 +111,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, public;
 
-CREATE TRIGGER trg_revoke_sessions_on_phone_unverified
+CREATE TRIGGER trg_revoke_restricted_state_on_phone_unverified
 AFTER UPDATE OF phone_verified ON users
 FOR EACH ROW
 WHEN (OLD.phone_verified IS DISTINCT FROM NEW.phone_verified)
-EXECUTE FUNCTION revoke_sessions_on_phone_unverified();
+EXECUTE FUNCTION revoke_restricted_state_on_phone_unverified();
 
 REVOKE ALL ON FUNCTION enforce_match_intent_phone_verification() FROM PUBLIC;
 REVOKE ALL ON FUNCTION enforce_consent_phone_verification() FROM PUBLIC;
 REVOKE ALL ON FUNCTION enforce_session_phone_verification() FROM PUBLIC;
-REVOKE ALL ON FUNCTION revoke_sessions_on_phone_unverified() FROM PUBLIC;
+REVOKE ALL ON FUNCTION revoke_restricted_state_on_phone_unverified() FROM PUBLIC;
 
 -- Down Migration
-DROP TRIGGER IF EXISTS trg_revoke_sessions_on_phone_unverified ON users;
-DROP FUNCTION IF EXISTS revoke_sessions_on_phone_unverified();
+DROP TRIGGER IF EXISTS trg_revoke_restricted_state_on_phone_unverified ON users;
+DROP FUNCTION IF EXISTS revoke_restricted_state_on_phone_unverified();
 DROP TRIGGER IF EXISTS trg_enforce_session_phone_verification ON sessions;
 DROP FUNCTION IF EXISTS enforce_session_phone_verification();
 DROP TRIGGER IF EXISTS trg_enforce_consent_phone_verification ON consents;
