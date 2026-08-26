@@ -67,20 +67,20 @@ export async function withRollback<T>(pool: Pool, fn: (c: PoolClient) => Promise
   }
 }
 
-/** Cria dois usuários ACTIVE/APPROVED e um MatchIntent ACCEPTED entre eles. */
+/** Cria dois usuários ACTIVE, phone_verified e APPROVED, com MatchIntent ACCEPTED. */
 export async function seedAcceptedIntent(client: PoolClient): Promise<{
   userA: string;
   userB: string;
   intentId: string;
 }> {
   const a = await client.query<IdRow>(
-    `INSERT INTO users (google_subject_id, age_assurance_status)
-     VALUES ($1, 'APPROVED') RETURNING id`,
+    `INSERT INTO users (google_subject_id, phone_verified, age_assurance_status)
+     VALUES ($1, TRUE, 'APPROVED') RETURNING id`,
     [`sub-a-${Math.random()}`],
   );
   const b = await client.query<IdRow>(
-    `INSERT INTO users (google_subject_id, age_assurance_status)
-     VALUES ($1, 'APPROVED') RETURNING id`,
+    `INSERT INTO users (google_subject_id, phone_verified, age_assurance_status)
+     VALUES ($1, TRUE, 'APPROVED') RETURNING id`,
     [`sub-b-${Math.random()}`],
   );
 
