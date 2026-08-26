@@ -41,6 +41,7 @@ export class VideoSessionRepository implements VideoSessionRepositoryPort {
          AND c.video_deadline IS NOT NULL
          AND c.video_deadline > $4
          AND ua.status = 'ACTIVE' AND ub.status = 'ACTIVE'
+         AND ua.phone_verified = TRUE AND ub.phone_verified = TRUE
          AND ua.age_assurance_status = 'APPROVED'
          AND ub.age_assurance_status = 'APPROVED'
          AND NOT EXISTS (
@@ -75,6 +76,7 @@ export class VideoSessionRepository implements VideoSessionRepositoryPort {
          AND c.video_deadline IS NOT NULL
          AND c.video_deadline > $3
          AND ua.status = 'ACTIVE' AND ub.status = 'ACTIVE'
+         AND ua.phone_verified = TRUE AND ub.phone_verified = TRUE
          AND ua.age_assurance_status = 'APPROVED'
          AND ub.age_assurance_status = 'APPROVED'
          AND NOT EXISTS (
