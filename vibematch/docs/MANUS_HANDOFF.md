@@ -12,16 +12,17 @@ O fluxo autenticado permanece **Perfil → Age Assurance → Telefone → Chat �
 
 ## Estado do Git
 
-| Item                              | Valor                                                                               |
-| --------------------------------- | ----------------------------------------------------------------------------------- |
-| Repositório                       | `raphaelrodriguesle13-alt/vibematch`                                                |
-| Branch utilizada                  | `continuity`                                                                        |
-| HEAD publicado antes do lote RTC  | `5cf646e` — `feat: add Android community safety controls`                           |
-| HEAD da implementação Android RTC | `15677b9` — `feat: add Android LiveKit RTC call flow`                               |
-| HEAD da documentação inicial RTC  | `04893a3` — `docs: document Android LiveKit integration`                            |
-| HEAD do ajuste Jest/signer        | `2877267` — `test: run LiveKit signer under Jest ESM`                               |
-| HEAD antes deste handoff final    | `5fc49e0` — `style: format RTC handoff documentation`                               |
-| Publicação                        | Deve ser feita somente em `origin/continuity`, sem force-push e sem tocar na `main` |
+| Item                              | Valor                                                     |
+| --------------------------------- | --------------------------------------------------------- |
+| Repositório                       | `raphaelrodriguesle13-alt/vibematch`                      |
+| Branch utilizada                  | `continuity`                                              |
+| HEAD publicado antes do lote RTC  | `5cf646e` — `feat: add Android community safety controls` |
+| HEAD da implementação Android RTC | `5f8c3a2` — `feat: add Android LiveKit RTC call flow`     |
+| HEAD da documentação inicial RTC  | `5fbd908` — `docs: document Android LiveKit integration`  |
+| HEAD do ajuste Jest/signer        | `72efdb3` — `test: run LiveKit signer under Jest ESM`     |
+| HEAD antes deste handoff final    | `fff515e` — `style: format RTC handoff documentation`     |
+
+| Publicação | Deve ser feita somente em `origin/continuity`, sem force-push e sem tocar na `main` |
 
 O `MANUS_HANDOFF.md` é o commit documental imediatamente posterior ao HEAD indicado acima. O SHA do commit final deste arquivo deve ser confirmado com `git rev-parse HEAD` após a publicação; a mensagem de entrega registra esse valor sem ambiguidade.
 
@@ -33,12 +34,12 @@ O `MANUS_HANDOFF.md` é o commit documental imediatamente posterior ao HEAD indi
 | `719db57` | `test: verify LiveKit JIT token claims`       |
 | `3bc4183` | `docs: advance Manus Android RTC handoff`     |
 | `5cf646e` | `feat: add Android community safety controls` |
-| `15677b9` | `feat: add Android LiveKit RTC call flow`     |
-| `04893a3` | `docs: document Android LiveKit integration`  |
-| `2877267` | `test: run LiveKit signer under Jest ESM`     |
-| `5fc49e0` | `style: format RTC handoff documentation`     |
+| `5f8c3a2` | `feat: add Android LiveKit RTC call flow`     |
+| `5fbd908` | `docs: document Android LiveKit integration`  |
+| `72efdb3` | `test: run LiveKit signer under Jest ESM`     |
+| `fff515e` | `style: format RTC handoff documentation`     |
 
-O commit `15677b9` contém dependência, configuração, Manifest, gateway, ViewModel, tela Compose, wiring de moderação e testes Android RTC. O commit `2877267` é uma correção mínima de infraestrutura de testes: Jest passou a carregar `jose` ESM em Node 22 e o teste do signer verifica HS256 com `node:crypto`. Nenhuma regra de autorização ou lógica de produção do backend foi enfraquecida.
+O commit `5f8c3a2` contém dependência, configuração, Manifest, gateway, ViewModel, tela Compose, wiring de moderação e testes Android RTC. O commit `72efdb3` é uma correção mínima de infraestrutura de testes: Jest passou a carregar `jose` ESM em Node 22 e o teste do signer verifica HS256 com `node:crypto`. Nenhuma regra de autorização ou lógica de produção do backend foi enfraquecida.
 
 ## Contratos HTTP integrados
 
