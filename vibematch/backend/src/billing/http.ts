@@ -102,23 +102,26 @@ export const registerBillingRoutes = (
     }
   });
 
-  app.post<{ Body: VerifyPurchaseBody }>('/api/billing/verify-purchase', async (request, reply) => {
-    const auth = await authenticate(request, reply, deps, now);
-    if (!auth) return;
-    const purchaseToken = request.body?.purchase_token;
-    if (typeof purchaseToken !== 'string' || !purchaseToken.trim()) {
-      return reply.code(400).send({ error: 'INVALID_REQUEST' });
-    }
-    try {
-      const entitlement = await deps.service.verifyPurchase(auth.claims.userId, purchaseToken);
-      return reply.code(200).send({ data: serializeEntitlement(entitlement) });
-    } catch (error) {
-      if (error instanceof BillingError) {
-        return reply.code(billingErrorStatus(error)).send({ error: error.code });
+  app.post<{ Body: VerifyPurchaseBody }>(
+    '/api/billing/verify-purchase',
+    async (request, reply) => {
+      const auth = await authenticate(request, reply, deps, now);
+      if (!auth) return;
+      const purchaseToken = request.body?.purchase_token;
+      if (typeof purchaseToken !== 'string' || !purchaseToken.trim()) {
+        return reply.code(400).send({ error: 'INVALID_REQUEST' });
       }
-      return reply.code(500).send({ error: 'INTERNAL_ERROR' });
-    }
-  });
+      try {
+        const entitlement = await deps.service.verifyPurchase(auth.claims.userId, purchaseToken);
+        return reply.code(200).send({ data: serializeEntitlement(entitlement) });
+      } catch (error) {
+        if (error instanceof BillingError) {
+          return reply.code(billingErrorStatus(error)).send({ error: error.code });
+        }
+        return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+      }
+    },
+  );
 
   app.post('/webhooks/google-play/rtdn', async (request, reply) => {
     try {
