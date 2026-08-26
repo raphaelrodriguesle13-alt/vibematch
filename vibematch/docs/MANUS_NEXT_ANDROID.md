@@ -16,16 +16,16 @@ O backend possui signer JIT LiveKit server-only em `backend/src/video/livekit-to
 
 ## Contratos HTTP preservados
 
-| Fluxo | Endpoint | Corpo Android | Regra server-side |
-|---|---|---|---|
-| MatchIntent | `GET /api/match-intents/incoming` | Nenhum | Participantes, validade e elegibilidade vêm do backend |
-| MatchIntent | `POST /api/match-intents/:id/respond` | `decision` | Somente `ACCEPTED` ou `DECLINED` |
-| Consent | `POST /api/consents` | `match_intent_id` | Identidade autenticada é derivada da sessão |
-| Consent | `POST /api/consents/:id/decision` | `decision`, `request_id` UUID | Prazo, idempotência e transição são server-controlled |
-| Video Session | `POST /api/video/sessions` | `consent_id` | Revalida Consent, idade, telefone e elegibilidade |
-| Token RTC | `POST /api/video/sessions/:id/token` | Nenhum | Deriva room/identity, grants, TTL e rate limit |
-| Block | `POST /api/blocks` | `blocked_id` | Revoga relações e sessões no backend |
-| Report | `POST /api/reports` | `reported_id`, `session_id`, `category` | Severidade e encaminhamento são server-controlled |
+| Fluxo         | Endpoint                              | Corpo Android                           | Regra server-side                                      |
+| ------------- | ------------------------------------- | --------------------------------------- | ------------------------------------------------------ |
+| MatchIntent   | `GET /api/match-intents/incoming`     | Nenhum                                  | Participantes, validade e elegibilidade vêm do backend |
+| MatchIntent   | `POST /api/match-intents/:id/respond` | `decision`                              | Somente `ACCEPTED` ou `DECLINED`                       |
+| Consent       | `POST /api/consents`                  | `match_intent_id`                       | Identidade autenticada é derivada da sessão            |
+| Consent       | `POST /api/consents/:id/decision`     | `decision`, `request_id` UUID           | Prazo, idempotência e transição são server-controlled  |
+| Video Session | `POST /api/video/sessions`            | `consent_id`                            | Revalida Consent, idade, telefone e elegibilidade      |
+| Token RTC     | `POST /api/video/sessions/:id/token`  | Nenhum                                  | Deriva room/identity, grants, TTL e rate limit         |
+| Block         | `POST /api/blocks`                    | `blocked_id`                            | Revoga relações e sessões no backend                   |
+| Report        | `POST /api/reports`                   | `reported_id`, `session_id`, `category` | Severidade e encaminhamento são server-controlled      |
 
 A emissão do token revalida imediatamente antes de assinar sessão, revogação, consentimento mútuo, janela de vídeo, contas ativas, telefone, idade e bloqueios. O Android jamais gera token RTC, decide room authorization ou envia `user_id`, `room_name`, `severity` ou estado de elegibilidade para obter autorização.
 
@@ -55,6 +55,6 @@ A próxima cooperação deve executar validação ponta a ponta com backend Live
 
 ## Fontes técnicas
 
-[1]: https://docs.livekit.io/transport/sdk-platforms/android/ "LiveKit Android quickstart"
-[2]: https://docs.livekit.io/intro/basics/connect/ "LiveKit connecting to a room"
-[3]: https://github.com/livekit/client-sdk-android "LiveKit Android SDK"
+[1]: https://docs.livekit.io/transport/sdk-platforms/android/ 'LiveKit Android quickstart'
+[2]: https://docs.livekit.io/intro/basics/connect/ 'LiveKit connecting to a room'
+[3]: https://github.com/livekit/client-sdk-android 'LiveKit Android SDK'

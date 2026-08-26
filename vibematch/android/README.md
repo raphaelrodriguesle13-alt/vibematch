@@ -88,13 +88,13 @@ Após a conexão, a tela oferece vídeo local e remoto, estado de participante r
 
 Os estados `CREATED`, `ACTIVE`, `ENDED` e desconhecidos, além de `VIDEO_NOT_AUTHORIZED`, `PHONE_VERIFICATION_REQUIRED`, `AGE_ASSURANCE_REQUIRED`, `RATE_LIMITED`, HTTP 401 e erros do provedor, são tratados sem liberação local. Sem `LIVEKIT_URL`, o fluxo permanece desconectado e informa configuração ausente, sem substituir o endpoint por um valor embutido.
 
-| Etapa | Responsabilidade do Android | Autoridade do backend |
-|---|---|---|
-| Criar Video Session | Enviar somente `consent_id` autenticado | Elegibilidade, vínculo, prazo e revogação |
-| Emitir token | Solicitar sem identidade ou room | Identidade, room, grants, TTL e rate limit |
-| Entrar no RTC | Pedir permissões em runtime e reagir ao clique | Aceitar ou rejeitar o token e a conexão |
-| Controlar mídia | Ligar/desligar câmera e microfone por ação explícita | Provedor LiveKit e estado da sala |
-| Bloquear/denunciar | Enviar a ação e encerrar o RTC local | Participantes, severidade, revisão e punição |
+| Etapa               | Responsabilidade do Android                          | Autoridade do backend                        |
+| ------------------- | ---------------------------------------------------- | -------------------------------------------- |
+| Criar Video Session | Enviar somente `consent_id` autenticado              | Elegibilidade, vínculo, prazo e revogação    |
+| Emitir token        | Solicitar sem identidade ou room                     | Identidade, room, grants, TTL e rate limit   |
+| Entrar no RTC       | Pedir permissões em runtime e reagir ao clique       | Aceitar ou rejeitar o token e a conexão      |
+| Controlar mídia     | Ligar/desligar câmera e microfone por ação explícita | Provedor LiveKit e estado da sala            |
+| Bloquear/denunciar  | Enviar a ação e encerrar o RTC local                 | Participantes, severidade, revisão e punição |
 
 ## Proteção da comunidade
 
@@ -114,7 +114,7 @@ Os testes unitários cobrem a entrega transitória de token da Video Session, a 
 
 ## Referências técnicas
 
-[1]: https://docs.livekit.io/transport/sdk-platforms/android/ "LiveKit Android quickstart"
-[2]: https://docs.livekit.io/intro/basics/connect/ "LiveKit connecting to a room"
-[3]: https://github.com/livekit/client-sdk-android "LiveKit Android SDK"
-[4]: https://github.com/livekit/client-sdk-android/blob/main/sample-app-basic/src/main/java/io/livekit/android/sample/basic/MainActivity.kt "LiveKit Android sample app"
+[1]: https://docs.livekit.io/transport/sdk-platforms/android/ 'LiveKit Android quickstart'
+[2]: https://docs.livekit.io/intro/basics/connect/ 'LiveKit connecting to a room'
+[3]: https://github.com/livekit/client-sdk-android 'LiveKit Android SDK'
+[4]: https://github.com/livekit/client-sdk-android/blob/main/sample-app-basic/src/main/java/io/livekit/android/sample/basic/MainActivity.kt 'LiveKit Android sample app'

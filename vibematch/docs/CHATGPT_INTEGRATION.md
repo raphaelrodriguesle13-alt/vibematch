@@ -4,13 +4,13 @@
 
 O cliente Android conversa somente com o backend Fastify. O backend valida o Bearer token de sessão, confirma a sessão ativa no banco e só então encaminha a mensagem para a OpenAI Responses API. A chave `OPENAI_API_KEY` nunca é incluída no APK ou em uma requisição feita pelo telefone.
 
-| Camada | Responsabilidade | Arquivo principal |
-|---|---|---|
-| Contrato | Define mensagens e resposta do fornecedor | `backend/src/shared/providers/index.ts` |
-| Fornecedor | Chama `POST /v1/responses`, aplica timeout e valida a resposta | `backend/src/shared/providers/openai.ts` |
-| Domínio | Controla prompt, histórico e limites | `backend/src/chat/service.ts` |
-| HTTP | Exige JWT, atualiza a sessão e expõe `POST /api/chat` | `backend/src/http/app.ts` |
-| Android | Renderiza fluxo restrito, conversa, moderação e chamada RTC | `android/app/src/main/java/com/vibematch/app` |
+| Camada     | Responsabilidade                                               | Arquivo principal                             |
+| ---------- | -------------------------------------------------------------- | --------------------------------------------- |
+| Contrato   | Define mensagens e resposta do fornecedor                      | `backend/src/shared/providers/index.ts`       |
+| Fornecedor | Chama `POST /v1/responses`, aplica timeout e valida a resposta | `backend/src/shared/providers/openai.ts`      |
+| Domínio    | Controla prompt, histórico e limites                           | `backend/src/chat/service.ts`                 |
+| HTTP       | Exige JWT, atualiza a sessão e expõe `POST /api/chat`          | `backend/src/http/app.ts`                     |
+| Android    | Renderiza fluxo restrito, conversa, moderação e chamada RTC    | `android/app/src/main/java/com/vibematch/app` |
 
 ## Backend e ChatGPT
 
@@ -60,15 +60,15 @@ Sucesso:
 
 A mensagem atual e cada item do histórico podem ter até 4.000 caracteres; o histórico aceita até 20 itens. O corpo HTTP fica limitado a 128 KiB. O backend exige Age Assurance aprovado antes de processar o chat e responde `403 AGE_ASSURANCE_REQUIRED` de forma fail-closed para qualquer outro estado.
 
-| Situação | HTTP | Código |
-|---|---:|---|
-| Sem Bearer token | 401 | `UNAUTHORIZED` |
-| Sessão revogada ou expirada | 401 | `SESSION_REVOKED_OR_EXPIRED` |
-| Corpo inválido | 400 | `INVALID_REQUEST` |
-| Age Assurance não aprovado | 403 | `AGE_ASSURANCE_REQUIRED` |
-| Chat não configurado | 503 | `CHAT_NOT_CONFIGURED` |
-| Timeout do fornecedor | 504 | `CHAT_PROVIDER_TIMEOUT` |
-| Falha do fornecedor | 502 | `CHAT_PROVIDER_UNAVAILABLE` |
+| Situação                    | HTTP | Código                       |
+| --------------------------- | ---: | ---------------------------- |
+| Sem Bearer token            |  401 | `UNAUTHORIZED`               |
+| Sessão revogada ou expirada |  401 | `SESSION_REVOKED_OR_EXPIRED` |
+| Corpo inválido              |  400 | `INVALID_REQUEST`            |
+| Age Assurance não aprovado  |  403 | `AGE_ASSURANCE_REQUIRED`     |
+| Chat não configurado        |  503 | `CHAT_NOT_CONFIGURED`        |
+| Timeout do fornecedor       |  504 | `CHAT_PROVIDER_TIMEOUT`      |
+| Falha do fornecedor         |  502 | `CHAT_PROVIDER_UNAVAILABLE`  |
 
 ## Android e autenticação
 
