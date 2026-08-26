@@ -1,102 +1,117 @@
 # Handoff Manus → ChatGPT — VibeMatch
 
-Atualizado em **2026-08-26** após a publicação na branch exclusiva `continuity`.
+Atualizado em **2026-08-26** após a integração Android RTC na branch exclusiva `continuity`.
 
 ## Resumo da entrega
 
-Esta etapa adiciona ao Android a camada de autorização de Video Session sobre os contratos server-side já consolidados pelo ChatGPT. Depois de perfil completo, Age Assurance aprovado, telefone confirmado, MatchIntent aceita e Consent em `ACCEPTED_BOTH`, o usuário pode solicitar explicitamente uma sessão de vídeo e, depois, uma credencial JIT do backend.
+Esta etapa conclui o caminho Android de autorização de Video Session até uma chamada RTC LiveKit controlada pelo backend. Depois de perfil completo, Age Assurance aprovado, telefone confirmado, MatchIntent aceita e Consent em `ACCEPTED_BOTH`, o usuário pode criar a Video Session, solicitar explicitamente uma credencial JIT, conceder câmera/microfone em runtime e entrar na chamada.
 
-O fluxo autenticado permanece **Perfil → Age Assurance → Telefone → Chat → MatchIntent → Consent → autorização de Video Session**. O Android apenas solicita e apresenta estados retornados pelo servidor. Identidade, elegibilidade, telefone, idade, bloqueios, participantes, validade, `video_deadline`, revogação e autorização de token continuam sob responsabilidade do backend e do banco.
+O fluxo autenticado permanece **Perfil → Age Assurance → Telefone → Chat → MatchIntent → Consent → Video Session → RTC**. O Android apenas solicita operações e renderiza estados retornados. Identidade, elegibilidade, telefone, idade, bloqueios, participantes, validade, `video_deadline`, revogação, room, identidade LiveKit, grants, TTL e autorização do token continuam sob responsabilidade do backend e do banco.
 
-> **Fonte de verdade:** o cliente Android não aprova localmente idade, telefone, matchmaking, consentimento, vídeo ou entitlement. A tela de vídeo não inicia câmera, WebRTC, LiveKit ou publicação de mídia nesta etapa.
+> **Fonte de verdade:** o cliente Android não aprova localmente idade, telefone, matchmaking, consentimento, vídeo, entitlement, room ou punições. O backend LiveKit é o único lugar que conhece a chave e o segredo de assinatura.
 
 ## Estado do Git
 
-| Item                                  | Valor                                                                 |
-| ------------------------------------- | --------------------------------------------------------------------- |
-| Repositório                           | `raphaelrodriguesle13-alt/vibematch`                                  |
-| Branch utilizada                      | `continuity`                                                          |
-| HEAD inicial histórico desta retomada | `d9487c9`                                                             |
-| Base cooperativa antes desta etapa    | `a670567`                                                             |
-| HEAD final desta etapa                | `703d75aed63ccf036fdf64a61df05b5a01922c44`                            |
-| Estado final                          | `continuity` sincronizada com `origin/continuity`, working tree limpo |
-| Push                                  | Realizado sem force-push e sem tocar na `main`                        |
+| Item                              | Valor                                                                               |
+| --------------------------------- | ----------------------------------------------------------------------------------- |
+| Repositório                       | `raphaelrodriguesle13-alt/vibematch`                                                |
+| Branch utilizada                  | `continuity`                                                                        |
+| HEAD publicado antes do lote RTC  | `5cf646e` — `feat: add Android community safety controls`                           |
+| HEAD da implementação Android RTC | `15677b9` — `feat: add Android LiveKit RTC call flow`                               |
+| HEAD da documentação inicial RTC  | `04893a3` — `docs: document Android LiveKit integration`                            |
+| HEAD do ajuste Jest/signer        | `2877267` — `test: run LiveKit signer under Jest ESM`                               |
+| HEAD antes deste handoff final    | `5fc49e0` — `style: format RTC handoff documentation`                               |
+| Publicação                        | Deve ser feita somente em `origin/continuity`, sem force-push e sem tocar na `main` |
 
-O ChatGPT publicou em paralelo reforços de telefone, revogação ativa, rate limiting, APIs públicas de Consent/Video/Moderation e fixtures de banco. O trabalho Android foi preservado por rebases lineares sucessivos, sem reset destrutivo ou sobrescrita dos controles server-side.
+O `MANUS_HANDOFF.md` é o commit documental imediatamente posterior ao HEAD indicado acima. O SHA do commit final deste arquivo deve ser confirmado com `git rev-parse HEAD` após a publicação; a mensagem de entrega registra esse valor sem ambiguidade.
 
 ## Commits relevantes
 
-| Commit    | Descrição                                    |
-| --------- | -------------------------------------------- |
-| `c9dbed8` | `feat: add Android mutual consent flow`      |
-| `b241431` | `fix: complete restricted error mappings`    |
-| `a994436` | `feat: add Android video authorization flow` |
-| `703d75a` | `style: format structural immutability test` |
+| Commit    | Descrição                                     |
+| --------- | --------------------------------------------- |
+| `6f9b44f` | `feat: add LiveKit JIT token provider`        |
+| `719db57` | `test: verify LiveKit JIT token claims`       |
+| `3bc4183` | `docs: advance Manus Android RTC handoff`     |
+| `5cf646e` | `feat: add Android community safety controls` |
+| `15677b9` | `feat: add Android LiveKit RTC call flow`     |
+| `04893a3` | `docs: document Android LiveKit integration`  |
+| `2877267` | `test: run LiveKit signer under Jest ESM`     |
+| `5fc49e0` | `style: format RTC handoff documentation`     |
 
-O commit `a994436` contém o cliente, ViewModel, tela Compose e testes de Video Session. O commit `703d75a` contém somente a formatação necessária de um teste cooperativo para o gate Prettier.
+O commit `15677b9` contém dependência, configuração, Manifest, gateway, ViewModel, tela Compose, wiring de moderação e testes Android RTC. O commit `2877267` é uma correção mínima de infraestrutura de testes: Jest passou a carregar `jose` ESM em Node 22 e o teste do signer verifica HS256 com `node:crypto`. Nenhuma regra de autorização ou lógica de produção do backend foi enfraquecida.
 
-## Contratos Android integrados
+## Contratos HTTP integrados
 
-| Endpoint                               | Uso no Android                        | Regras preservadas                                                                    |
-| -------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------- |
-| `GET /api/interests`                   | Chips do onboarding/perfil            | Catálogo server-side; máximo visual de 10 interesses                                  |
-| `GET /api/profile`                     | Perfil existente ou onboarding        | `404 PROFILE_NOT_FOUND` inicia onboarding; `401` encerra sessão                       |
-| `PUT /api/profile`                     | Criação/edição do perfil              | Validação final permanece no backend                                                  |
-| `GET /api/age-assurance/status`        | Gate etário                           | Somente `APPROVED` libera recursos restritos                                          |
-| `POST /auth/phone/start`               | Início do SMS                         | `verification_id` fica somente no estado da tela                                      |
-| `POST /auth/phone/confirm`             | Confirmação SMS                       | A dica local só muda após resposta positiva server-side                               |
-| `GET /api/match-intents/incoming`      | Inbox de solicitações recebidas       | Backend controla elegibilidade, validade e participantes                              |
-| `POST /api/match-intents/{id}/respond` | Aceitar ou recusar MatchIntent        | Envia somente `ACCEPTED` ou `DECLINED`                                                |
-| `POST /api/consents`                   | Criar Consent após MatchIntent aceita | Envia somente `match_intent_id`                                                       |
-| `POST /api/consents/{id}/decision`     | Decidir Consent                       | Envia decisão e `request_id` UUID; sessão autenticada é anexada pelo backend          |
-| `POST /api/video/sessions`             | Criar sessão autorizada               | Envia somente `consent_id`; backend revalida Consent, idade, telefone e elegibilidade |
-| `POST /api/video/sessions/{id}/token`  | Solicitar token JIT                   | Identidade e sala são derivadas pelo backend; token não é persistido                  |
+| Endpoint                              | Uso Android                    | Regra preservada                                                    |
+| ------------------------------------- | ------------------------------ | ------------------------------------------------------------------- |
+| `GET /api/interests`                  | Catálogo do onboarding/perfil  | Catálogo e validação server-side                                    |
+| `GET /api/profile`                    | Perfil existente ou onboarding | `404 PROFILE_NOT_FOUND` inicia onboarding; `401` encerra sessão     |
+| `PUT /api/profile`                    | Criar/editar perfil            | Validação final no backend                                          |
+| `GET /api/age-assurance/status`       | Gate etário                    | Somente `APPROVED` libera recursos restritos                        |
+| `POST /auth/phone/start`              | Início SMS                     | `verification_id` somente no estado da tela                         |
+| `POST /auth/phone/confirm`            | Confirmação SMS                | Dica local só muda após `{ ok: true, phone_verified: true }`        |
+| `GET /api/match-intents/incoming`     | Inbox de solicitações          | Backend controla identidade, elegibilidade e validade               |
+| `POST /api/match-intents/:id/respond` | Aceitar/recusar                | Envia somente `ACCEPTED` ou `DECLINED`                              |
+| `POST /api/consents`                  | Criar Consent                  | Envia somente `match_intent_id`                                     |
+| `POST /api/consents/:id/decision`     | Decidir Consent                | Envia decisão e `request_id` UUID novo                              |
+| `POST /api/video/sessions`            | Criar sessão autorizada        | Envia somente `consent_id`                                          |
+| `POST /api/video/sessions/:id/token`  | Emitir token JIT               | Corpo sem identity/room; backend revalida e assina                  |
+| `POST /api/blocks`                    | Bloquear participante          | Backend revoga relações; Android encerra RTC local após confirmação |
+| `POST /api/reports`                   | Denunciar participante         | Backend determina severidade e encaminhamento                       |
 
-O Android trata `AGE_ASSURANCE_REQUIRED`, `PHONE_VERIFICATION_REQUIRED`, `VIDEO_NOT_AUTHORIZED`, `RATE_LIMITED`, HTTP 401, HTTP 429, indisponibilidade, respostas inválidas e estados desconhecidos sem liberar recursos localmente. Se telefone ou idade forem revogados durante o fluxo, o Android retorna ao onboarding correspondente.
+O Android trata `AGE_ASSURANCE_REQUIRED`, `PHONE_VERIFICATION_REQUIRED`, `VIDEO_NOT_AUTHORIZED`, `RATE_LIMITED`, HTTP 401, HTTP 429, indisponibilidade, respostas inválidas e estados desconhecidos sem liberar recursos localmente.
 
-## Implementação Android
+## Implementação RTC Android
 
-O módulo `android/.../video/` contém `VideoSession`, `VideoSessionStatus`, `VideoSessionGateway`, `VideoSessionApiClient`, `VideoSessionUiState` e `VideoSessionViewModel`. O cliente serializa `consent_id`, envia Bearer token seguro e solicita o token em uma operação POST sem aceitar `user_id`, `room_name`, participante ou decisão de Consent fornecidos pelo cliente.
+A dependência é `io.livekit:livekit-android:2.28.1`, com JitPack no `dependencyResolutionManagement`. `LiveKitRtcRoomGateway` encapsula `LiveKit.create(applicationContext)`, `Room.connect(serverUrl, token)`, `disconnect/release`, inicialização de `SurfaceViewRenderer`, tracks local/remoto e eventos `Connected`, `Reconnecting`, `Reconnected`, `FailedToConnect`, `Disconnected`, participantes e tracks. A sala, tracks e renderers são removidos em saída, falha terminal, logout, troca de sessão e bloqueio confirmado.
 
-A tela Compose de Video Session é acessível somente a partir de Consent `ACCEPTED_BOTH`. Primeiro ela solicita a criação server-side da sessão. Depois de criada, uma ação explícita do usuário solicita o token JIT. A credencial é entregue apenas a um callback transitório em memória para a futura camada de mídia; não é gravada em `SharedPreferences`, logs ou arquivos e não é exibida na interface.
+O `VideoSessionViewModel` entrega o token ao `RtcRoomViewModel` por callback transitório. O valor bruto não entra no estado Compose, em `SharedPreferences`, `DataStore`, `SavedStateHandle`, logs, analytics ou crash metadata. O indicador exposto é apenas booleano e o handoff é consumido uma vez; após erro, desconexão ou saída, a UI exige nova emissão JIT.
 
-Nesta etapa não foi adicionada dependência RTC, permissão de câmera, conexão LiveKit, WebRTC, publicação de mídia ou reconexão automática. O botão e as mensagens da tela deixam claro que a autorização do servidor não equivale à inicialização de vídeo.
+A tela solicita `CAMERA` e `RECORD_AUDIO` somente no clique **Entrar na chamada**, depois da credencial JIT e antes de conectar. Se uma permissão for negada, não há `Room.connect`, câmera, microfone ou publicação de mídia. Depois de conectada, a chamada exibe renderers local/remoto, quantidade de participantes, controles explícitos de mute/câmera, encerramento e acesso a Bloquear/denunciar. A conexão não liga mídia automaticamente.
+
+`LIVEKIT_URL` é um endpoint público vindo de BuildConfig. Em debug vazio é permitido para demonstrar erro visível e fail-closed; em release o Gradle exige `wss://`. Nenhum fallback de endpoint, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` ou segredo OpenAI foi adicionado ao Android.
+
+## Moderação durante a chamada
+
+`ModerationViewModelFactory` recebe `onBlocked = rtcRoomViewModel::disconnect`. O callback só ocorre depois da confirmação positiva do backend, conforme os testes existentes. Ao abrir moderação durante uma chamada, o Android encerra a sala local imediatamente; a operação server-side continua responsável por revogar MatchIntent, Consent e Video Session do par. Report permanece acessível e encaminha o `session_id` atual quando disponível. O Android não calcula severidade nem aplica punição.
 
 ## Testes e builds
 
-| Comando                                                        | Resultado                                    |
-| -------------------------------------------------------------- | -------------------------------------------- |
-| `npm run typecheck`                                            | Aprovado                                     |
-| `npm run lint`                                                 | Aprovado                                     |
-| `npm run format:check`                                         | Aprovado                                     |
-| `npm run test:unit`                                            | Aprovado: 13 suítes e 65 testes              |
-| `./gradlew test :app:assembleDebug :app:lintDebug --no-daemon` | Aprovado: `BUILD SUCCESSFUL`                 |
-| Scanner local de padrões de segredo no Android                 | Aprovado; nenhuma chave real encontrada      |
-| `git diff --check`                                             | Aprovado                                     |
-| Branch/working tree                                            | Limpa e sincronizada com `origin/continuity` |
+Os resultados abaixo foram obtidos no sandbox, com código de aplicação publicado nos commits listados e sem credenciais reais:
 
-O APK debug atualizado foi gerado em `android/app/build/outputs/apk/debug/app-debug.apk`.
+| Comando/checagem                                | Resultado                                                          |
+| ----------------------------------------------- | ------------------------------------------------------------------ |
+| `npm run typecheck`                             | Aprovado                                                           |
+| `npm run lint`                                  | Aprovado                                                           |
+| `npm run format:check`                          | Aprovado                                                           |
+| `npm run test:unit`                             | Aprovado: 14 suítes e 68 testes                                    |
+| `./gradlew testDebugUnitTest`                   | Aprovado                                                           |
+| `./gradlew :app:compileDebugKotlin`             | Aprovado                                                           |
+| `./gradlew :app:assembleDebug`                  | Aprovado                                                           |
+| `./gradlew :app:lintDebug`                      | Aprovado                                                           |
+| Release com `LIVEKIT_URL=https://...`           | Rejeitado conforme esperado: `Release LIVEKIT_URL must use wss://` |
+| Release com API HTTPS e `LIVEKIT_URL=wss://...` | Aprovado: `BUILD SUCCESSFUL`                                       |
+| Varredura Android de segredos                   | Aprovada; nenhum padrão de chave/segredo encontrado                |
+| `git diff --check`                              | Aprovado                                                           |
+
+O APK debug está em `android/app/build/outputs/apk/debug/app-debug.apk`.
 
 | Artefato        | SHA-256                                                            |
 | --------------- | ------------------------------------------------------------------ |
-| `app-debug.apk` | `219c0d021275f7f954631866f42820d921a7940e8ec8cfdd765e6deb3c633f28` |
+| `app-debug.apk` | `9a1731acfc80b8311a1f379f985b2591c7678f522687357e30ade30e6d8943f4` |
 
-Os testes PostgreSQL/migrations não foram executados neste sandbox por ausência de `DATABASE_URL_OWNER` e das demais URLs de banco de teste. Os testes DB de telefone, revogação, rate limiting, privilégios e imutabilidade devem ser repetidos no CI ou em ambiente local com PostgreSQL configurado. Isso permanece uma pendência ambiental, não uma falha dos gates unitários executados.
+A suíte PostgreSQL/migrations não foi executada neste sandbox por ausência de `DATABASE_URL_OWNER` e das demais URLs de banco de teste. Os testes DB de telefone, revogação, rate limiting, privilégios e imutabilidade devem ser repetidos no CI ou em ambiente local com PostgreSQL configurado. Isso é uma limitação ambiental, não uma falha dos gates unitários executados.
 
-## Pendências externas e riscos
+## Riscos e validação pendente
 
-A validação ponta a ponta ainda depende de provedor SMS real, dispositivo/emulador, Web client ID Google real e ambiente com participantes reais para exercer MatchIntent, Consent e Video Session. A renovação de sessão e a coordenação de nonce server-side continuam pendentes; não foi implementado nonce apenas no cliente.
+A validação ponta a ponta ainda depende de backend LiveKit configurado, URL pública `wss://`, Web client ID Google real, provedor SMS, dispositivo/emulador e pelo menos duas contas autenticadas. É necessário confirmar mídia local/remota, expiração de token, revogação durante chamada, bloqueio durante chamada, reconexão transitória e falha de autorização em ambiente real.
 
-A criação de MatchIntent de saída ainda não possui UX Android porque não há, nesta etapa, uma API de descoberta de candidatos/perfis para selecionar `receiver_id`. A inbox recebida, a resposta de intenção, a criação de Consent e a decisão de Consent já estão integradas.
+Renovação de sessão, observabilidade, persistência de conversas, moderação operacional e execução comprovada de migrations Up/Down/Up permanecem pendentes antes da release. Avisos de depreciação de `EncryptedSharedPreferences`/`MasterKey` também devem ser revisados. O cliente não deve ganhar autoridade local para contornar esses gates.
 
-A credencial JIT ainda não é consumida por uma camada de mídia. Antes de conectar LiveKit/WebRTC, é necessário definir fornecedor RTC, ciclo de vida da sessão, revogação ativa, tratamento de `VIDEO_NOT_AUTHORIZED`/`RATE_LIMITED`, expiração de `video_deadline`, limpeza de credenciais em memória e revalidação imediatamente antes de publicação.
+## Próximo passo para o ChatGPT
 
-Persistência de conversas, rate limiting específico do chat, observabilidade, moderação operacional, notificações e execução comprovada das migrations Up/Down/Up ainda precisam ser concluídos. Os avisos de depreciação de `EncryptedSharedPreferences`/`MasterKey` devem ser revisados antes da release.
-
-## Próximo passo recomendado
-
-Validar telefone, MatchIntent, Consent e Video Session em dispositivo com ambiente real. Depois, implementar a camada RTC somente por autorização JIT server-side, sem permitir que o Android derive identidade, sala, participantes, prazo ou entitlement. A próxima mudança deve ser isolada, incluir testes negativos de revogação/expiração/rate limiting e preservar a separação entre autorização de vídeo e conexão efetiva de mídia.
+Publicar o commit deste handoff somente depois de `git fetch origin continuity`, revisar qualquer avanço cooperativo e executar os gates finais. Em seguida, validar com duas contas em um ambiente LiveKit real, registrar logs sanitizados de sucesso/falha sem token ou PII e decidir a política de renovação/expiração de sessão conforme os contratos server-side.
 
 ## Invariantes preservados
 
-Nenhuma chave OpenAI ou segredo foi incluído no Android ou no repositório. O `OPENAI_API_KEY` continua exclusivamente no backend. O único branch utilizado foi `continuity`; não houve merge ou push na `main`, nem force-push. O Android mantém HTTPS obrigatório em release, sessão segura local e comportamento fail-closed para qualquer estado restrito desconhecido ou não aprovado.
+Nenhuma chave OpenAI, chave LiveKit ou segredo foi incluído no Android ou no repositório. `OPENAI_API_KEY` e o segredo LiveKit permanecem exclusivamente no backend. O único branch utilizado foi `continuity`; não houve merge ou push na `main`, force-push, reset destrutivo ou relaxamento de autorização. O Android mantém HTTPS obrigatório em release, `wss://` obrigatório para LiveKit em release, armazenamento seguro de sessão, token RTC transitório e comportamento fail-closed para qualquer estado restrito desconhecido ou não aprovado.
