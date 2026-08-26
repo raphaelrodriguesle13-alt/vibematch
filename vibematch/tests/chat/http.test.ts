@@ -1,5 +1,6 @@
 import type { AuthSession } from '../../backend/src/auth/repository';
 import { ChatService } from '../../backend/src/chat/service';
+import type { AgeAssuranceStatus } from '../../backend/src/profile/age-assurance';
 import {
   type ChatGptGenerateParams,
   type ChatGptGenerateResult,
@@ -53,7 +54,7 @@ class FakeActiveSessionStore implements ActiveSessionStore {
   }
 }
 
-function createSubject(chatService: ChatService) {
+function createSubject(chatService: ChatService, ageStatus: AgeAssuranceStatus = 'APPROVED') {
   const verifier = new FakeSessionTokenVerifier();
   const sessionStore = new FakeActiveSessionStore();
   const deps: AuthHttpDependencies = {
@@ -63,6 +64,10 @@ function createSubject(chatService: ChatService) {
     },
     sessionTokenVerifier: verifier,
     activeSessionStore: sessionStore,
+    ageAssuranceService: {
+      getStatus: () => Promise.resolve(ageStatus),
+      isApproved: () => Promise.resolve(ageStatus === 'APPROVED'),
+    },
     chatService,
   };
   return { app: buildApp(deps), verifier, sessionStore };
@@ -84,6 +89,26 @@ describe('Authenticated chat HTTP API', () => {
     expect(provider.calls).toHaveLength(0);
     await app.close();
   });
+
+  test.each<AgeAssuranceStatus>(['NOT_STARTED', 'PENDING', 'REJECTED'])(
+    'fails closed when age assurance is %s',
+    async (status) => {
+      const provider = new FakeChatProvider();
+      const { app } = createSubject(new ChatService(provider), status);
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/api/chat',
+        headers: { authorization: 'Bearer session-jwt' },
+        payload: { message: 'Oi' },
+      });
+
+      expect(response.statusCode).toBe(403);
+      expect(response.json()).toEqual({ error: 'AGE_ASSURANCE_REQUIRED' });
+      expect(provider.calls).toHaveLength(0);
+      await app.close();
+    },
+  );
 
   test('authenticates, forwards the request and returns the chat response', async () => {
     const provider = new FakeChatProvider();
