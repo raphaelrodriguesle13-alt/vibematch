@@ -71,17 +71,17 @@ A mensagem atual e cada item do histórico podem ter até 4.000 caracteres; o hi
 
 ## Android
 
-O módulo `android/` contém uma tela Compose funcional, uma camada de rede OkHttp, Credential Manager e ViewModels de Auth/chat. Para o emulador, a URL padrão é `http://10.0.2.2:3000`; para um aparelho físico, passe o endereço acessível do backend:
+O módulo `android/` contém telas Compose de login, onboarding/perfil e chat, uma camada de rede OkHttp, Credential Manager e ViewModels de Auth, Profile e Chat. Para o emulador, a URL padrão é `http://10.0.2.2:3000`; para um aparelho físico, passe o endereço acessível do backend:
 
 ```bash
 ./gradlew :app:assembleDebug -PAPI_BASE_URL=http://10.0.2.2:3000
 ```
 
-O cliente obtém o Google ID token com Credential Manager, troca-o em `/auth/google` por um JWT curto do backend e guarda somente a sessão em `EncryptedSharedPreferences`. O logout revoga a sessão, limpa o estado de credencial Google e apaga o armazenamento local. O manifest debug é a única variante que habilita HTTP local; o manifest release força `android:usesCleartextTraffic=false` e o Gradle rejeita `API_BASE_URL` sem HTTPS.
+O cliente obtém o Google ID token com Credential Manager, troca-o em `/auth/google` por um JWT curto do backend e guarda somente a sessão em `EncryptedSharedPreferences`. O logout revoga a sessão, limpa o estado de credencial Google e apaga o armazenamento local. Depois do login, o onboarding chama `GET /api/interests` e `GET /api/profile`; perfil inexistente entra em onboarding e o salvamento chama `PUT /api/profile`. O manifest debug é a única variante que habilita HTTP local; o manifest release força `android:usesCleartextTraffic=false` e o Gradle rejeita `API_BASE_URL` sem HTTPS.
 
 ## Próxima etapa
 
-A próxima entrega deve completar o onboarding de telefone no Android, tratar renovação/expiração de sessão conforme o contrato do backend e revisar rate limiting, persistência de conversas, observabilidade e moderação antes de produção.
+A próxima entrega deve completar o onboarding de telefone no Android, tratar renovação/expiração de sessão conforme o contrato do backend e revisar rate limiting, persistência de conversas, observabilidade e moderação antes de produção. O cliente não autoriza localmente matchmaking, consentimento ou vídeo.
 
 ## Referências oficiais
 

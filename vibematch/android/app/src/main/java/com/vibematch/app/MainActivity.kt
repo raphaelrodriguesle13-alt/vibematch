@@ -18,18 +18,21 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -58,6 +61,10 @@ import com.vibematch.app.auth.AuthViewModelFactory
 import com.vibematch.app.auth.GoogleOidcClient
 import com.vibematch.app.auth.SecureSessionStore
 import com.vibematch.app.chat.ChatMessage
+import com.vibematch.app.profile.ProfileApiClient
+import com.vibematch.app.profile.ProfileGate
+import com.vibematch.app.profile.ProfileViewModel
+import com.vibematch.app.profile.ProfileViewModelFactory
 import com.vibematch.app.chat.ChatViewModel
 import com.vibematch.app.chat.ChatViewModelFactory
 
@@ -90,7 +97,19 @@ class MainActivity : ComponentActivity() {
                         onSessionExpired = authViewModel::signOut,
                     ),
                 )
-                VibeMatchApp(this@MainActivity, authViewModel, chatViewModel)
+                val profileViewModel: ProfileViewModel = viewModel(
+                    factory = ProfileViewModelFactory(
+                        gateway = ProfileApiClient(BuildConfig.API_BASE_URL),
+                        accessTokenProvider = sessionStore::readAccessToken,
+                        onSessionExpired = authViewModel::signOut,
+                    ),
+                )
+                VibeMatchApp(
+                    activity = this@MainActivity,
+                    authViewModel = authViewModel,
+                    chatViewModel = chatViewModel,
+                    profileViewModel = profileViewModel,
+                )
             }
         }
     }
@@ -113,19 +132,42 @@ private fun VibeMatchApp(
     activity: Activity,
     authViewModel: AuthViewModel,
     chatViewModel: ChatViewModel,
+    profileViewModel: ProfileViewModel,
 ) {
     val authState by authViewModel.state
+    val sessionId = authState.session?.userId
+    var showProfile by remember(sessionId) { mutableStateOf(false) }
+
+    LaunchedEffect(sessionId) {
+        profileViewModel.reset()
+        if (sessionId != null) profileViewModel.load()
+    }
+
     if (authState.session == null) {
         LoginScreen(activity, authViewModel)
     } else {
-        ChatScreen(
-            viewModel = chatViewModel,
-            isSigningOut = authState.isLoading,
-            onLogout = {
-                chatViewModel.clearConversation()
-                authViewModel.signOut()
-            },
-        )
+        val profileState by profileViewModel.state
+        if (!profileState.hasLoaded || profileState.profileIncomplete || showProfile) {
+            ProfileScreen(
+                viewModel = profileViewModel,
+                onClose = { showProfile = false },
+                onLogout = {
+                    profileViewModel.reset()
+                    chatViewModel.clearConversation()
+                    authViewModel.signOut()
+                },
+            )
+        } else {
+            ChatScreen(
+                viewModel = chatViewModel,
+                isSigningOut = authState.isLoading,
+                onLogout = {
+                    chatViewModel.clearConversation()
+                    authViewModel.signOut()
+                },
+                onOpenProfile = { showProfile = true },
+            )
+        }
     }
 }
 
@@ -202,6 +244,7 @@ private fun ChatScreen(
     viewModel: ChatViewModel,
     isSigningOut: Boolean,
     onLogout: () -> Unit,
+    onOpenProfile: () -> Unit,
 ) {
     val state by viewModel.state
     var draft by remember { mutableStateOf("") }
@@ -218,7 +261,11 @@ private fun ChatScreen(
         color = VibeBackground,
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            ChatHeader(isSigningOut = isSigningOut, onLogout = onLogout)
+            ChatHeader(
+                isSigningOut = isSigningOut,
+                onLogout = onLogout,
+                onOpenProfile = onOpenProfile,
+            )
             if (state.messages.isEmpty()) {
                 EmptyChat(modifier = Modifier.weight(1f))
             } else {
@@ -258,7 +305,11 @@ private fun ChatScreen(
 }
 
 @Composable
-private fun ChatHeader(isSigningOut: Boolean, onLogout: () -> Unit) {
+private fun ChatHeader(
+    isSigningOut: Boolean,
+    onLogout: () -> Unit,
+    onOpenProfile: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -291,6 +342,9 @@ private fun ChatHeader(isSigningOut: Boolean, onLogout: () -> Unit) {
                 style = MaterialTheme.typography.bodySmall,
                 color = Color(0xFF72717D),
             )
+        }
+        TextButton(onClick = onOpenProfile, enabled = !isSigningOut) {
+            Text("Perfil", color = VibePurple)
         }
         TextButton(onClick = onLogout, enabled = !isSigningOut) {
             Text("Sair", color = VibePurple)
@@ -449,5 +503,252 @@ private fun Composer(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ProfileScreen(
+    viewModel: ProfileViewModel,
+    onClose: () -> Unit,
+    onLogout: () -> Unit,
+) {
+    val state by viewModel.state
+    val canClose = !state.profileIncomplete
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = VibeBackground,
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (state.profileIncomplete) "Vamos começar" else "Seu perfil",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = if (state.profileIncomplete) {
+                            "Conte um pouco sobre você para encontrar melhores conexões."
+                        } else {
+                            "Mantenha suas informações atualizadas."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color(0xFF72717D),
+                    )
+                }
+                if (canClose) {
+                    TextButton(onClick = onClose) {
+                        Text("Voltar", color = VibePurple)
+                    }
+                }
+                TextButton(onClick = onLogout, enabled = !state.isSaving) {
+                    Text("Sair", color = VibePurple)
+                }
+            }
+
+            if (state.gate != ProfileGate.READY) {
+                ProfileGateCard(
+                    modifier = Modifier.weight(1f),
+                    gate = state.gate,
+                )
+            } else if (state.isLoading) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    CircularProgressIndicator(color = VibePurple)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Carregando seu perfil...", color = Color(0xFF72717D))
+                }
+            } else {
+                ProfileForm(
+                    modifier = Modifier.weight(1f),
+                    state = state,
+                    viewModel = viewModel,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileGateCard(modifier: Modifier = Modifier, gate: ProfileGate) {
+    val title: String
+    val description: String
+    when (gate) {
+        ProfileGate.AGE_PENDING -> {
+            title = "Verificação de idade pendente"
+            description = "Aguarde a confirmação do backend antes de continuar."
+        }
+        ProfileGate.AGE_REJECTED -> {
+            title = "Não foi possível confirmar sua idade"
+            description = "O acesso permanece bloqueado até uma nova orientação do suporte."
+        }
+        ProfileGate.BLOCKED -> {
+            title = "Conta bloqueada"
+            description = "O backend bloqueou esta conta. Entre em contato com o suporte."
+        }
+        ProfileGate.SUSPENDED -> {
+            title = "Conta suspensa"
+            description = "O acesso está suspenso pelo backend e não pode ser liberado no app."
+        }
+        ProfileGate.READY -> return
+    }
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(28.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodyLarge,
+            color = Color(0xFF72717D),
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun ProfileForm(
+    modifier: Modifier = Modifier,
+    state: com.vibematch.app.profile.ProfileUiState,
+    viewModel: ProfileViewModel,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Spacer(modifier = Modifier.height(2.dp))
+        OutlinedTextField(
+            value = state.draft.displayName,
+            onValueChange = viewModel::updateDisplayName,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Nome de exibição") },
+            placeholder = { Text("Como você quer ser chamado?") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
+            enabled = !state.isSaving,
+            shape = RoundedCornerShape(16.dp),
+        )
+        OutlinedTextField(
+            value = state.draft.language,
+            onValueChange = viewModel::updateLanguage,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Idioma") },
+            placeholder = { Text("Ex.: pt-BR") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+            enabled = !state.isSaving,
+            shape = RoundedCornerShape(16.dp),
+        )
+        OutlinedTextField(
+            value = state.draft.region,
+            onValueChange = viewModel::updateRegion,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Região") },
+            placeholder = { Text("Ex.: BR-SP") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+            enabled = !state.isSaving,
+            shape = RoundedCornerShape(16.dp),
+        )
+        OutlinedTextField(
+            value = state.draft.avatarUrl,
+            onValueChange = viewModel::updateAvatarUrl,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Avatar (opcional)") },
+            placeholder = { Text("URL HTTPS") },
+            singleLine = true,
+            enabled = !state.isSaving,
+            shape = RoundedCornerShape(16.dp),
+        )
+
+        Text(
+            text = "Seus interesses",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Text(
+            text = "Escolha até 10 interesses para personalizar suas conexões.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFF72717D),
+        )
+        if (state.availableInterests.isEmpty()) {
+            Text(
+                text = "Nenhum interesse disponível no momento. Você pode salvar o perfil e continuar.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF72717D),
+            )
+        } else {
+            state.availableInterests.chunked(2).forEach { rowInterests ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    rowInterests.forEach { interest ->
+                        FilterChip(
+                            selected = interest.id in state.draft.interestIds,
+                            onClick = { viewModel.toggleInterest(interest.id) },
+                            label = { Text(interest.label) },
+                            enabled = !state.isSaving,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (rowInterests.size == 1) Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+
+        state.errorMessage?.let { error ->
+            ErrorBanner(error) { viewModel.clearError() }
+        }
+        if (state.saved) {
+            Text(
+                text = "Perfil salvo com sucesso.",
+                color = Color(0xFF2F7D4A),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        Button(
+            onClick = viewModel::save,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+            enabled = !state.isSaving,
+            colors = ButtonDefaults.buttonColors(containerColor = VibePurple),
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            if (state.isSaving) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    color = Color.White,
+                    strokeWidth = 2.dp,
+                )
+            } else {
+                Text(if (state.profileIncomplete) "Continuar" else "Salvar alterações")
+            }
+        }
+        Spacer(modifier = Modifier.height(20.dp))
     }
 }

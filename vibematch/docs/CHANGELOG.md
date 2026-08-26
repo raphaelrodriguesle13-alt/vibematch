@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] — Login Google e sessão segura no Android
+## [Unreleased] — Onboarding e perfil Android integrados
 
 ### Adicionado
 
@@ -13,11 +13,17 @@
 - Armazenamento da sessão com AndroidX Security Crypto e limpeza coordenada no logout.
 - Testes unitários do serviço, do adaptador e do contrato HTTP do chat.
 - Testes Android do AuthViewModel e da serialização do request Google.
+- Cliente Android autenticado para `GET /api/profile`, `GET /api/interests` e `PUT /api/profile`.
+- Tela Compose de onboarding com nome, idioma, região, avatar opcional e seleção de até 10 interesses.
+- Tela de perfil acessível a partir do chat, com confirmação de salvamento e estados de erro/sessão.
+- Estados fail-closed para idade pendente/rejeitada e conta bloqueada ou suspensa.
+- Testes Android de contrato JSON e ProfileViewModel.
 
 ### Limitações conhecidas
 
 - O onboarding de telefone ainda não está ligado à Activity.
 - Renovação de sessão, rate limiting, persistência de conversas e observabilidade ainda estão pendentes.
+- A configuração real do Web client ID e a validação OAuth em dispositivo ainda dependem do ambiente Google do projeto.
 
 ## [0.1.0] — Etapa 0 + Etapa 1 (implementação de schema e fundação)
 

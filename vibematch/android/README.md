@@ -30,3 +30,21 @@ O JWT de sessão é guardado em `EncryptedSharedPreferences`, protegido por uma 
 ## Fluxo do chat
 
 Após o login, a tela envia `POST /api/chat` com o header `Authorization: Bearer <session_jwt>`, a mensagem atual e o histórico limitado. A chave da OpenAI nunca é enviada para o Android; somente o backend conversa com o provedor.
+
+## Onboarding e perfil
+
+Depois do login, o cliente carrega `GET /api/interests` e `GET /api/profile` com o JWT de sessão. Quando o perfil retorna `404 PROFILE_NOT_FOUND`, a tela entra em modo de onboarding; ela não cria dados localmente nem considera o usuário pronto até o backend confirmar o salvamento.
+
+O botão de continuidade envia `PUT /api/profile` com o contrato abaixo:
+
+```json
+{
+  "display_name": "Nome",
+  "avatar_url": null,
+  "language": "pt-BR",
+  "region": "BR-SP",
+  "interest_ids": ["uuid-do-interesse"]
+}
+```
+
+O backend continua sendo a fonte da verdade para validação, interesses válidos e estados de idade, bloqueio ou suspensão. A tela mostra esses estados de forma fail-closed quando o backend os reportar; ela não libera matchmaking, consentimento ou vídeo localmente.
