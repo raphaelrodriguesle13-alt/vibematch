@@ -15,13 +15,15 @@ Atualizado em 2026-08-26.
 - O Android agora possui onboarding e edição de perfil, carregando interesses e salvando o perfil pelas rotas autenticadas do backend.
 - O backend também expõe Age Assurance e MatchIntent; chat e MatchIntent falham fechado quando o status de idade não é `APPROVED`.
 - O Android consulta `GET /api/age-assurance/status` e mantém o usuário no cartão de bloqueio para qualquer status não aprovado ou desconhecido.
-- A próxima barreira legítima é completar onboarding de telefone no Android, renovar/expirar sessões e obter evidência verde de CI/migrations/testes.
+- O Android agora possui onboarding telefônico em duas etapas, com `POST /auth/phone/start` e `POST /auth/phone/confirm`, antes de exibir o chat.
+- A confirmação server-side atualiza apenas a dica local `phone_verified`; o JWT existente não é renovado pelo cliente.
+- A próxima barreira legítima é validar SMS/OAuth em dispositivo, renovar/expirar sessões e obter evidência verde de CI/migrations/testes.
 
 ## Ordem de continuidade
 
 1. Validar CI e migrations Up/Down/Up.
 2. Corrigir qualquer falha das etapas 0–1.
-3. Completar o onboarding de telefone no Android e tratar expiração/renovação de sessão.
+3. Validar o onboarding de telefone com provedor SMS real e tratar expiração/renovação de sessão.
 4. Consolidar o chat Android: HTTPS, rate limiting, persistência e observabilidade.
 5. Consumir MatchIntent no Android somente após a UX e os contratos de consentimento existirem.
 6. Etapa 6: Consent mútuo.
