@@ -1,10 +1,10 @@
 # Handoff Manus → ChatGPT — VibeMatch
 
-Atualizado em **2026-08-26** após a integração Android RTC na branch exclusiva `continuity`.
+Atualizado em **2026-08-26** após a integração Android Play Billing sobre o backend cooperativo de Billing/RTDN na branch exclusiva `continuity`.
 
 ## Resumo da entrega
 
-Esta etapa conclui o caminho Android de autorização de Video Session até uma chamada RTC LiveKit controlada pelo backend. Depois de perfil completo, Age Assurance aprovado, telefone confirmado, MatchIntent aceita e Consent em `ACCEPTED_BOTH`, o usuário pode criar a Video Session, solicitar explicitamente uma credencial JIT, conceder câmera/microfone em runtime e entrar na chamada.
+Esta etapa adiciona ao caminho Android já concluído de autorização de Video Session/RTC uma tela de Premium com Google Play Billing client-side. O usuário pode consultar o produto, iniciar compra ou restaurar, mas o app só exibe Premium depois da confirmação do entitlement pelo backend. O fluxo RTC anterior permanece controlado por token JIT e permissões runtime.
 
 O fluxo autenticado permanece **Perfil → Age Assurance → Telefone → Chat → MatchIntent → Consent → Video Session → RTC**. O Android apenas solicita operações e renderiza estados retornados. Identidade, elegibilidade, telefone, idade, bloqueios, participantes, validade, `video_deadline`, revogação, room, identidade LiveKit, grants, TTL e autorização do token continuam sob responsabilidade do backend e do banco.
 
@@ -12,42 +12,54 @@ O fluxo autenticado permanece **Perfil → Age Assurance → Telefone → Chat �
 
 ## Estado do Git
 
-| Item                              | Valor                                                          |
-| --------------------------------- | -------------------------------------------------------------- |
-| Repositório                       | `raphaelrodriguesle13-alt/vibematch`                           |
-| Branch utilizada                  | `continuity`                                                   |
-| HEAD publicado antes do lote RTC  | `5cf646e` — `feat: add Android community safety controls`      |
-| HEAD da implementação Android RTC | `5f8c3a2` — `feat: add Android LiveKit RTC call flow`          |
-| HEAD da documentação inicial RTC  | `5fbd908` — `docs: document Android LiveKit integration`       |
-| HEAD do ajuste Jest/signer        | `72efdb3` — `test: run LiveKit signer under Jest ESM`          |
-| HEAD antes desta continuação RTC  | `c40f683` — `docs: refresh RTC handoff after rebase`           |
-| HEAD da continuação Android       | `5cdd254` — `fix: harden Android RTC lifecycle and revocation` |
+| Item                              | Valor                                                            |
+| --------------------------------- | ---------------------------------------------------------------- |
+| Repositório                       | `raphaelrodriguesle13-alt/vibematch`                             |
+| Branch utilizada                  | `continuity`                                                     |
+| HEAD publicado antes do lote RTC  | `5cf646e` — `feat: add Android community safety controls`        |
+| HEAD da implementação Android RTC | `5f8c3a2` — `feat: add Android LiveKit RTC call flow`            |
+| HEAD da documentação inicial RTC  | `5fbd908` — `docs: document Android LiveKit integration`         |
+| HEAD do ajuste Jest/signer        | `72efdb3` — `test: run LiveKit signer under Jest ESM`            |
+| HEAD antes desta continuação RTC  | `c40f683` — `docs: refresh RTC handoff after rebase`             |
+| HEAD da continuação Android       | `5cdd254` — `fix: harden Android RTC lifecycle and revocation`   |
+| HEAD cooperativo antes do Billing | `30ec31b` — providers SMS/Age Assurance e runtime production     |
+| HEAD local do lote Billing        | `b87dced` — `feat: add server-authorized Android Play Billing`   |
+| HEAD do hardening de callbacks    | `2ddaffa` — `fix: ignore stale Play Billing callbacks`           |
+| HEAD dos ajustes de gates         | `9530af4` — `style: align cooperative provider tests with gates` |
 
 | Publicação | Deve ser feita somente em `origin/continuity`, sem force-push e sem tocar na `main` |
 
-O `MANUS_HANDOFF.md` é o commit documental imediatamente posterior ao HEAD indicado acima. O SHA do commit final deste arquivo deve ser confirmado com `git rev-parse HEAD` após a publicação; a mensagem de entrega registra esse valor sem ambiguidade.
+O `MANUS_HANDOFF.md` é o commit documental imediatamente posterior ao lote Android e aos ajustes mínimos de testes cooperativos. O SHA do commit final deste arquivo será confirmado com `git rev-parse HEAD` após a publicação; a mensagem de entrega registra esse valor sem ambiguidade.
 
 ## Commits relevantes
 
-| Commit    | Descrição                                          |
-| --------- | -------------------------------------------------- |
-| `6f9b44f` | `feat: add LiveKit JIT token provider`             |
-| `719db57` | `test: verify LiveKit JIT token claims`            |
-| `3bc4183` | `docs: advance Manus Android RTC handoff`          |
-| `5cf646e` | `feat: add Android community safety controls`      |
-| `5f8c3a2` | `feat: add Android LiveKit RTC call flow`          |
-| `5fbd908` | `docs: document Android LiveKit integration`       |
-| `72efdb3` | `test: run LiveKit signer under Jest ESM`          |
-| `fff515e` | `style: format RTC handoff documentation`          |
-| `253fce3` | `feat: add LiveKit room revocation adapter`        |
-| `5d62cdb` | `feat: add video revocation reconciler`            |
-| `fd6ae65` | `feat: add LiveKit runtime configuration`          |
-| `939ecb2` | `docs: add LiveKit runtime URL`                    |
-| `0d8f3a7` | `test: cover LiveKit room revocation`              |
-| `3f29ccf` | `test: clean LiveKit room admin coverage`          |
-| `713ccff` | `test: cover video revocation reconciliation`      |
-| `5cdd254` | `fix: harden Android RTC lifecycle and revocation` |
-| `f23f611` | `test: align LiveKit revocation test contracts`    |
+| Commit    | Descrição                                            |
+| --------- | ---------------------------------------------------- |
+| `6f9b44f` | `feat: add LiveKit JIT token provider`               |
+| `719db57` | `test: verify LiveKit JIT token claims`              |
+| `3bc4183` | `docs: advance Manus Android RTC handoff`            |
+| `5cf646e` | `feat: add Android community safety controls`        |
+| `5f8c3a2` | `feat: add Android LiveKit RTC call flow`            |
+| `5fbd908` | `docs: document Android LiveKit integration`         |
+| `72efdb3` | `test: run LiveKit signer under Jest ESM`            |
+| `fff515e` | `style: format RTC handoff documentation`            |
+| `253fce3` | `feat: add LiveKit room revocation adapter`          |
+| `5d62cdb` | `feat: add video revocation reconciler`              |
+| `fd6ae65` | `feat: add LiveKit runtime configuration`            |
+| `939ecb2` | `docs: add LiveKit runtime URL`                      |
+| `0d8f3a7` | `test: cover LiveKit room revocation`                |
+| `3f29ccf` | `test: clean LiveKit room admin coverage`            |
+| `713ccff` | `test: cover video revocation reconciliation`        |
+| `5cdd254` | `fix: harden Android RTC lifecycle and revocation`   |
+| `f23f611` | `test: align LiveKit revocation test contracts`      |
+| `237925d` | `feat: add server-side billing service`              |
+| `e481bc5` | `feat: add billing HTTP routes`                      |
+| `566b731` | `feat: configure authenticated Google Play RTDN`     |
+| `c2f2de9` | `test: cover server-side billing entitlement`        |
+| `30ec31b` | `feat: add Didit age assurance provider`             |
+| `b87dced` | `feat: add server-authorized Android Play Billing`   |
+| `2ddaffa` | `fix: ignore stale Play Billing callbacks`           |
+| `9530af4` | `style: align cooperative provider tests with gates` |
 
 O commit `5f8c3a2` contém dependência, configuração, Manifest, gateway, ViewModel, tela Compose, wiring de moderação e testes Android RTC. O commit `5cdd254` reforça o lifecycle com `detach`/`onRelease` de renderers, parada centralizada em logout/saída/troca de sessão, desconexão em `VIDEO_NOT_AUTHORIZED` e bloqueio de controles de mídia antes de `CONNECTED`. O commit `72efdb3` é uma correção mínima de infraestrutura de testes: Jest passou a carregar `jose` ESM em Node 22 e o teste do signer verifica HS256 com `node:crypto`. Nenhuma regra de autorização ou lógica de produção do backend foi enfraquecida.
 
@@ -72,6 +84,17 @@ O commit `5f8c3a2` contém dependência, configuração, Manifest, gateway, View
 
 O Android trata `AGE_ASSURANCE_REQUIRED`, `PHONE_VERIFICATION_REQUIRED`, `VIDEO_NOT_AUTHORIZED`, `RATE_LIMITED`, HTTP 401, HTTP 429, indisponibilidade, respostas inválidas e estados desconhecidos sem liberar recursos localmente.
 
+| `GET /api/billing/entitlement` | Restaurar entitlement já conhecido | `entitled` server-side; sem compra local não há concessão automática |
+| `POST /api/billing/verify-purchase` | Validar compra Google Play | Envia somente `purchase_token`; Google Play Developer API fica no backend |
+
+## Google Play Billing Android
+
+O commit `b87dced` adiciona `com.android.billingclient:billing:9.1.0`, uma única conexão `BillingClient`, consulta de `ProductDetails`, compra de assinatura, listener de atualizações, consulta de compras ativas e acknowledge apenas depois da validação server-side. A tela Premium tem estados `CONNECTING`, `READY`, `PURCHASING`, `WAITING_FOR_PURCHASE`, `RESTORING`, `VALIDATING`, `SUCCESS`, `ERROR`, `SIGNED_OUT` e `NOT_CONFIGURED`, com mensagens públicas e retry. O commit `2ddaffa` ignora callbacks atrasados depois de reset/logout.
+
+O contrato usado pelo Android é `POST /api/billing/verify-purchase` com `{ "purchase_token": "..." }` e `GET /api/billing/entitlement`. O backend publicado por ChatGPT autentica JWT e sessão ativa, consulta o verificador Google server-side, mantém o entitlement e responde `data.entitled`, `data.plan`, `data.status` e `data.current_period_end`. O Android nunca decide a legitimidade da compra, não persiste o purchase token e não libera Premium com base apenas no callback Play, SKU ou preço. A restauração usa compras ativas do Play e, quando não há compra local, consulta apenas o entitlement já registrado pelo servidor.
+
+O endpoint de validação só é considerado utilizável quando `API_BASE_URL` é HTTPS, inclusive em debug; com API HTTP local os botões de compra/restauração permanecem bloqueados. `BILLING_PRODUCT_ID` é obrigatório para build release. O produto e o caminho podem ser informados por propriedades Gradle; nenhum segredo ou service account Google Play entra no `BuildConfig` ou APK. As notas verificadas estão em [`docs/GOOGLE_PLAY_BILLING_ANDROID_NOTES.md`](GOOGLE_PLAY_BILLING_ANDROID_NOTES.md) e o guia operacional em [`android/README.md`](../android/README.md).
+
 ## Implementação RTC Android
 
 A dependência é `io.livekit:livekit-android:2.28.1`, com JitPack no `dependencyResolutionManagement`. `LiveKitRtcRoomGateway` encapsula `LiveKit.create(applicationContext)`, `Room.connect(serverUrl, token)`, `disconnect/release`, inicialização de `SurfaceViewRenderer`, tracks local/remoto e eventos `Connected`, `Reconnecting`, `Reconnected`, `FailedToConnect`, `Disconnected`, participantes e tracks. O AndroidView usa `onRelease` para desanexar renderer; a sala, tracks e renderers são removidos em saída, falha terminal, logout, troca de sessão e bloqueio confirmado.
@@ -90,38 +113,43 @@ A tela solicita `CAMERA` e `RECORD_AUDIO` somente no clique **Entrar na chamada*
 
 Os resultados abaixo foram obtidos no sandbox, com código de aplicação publicado nos commits listados e sem credenciais reais:
 
-| Comando/checagem                                | Resultado                                                          |
-| ----------------------------------------------- | ------------------------------------------------------------------ |
-| `npm run typecheck`                             | Aprovado                                                           |
-| `npm run lint`                                  | Aprovado                                                           |
-| `npm run format:check`                          | Aprovado                                                           |
-| `npm run test:unit`                             | Aprovado: 16 suítes e 73 testes                                    |
-| `./gradlew testDebugUnitTest`                   | Aprovado                                                           |
-| `./gradlew :app:compileDebugKotlin`             | Aprovado                                                           |
-| `./gradlew :app:assembleDebug`                  | Aprovado                                                           |
-| `./gradlew :app:lintDebug`                      | Aprovado                                                           |
-| Release com `LIVEKIT_URL=https://...`           | Rejeitado conforme esperado: `Release LIVEKIT_URL must use wss://` |
-| Release com API HTTPS e `LIVEKIT_URL=wss://...` | Aprovado: `BUILD SUCCESSFUL`                                       |
-| Varredura Android de segredos                   | Aprovada; nenhum padrão de chave/segredo encontrado                |
-| `git diff --check`                              | Aprovado                                                           |
+| Comando/checagem              | Resultado                       |
+| ----------------------------- | ------------------------------- |
+| `npm run typecheck`           | Aprovado                        |
+| `npm run lint`                | Aprovado                        |
+| `npm run format:check`        | Aprovado                        |
+| `npm run test:unit`           | Aprovado: 20 suítes e 93 testes |
+| `./gradlew testDebugUnitTest` | Aprovado: 13 suítes e 62 testes |
+
+| `./gradlew :app:compileDebugKotlin` | Aprovado |
+| `./gradlew :app:assembleDebug` | Aprovado |
+| `./gradlew :app:lintDebug` | Aprovado |
+| `./gradlew :app:bundleRelease` | Aprovado com HTTPS, `wss://` e `BILLING_PRODUCT_ID` |
+| Release com LiveKit `https://...` | Rejeitado: `Release LIVEKIT_URL must use wss://` |
+| Release sem `BILLING_PRODUCT_ID` | Rejeitado: `Release BILLING_PRODUCT_ID must be configured` |
+| Release com `LIVEKIT_URL=https://...` | Rejeitado conforme esperado: `Release LIVEKIT_URL must use wss://` |
+| Release com API HTTPS e `LIVEKIT_URL=wss://...` | Aprovado: `BUILD SUCCESSFUL` |
+| Varredura Android de segredos | Aprovada; nenhum padrão de chave/segredo encontrado |
+| `git diff --check` | Aprovado |
 
 O APK debug está em `android/app/build/outputs/apk/debug/app-debug.apk`.
 
-| Artefato        | SHA-256                                                            |
-| --------------- | ------------------------------------------------------------------ |
-| `app-debug.apk` | `72b8cbfdc55230810be299da1573af69e39d4ebedcdc65678e6c707ba7236f5b` |
+| Artefato          | SHA-256                                                            |
+| ----------------- | ------------------------------------------------------------------ |
+| `app-debug.apk`   | `dd0cc6a94a2f73b5ac75250423e4b6ab1bc1ef53c7729d2deb65098581423f5a` |
+| `app-release.aab` | `55899e9db3e300ada91b98bb6ad24b976e464022323bb2ab770374526764ae34` |
 
-A suíte PostgreSQL/migrations não foi executada neste sandbox por ausência de `DATABASE_URL_OWNER` e das demais URLs de banco de teste. Os testes DB de telefone, revogação, rate limiting, privilégios e imutabilidade devem ser repetidos no CI ou em ambiente local com PostgreSQL configurado. Isso é uma limitação ambiental, não uma falha dos gates unitários executados.
+A suíte PostgreSQL/migrations não foi executada neste sandbox por ausência de `DATABASE_URL_OWNER` e das demais URLs de banco de teste. Os testes DB de telefone, revogação, rate limiting, privilégios, Billing e imutabilidade devem ser repetidos no CI ou em ambiente local com PostgreSQL configurado. Isso é uma limitação ambiental, não uma falha dos gates unitários executados.
 
 ## Riscos e validação pendente
 
-A validação ponta a ponta ainda depende de backend LiveKit configurado, `LIVEKIT_API_URL` server-side, URL pública `wss://`, Web client ID Google real, provedor SMS, dispositivo/emulador e pelo menos duas contas autenticadas. É necessário confirmar mídia local/remota, expiração de token, revogação durante chamada, bloqueio durante chamada, reconexão transitória e falha de autorização em ambiente real.
+A validação ponta a ponta ainda depende de backend LiveKit configurado, `LIVEKIT_API_URL` server-side, URL pública `wss://`, Web client ID Google real, produto/credenciais Google Play, provedor SMS, dispositivo/emulador e pelo menos duas contas autenticadas. É necessário confirmar mídia local/remota, expiração de token, revogação durante chamada, bloqueio durante chamada, reconexão transitória, compra/restore e falha de autorização em ambiente real.
 
-Renovação de sessão, observabilidade, persistência de conversas, moderação operacional e execução comprovada de migrations Up/Down/Up permanecem pendentes antes da release. Avisos de depreciação de `EncryptedSharedPreferences`/`MasterKey` também devem ser revisados. O cliente não deve ganhar autoridade local para contornar esses gates.
+Renovação de sessão, observabilidade, persistência de conversas, moderação operacional, produto/licença no Play Console, assinatura do AAB e execução comprovada de migrations Up/Down/Up permanecem pendentes antes da release. Avisos de depreciação de `EncryptedSharedPreferences`/`MasterKey` também devem ser revisados; a migração não foi forçada nesta etapa para evitar regressão de sessão. O cliente não deve ganhar autoridade local para contornar esses gates.
 
 ## Próximo passo para o ChatGPT
 
-Depois de publicar este handoff somente em `continuity`, validar com duas contas em um ambiente LiveKit real, registrar logs sanitizados de sucesso/falha sem token ou PII e decidir a política de renovação/expiração de sessão conforme os contratos server-side.
+Depois de publicar este handoff somente em `continuity`, o ChatGPT deve validar o Billing com produto Google Play real/teste, duas contas e backend production, confirmar `verify-purchase`/RTDN/entitlement e executar o E2E conjunto de compra, restauração, expiração, revogação e RTC. Registrar apenas logs sanitizados, sem purchase token, token LiveKit ou PII.
 
 ## Invariantes preservados
 

@@ -36,6 +36,33 @@ O cliente usa Credential Manager para obter um Google ID token e o envia ao endp
 
 O JWT de sessão é guardado em `EncryptedSharedPreferences`, protegido por uma `MasterKey` do Android Keystore. O logout revoga a sessão no backend, limpa o estado de credencial Google, encerra qualquer sala RTC e remove o conteúdo local.
 
+## Premium e Google Play Billing
+
+O cliente usa `com.android.billingclient:billing:9.1.0`. A entrada **Premium** aparece no cabeçalho do Chat e abre uma tela que consulta o produto, inicia a compra no Google Play e oferece restauração de compras. Estados de conexão, carregamento, compra pendente, validação, sucesso, erro, sessão expirada e produto ausente são mostrados explicitamente; o botão de retry repete a consulta sem conceder acesso localmente.
+
+Depois de uma compra `PURCHASED`, o Android envia imediatamente o `purchase_token` transitório ao endpoint configurado em `BILLING_VALIDATION_PATH` (padrão `/api/billing/verify-purchase`) com o payload `{ "purchase_token": "..." }`. O backend consulta a Google Play Developer API, associa a compra à sessão autenticada, atualiza seu entitlement e responde com `data.entitled`, `data.plan`, `data.status` e `data.current_period_end`. O Android só exibe Premium quando essa resposta server-side confirma `entitled=true`; respostas ausentes, inválidas, `403`, `409`, `429`, `5xx` ou sessão expirada permanecem sem acesso.
+
+Na restauração, o Android primeiro consulta as compras ativas do Google Play. Se não houver compra local correspondente, chama `GET /api/billing/entitlement` para recuperar somente um entitlement já registrado pelo servidor. Essa consulta não transforma ausência de compra local em Premium e também falha fechada em erro.
+
+O purchase token não entra em estado Compose, `SharedPreferences`, `DataStore`, `SavedStateHandle`, logs, analytics ou crash metadata. O Android nunca interpreta a resposta do Google Play como entitlement final e nunca concede Premium a partir de preço, SKU, estado local ou callback isolado. Após a confirmação server-side, a compra é acknowledged no Google Play; se o servidor não confirmar, ela não é acknowledged pelo cliente.
+
+O backend agora expõe `POST /api/billing/verify-purchase` e `GET /api/billing/entitlement`; o Android não implementa a verificação Google nem altera tabelas de entitlement. Configure o produto apenas em build de release:
+
+```bash
+./gradlew :app:assembleDebug \\
+  -PAPI_BASE_URL=http://10.0.2.2:3000 \\
+  -PGOOGLE_SERVER_CLIENT_ID=seu-web-client-id.apps.googleusercontent.com \\
+  -PBILLING_PRODUCT_ID=premium_monthly
+
+./gradlew :app:bundleRelease \\
+  -PAPI_BASE_URL=https://api.seu-dominio.example \\
+  -PGOOGLE_SERVER_CLIENT_ID=seu-web-client-id.apps.googleusercontent.com \\
+  -PLIVEKIT_URL=wss://livekit.seu-dominio.example \\
+  -PBILLING_PRODUCT_ID=premium_monthly
+```
+
+O Gradle rejeita build release sem `BILLING_PRODUCT_ID`, exige HTTPS na API e `wss://` no LiveKit. Nenhuma chave de serviço Google Play, segredo LiveKit ou token de compra deve ser colocado no APK, no `BuildConfig` ou no repositório.
+
 ## Fluxo do chat
 
 Após o login, a tela envia `POST /api/chat` com o header `Authorization: Bearer <session_jwt>`, a mensagem atual e o histórico limitado. A chave da OpenAI nunca é enviada para o Android; somente o backend conversa com o provedor.
@@ -118,3 +145,5 @@ Os testes unitários cobrem a entrega transitória de token da Video Session, a 
 [2]: https://docs.livekit.io/intro/basics/connect/ 'LiveKit connecting to a room'
 [3]: https://github.com/livekit/client-sdk-android 'LiveKit Android SDK'
 [4]: https://github.com/livekit/client-sdk-android/blob/main/sample-app-basic/src/main/java/io/livekit/android/sample/basic/MainActivity.kt 'LiveKit Android sample app'
+[5]: https://developer.android.com/google/play/billing/integrate 'Google Play Billing integration'
+[6]: https://developers.google.com/chromeos/app-development/publish/play-billing-backend 'Google Play Billing backend validation'

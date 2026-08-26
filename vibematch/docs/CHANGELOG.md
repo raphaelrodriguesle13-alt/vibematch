@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] — MVP Android com RTC LiveKit seguro
+## [Unreleased] — MVP Android com RTC LiveKit e Billing server-authorized
 
 ### Adicionado
 
@@ -35,6 +35,10 @@
 - Tela Android de proteção da comunidade para bloquear e denunciar o participante oposto, usando apenas as rotas server-side de Moderação.
 - O Android não decide severidade, punição ou estado de outra conta; HTTP 401 encerra a sessão e HTTP 429 é recuperável.
 - Testes Android de contrato JSON, Age Assurance, telefone, MatchIntent, Consent, Video Session, Moderação, AuthViewModel, ProfileViewModel e RtcRoomViewModel.
+- Play Billing Library `9.1.0` com tela Premium, consulta de produto, compra, restauração e estados explícitos de loading, sucesso e erro.
+- Validação client-side por `POST /api/billing/verify-purchase` com somente `purchase_token` e restauração por `GET /api/billing/entitlement`; Premium só aparece após `entitled=true` server-side.
+- Purchase token mantido transitório, sem persistência ou exposição em estado Compose, logs, analytics ou crash metadata; acknowledgment somente após confirmação do backend.
+- Endpoint Billing bloqueado em transporte não HTTPS, `BILLING_PRODUCT_ID` obrigatório em release, versionamento Android `0.2.0` e comando de preparação para AAB.
 
 ### Limitações conhecidas
 
@@ -42,6 +46,8 @@
 - A configuração real do Web client ID e a validação OAuth em dispositivo dependem do ambiente Google do projeto.
 - A chamada RTC real depende de um backend com LiveKit configurado, URL pública `wss://`, credenciais server-side e pelo menos dois usuários autenticados; nenhum segredo LiveKit é distribuído no APK.
 - Os testes locais exercitam contratos, estados e gates, mas não substituem a validação de mídia com duas contas em um ambiente LiveKit real.
+- Compra e restauração reais dependem de produto configurado no Google Play Console, credenciais de produção/teste, backend Billing/RTDN configurado e conta licenciada; a assinatura server-side não é simulada pelo Android.
+- O AAB de release ainda depende de configuração de assinatura do aplicativo e dos gates externos do Play Console.
 - Testes de banco continuam dependentes das variáveis PostgreSQL do ambiente de CI ou de execução local.
 
 ## [0.1.0] — Etapa 0 + Etapa 1 (implementação de schema e fundação)
