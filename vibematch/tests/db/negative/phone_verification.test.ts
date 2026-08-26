@@ -45,6 +45,48 @@ const expectRejection = async (fn: () => Promise<unknown>): Promise<string> => {
 };
 
 describe('Phone verification database boundary', () => {
+  test('match intent creation fails closed when a participant is not phone verified', async () => {
+    await withRollback(ownerPool, async (client) => {
+      const sender = await client.query<IdRow>(
+        `INSERT INTO users (google_subject_id, phone_verified, age_assurance_status)
+         VALUES ($1, TRUE, 'APPROVED') RETURNING id`,
+        [`phone-sender-${Math.random()}`],
+      );
+      const receiver = await client.query<IdRow>(
+        `INSERT INTO users (google_subject_id, age_assurance_status)
+         VALUES ($1, 'APPROVED') RETURNING id`,
+        [`phone-receiver-${Math.random()}`],
+      );
+
+      const message = await expectRejection(() =>
+        client.query(
+          `INSERT INTO match_intents (sender_id, receiver_id, expires_at)
+           VALUES ($1, $2, now() + interval '10 minutes')`,
+          [first(sender).id, first(receiver).id],
+        ),
+      );
+
+      expect(message).toMatch(/phone verification required/);
+    });
+  });
+
+  test('consent creation fails closed if phone verification is lost after matching', async () => {
+    await withRollback(ownerPool, async (client) => {
+      const { userA, userB, intentId } = await seedAcceptedIntent(client);
+      await client.query('UPDATE users SET phone_verified = FALSE WHERE id = $1', [userA]);
+
+      const message = await expectRejection(() =>
+        client.query(
+          `INSERT INTO consents (match_intent_id, user_a_id, user_b_id, expires_at)
+           VALUES ($1, $2, $3, now() + interval '10 minutes')`,
+          [intentId, userA, userB],
+        ),
+      );
+
+      expect(message).toMatch(/phone verification required/);
+    });
+  });
+
   test('session creation fails closed when a participant is not phone verified', async () => {
     await withRollback(ownerPool, async (client) => {
       const { consentId, userA } = await seedAcceptedConsent(client);
