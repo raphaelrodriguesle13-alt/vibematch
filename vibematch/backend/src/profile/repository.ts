@@ -1,9 +1,10 @@
 import type { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
-import type {
-  ProfileInterest,
-  ProfileRepositoryPort,
-  UpdateProfileInput,
-  UserProfile,
+import {
+  ProfileError,
+  type ProfileInterest,
+  type ProfileRepositoryPort,
+  type UpdateProfileInput,
+  type UserProfile,
 } from './service';
 
 interface ProfileRow extends QueryResultRow {
@@ -71,7 +72,7 @@ export class ProfileRepository implements ProfileRepositoryPort {
             [interestIds],
           );
           if (valid.rows.length !== interestIds.length) {
-            throw new Error('INVALID_INTERESTS');
+            throw new ProfileError('INVALID_INTERESTS', 'One or more interests are invalid');
           }
         }
 
@@ -98,11 +99,11 @@ export class ProfileRepository implements ProfileRepositoryPort {
           );
         }
 
-        await client.query('COMMIT');
         const interests =
           interestIds.length === 0
             ? []
             : await this.listInterestsWithClient(client, interestIds);
+        await client.query('COMMIT');
         return this.mapProfile(first(profile), interests);
       } catch (error) {
         await client.query('ROLLBACK');
