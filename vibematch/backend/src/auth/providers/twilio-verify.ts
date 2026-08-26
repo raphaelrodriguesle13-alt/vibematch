@@ -45,8 +45,11 @@ export class TwilioVerifyProvider implements SmsVerificationProvider {
     };
   }
 
-  async confirm(_providerVerificationId: string, code: string): Promise<boolean> {
-    const body = new URLSearchParams({ Code: code });
+  async confirm(providerVerificationId: string, code: string): Promise<boolean> {
+    const body = new URLSearchParams({
+      Code: code,
+      VerificationSid: providerVerificationId,
+    });
     const response = await this.request(
       `/v2/Services/${encodeURIComponent(this.options.serviceSid)}/VerificationCheck`,
       body,
