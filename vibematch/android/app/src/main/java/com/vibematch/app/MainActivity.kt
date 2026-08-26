@@ -82,6 +82,11 @@ import com.vibematch.app.auth.PhoneVerificationStep
 import com.vibematch.app.auth.PhoneVerificationViewModel
 import com.vibematch.app.auth.PhoneVerificationViewModelFactory
 import com.vibematch.app.auth.SecureSessionStore
+import com.vibematch.app.billing.BillingApiClient
+import com.vibematch.app.billing.BillingUiStatus
+import com.vibematch.app.billing.BillingViewModel
+import com.vibematch.app.billing.BillingViewModelFactory
+import com.vibematch.app.billing.PlayBillingClientGateway
 import com.vibematch.app.chat.ChatMessage
 import com.vibematch.app.matching.MatchIntentApiClient
 import com.vibematch.app.matching.MatchIntentViewModel
@@ -128,6 +133,19 @@ class MainActivity : ComponentActivity() {
                         googleOidcClient = googleOidcClient,
                         authGateway = authGateway,
                         sessionStore = sessionStore,
+                    ),
+                )
+                val billingGateway = remember { PlayBillingClientGateway(applicationContext) }
+                val billingViewModel: BillingViewModel = viewModel(
+                    factory = BillingViewModelFactory(
+                        playGateway = billingGateway,
+                        validationGateway = BillingApiClient(
+                            BuildConfig.API_BASE_URL,
+                            BuildConfig.BILLING_VALIDATION_PATH,
+                        ),
+                        accessTokenProvider = sessionStore::readAccessToken,
+                        productId = BuildConfig.BILLING_PRODUCT_ID,
+                        onSessionExpired = authViewModel::signOut,
                     ),
                 )
                 val chatViewModel: ChatViewModel = viewModel(
@@ -205,6 +223,7 @@ class MainActivity : ComponentActivity() {
                     activity = this@MainActivity,
                     authViewModel = authViewModel,
                     chatViewModel = chatViewModel,
+                    billingViewModel = billingViewModel,
                     profileViewModel = profileViewModel,
                     phoneViewModel = phoneViewModel,
                     matchIntentViewModel = matchIntentViewModel,
@@ -235,6 +254,7 @@ private fun VibeMatchApp(
     activity: Activity,
     authViewModel: AuthViewModel,
     chatViewModel: ChatViewModel,
+    billingViewModel: BillingViewModel,
     profileViewModel: ProfileViewModel,
     phoneViewModel: PhoneVerificationViewModel,
     matchIntentViewModel: MatchIntentViewModel,
@@ -247,6 +267,7 @@ private fun VibeMatchApp(
     val session = authState.session
     val sessionId = session?.userId
     var showProfile by remember(sessionId) { mutableStateOf(false) }
+    var showBilling by remember(sessionId) { mutableStateOf(false) }
     var showMatchIntents by remember(sessionId) { mutableStateOf(false) }
     var showConsent by remember(sessionId) { mutableStateOf(false) }
     var consentMatchIntentId by remember(sessionId) { mutableStateOf<String?>(null) }
@@ -273,8 +294,10 @@ private fun VibeMatchApp(
         consentViewModel.reset()
         videoViewModel.reset()
         moderationViewModel.reset()
+        billingViewModel.reset()
         stopRtc()
         showConsent = false
+        showBilling = false
         consentMatchIntentId = null
         showVideo = false
         videoConsentId = null
@@ -301,6 +324,21 @@ private fun VibeMatchApp(
             }
         }
         when {
+            showBilling -> {
+                BillingScreen(
+                    activity = activity,
+                    viewModel = billingViewModel,
+                    onClose = {
+                        billingViewModel.reset()
+                        showBilling = false
+                    },
+                    onLogout = {
+                        billingViewModel.reset()
+                        stopRtc()
+                        authViewModel.signOut()
+                    },
+                )
+            }
             showProfile ||
                 !profileState.hasLoaded ||
                 profileState.profileIncomplete ||
@@ -309,8 +347,10 @@ private fun VibeMatchApp(
                     viewModel = profileViewModel,
                     onClose = { showProfile = false },
                     onLogout = {
+                        billingViewModel.reset()
                         stopRtc()
                         profileViewModel.reset()
+
                         matchIntentViewModel.reset()
                         chatViewModel.clearConversation()
                         phoneViewModel.reset()
@@ -322,8 +362,10 @@ private fun VibeMatchApp(
                 PhoneVerificationScreen(
                     viewModel = phoneViewModel,
                     onLogout = {
+                        billingViewModel.reset()
                         stopRtc()
                         phoneViewModel.reset()
+
                         matchIntentViewModel.reset()
                         chatViewModel.clearConversation()
                         authViewModel.signOut()
@@ -348,8 +390,10 @@ private fun VibeMatchApp(
                         moderationReturnsToConsent = false
                     },
                     onLogout = {
+                        billingViewModel.reset()
                         stopRtc()
                         moderationViewModel.reset()
+
                         consentViewModel.reset()
                         matchIntentViewModel.reset()
                         chatViewModel.clearConversation()
@@ -383,8 +427,10 @@ private fun VibeMatchApp(
                         showConsent = true
                     },
                     onLogout = {
+                        billingViewModel.reset()
                         stopRtc()
                         videoViewModel.reset()
+
                         consentViewModel.reset()
                         matchIntentViewModel.reset()
                         chatViewModel.clearConversation()
@@ -416,8 +462,10 @@ private fun VibeMatchApp(
                         showMatchIntents = true
                     },
                     onLogout = {
+                        billingViewModel.reset()
                         stopRtc()
                         consentViewModel.reset()
+
                         matchIntentViewModel.reset()
                         chatViewModel.clearConversation()
                         phoneViewModel.reset()
@@ -435,8 +483,10 @@ private fun VibeMatchApp(
                         showConsent = true
                     },
                     onLogout = {
+                        billingViewModel.reset()
                         stopRtc()
                         matchIntentViewModel.reset()
+
                         consentViewModel.reset()
                         chatViewModel.clearConversation()
                         phoneViewModel.reset()
@@ -448,7 +498,9 @@ private fun VibeMatchApp(
                 ChatScreen(
                     viewModel = chatViewModel,
                     isSigningOut = authState.isLoading,
+
                     onLogout = {
+                        billingViewModel.reset()
                         stopRtc()
                         chatViewModel.clearConversation()
                         matchIntentViewModel.reset()
@@ -456,7 +508,9 @@ private fun VibeMatchApp(
                         authViewModel.signOut()
                     },
                     onOpenProfile = { showProfile = true },
+                    onOpenBilling = { showBilling = true },
                     onOpenMatchIntents = { showMatchIntents = true },
+
                 )
             }
         }
@@ -537,6 +591,7 @@ private fun ChatScreen(
     isSigningOut: Boolean,
     onLogout: () -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenBilling: () -> Unit,
     onOpenMatchIntents: () -> Unit,
 ) {
     val state by viewModel.state
@@ -558,6 +613,7 @@ private fun ChatScreen(
                 isSigningOut = isSigningOut,
                 onLogout = onLogout,
                 onOpenProfile = onOpenProfile,
+                onOpenBilling = onOpenBilling,
                 onOpenMatchIntents = onOpenMatchIntents,
             )
             if (state.messages.isEmpty()) {
@@ -603,6 +659,7 @@ private fun ChatHeader(
     isSigningOut: Boolean,
     onLogout: () -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenBilling: () -> Unit,
     onOpenMatchIntents: () -> Unit,
 ) {
     Row(
@@ -640,6 +697,9 @@ private fun ChatHeader(
         }
         TextButton(onClick = onOpenProfile, enabled = !isSigningOut) {
             Text("Perfil", color = VibePurple)
+        }
+        TextButton(onClick = onOpenBilling, enabled = !isSigningOut) {
+            Text("Premium", color = VibePurple)
         }
         TextButton(onClick = onOpenMatchIntents, enabled = !isSigningOut) {
             Text("Solicitações", color = VibePurple)
@@ -2161,5 +2221,175 @@ private fun ProfileForm(
             }
         }
         Spacer(modifier = Modifier.height(20.dp))
+    }
+}
+
+
+@Composable
+private fun BillingScreen(
+    activity: Activity,
+    viewModel: BillingViewModel,
+    onClose: () -> Unit,
+    onLogout: () -> Unit,
+) {
+    val state by viewModel.state
+    LaunchedEffect(Unit) { viewModel.start() }
+    val busy = state.status == BillingUiStatus.CONNECTING ||
+        state.status == BillingUiStatus.PURCHASING ||
+        state.status == BillingUiStatus.RESTORING ||
+        state.status == BillingUiStatus.VALIDATING ||
+        state.status == BillingUiStatus.WAITING_FOR_PURCHASE
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = VibeBackground,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 20.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Premium",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = "Compra e restauração seguras",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color(0xFF72717D),
+                    )
+                }
+                TextButton(onClick = onClose, enabled = !busy) {
+                    Text("Voltar", color = VibePurple)
+                }
+            }
+            Spacer(modifier = Modifier.height(20.dp))
+            Text(
+                text = "O Google Play inicia a transação. O VibeMatch só libera o acesso depois que o backend validar o purchase token e retornar o entitlement.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = VibeInk,
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+            state.productTitle?.let { title ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color.White,
+                    tonalElevation = 2.dp,
+                ) {
+                    Column(modifier = Modifier.padding(18.dp)) {
+                        Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        state.productDescription?.let { description ->
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(description, style = MaterialTheme.typography.bodyMedium)
+                        }
+                        state.formattedPrice?.takeIf { it.isNotBlank() }?.let { price ->
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(price, style = MaterialTheme.typography.titleMedium, color = VibePurple)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+            Button(
+                onClick = { viewModel.purchase(activity) },
+                enabled = state.status == BillingUiStatus.READY && !busy,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = VibePurple),
+                shape = RoundedCornerShape(14.dp),
+            ) {
+                if (state.status == BillingUiStatus.PURCHASING) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Text("Comprar Premium")
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = viewModel::restore,
+                enabled = !busy && state.status != BillingUiStatus.NOT_CONFIGURED,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+            ) {
+                if (state.status == BillingUiStatus.RESTORING) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                } else {
+                    Text("Restaurar compras")
+                }
+            }
+            if (busy) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = state.infoMessage ?: "Processando com segurança...",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
+            state.infoMessage?.takeIf { !busy }?.let { info ->
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(info, style = MaterialTheme.typography.bodyMedium, color = Color(0xFF4D4D59))
+            }
+            if (state.status == BillingUiStatus.SUCCESS && state.entitlementActive) {
+                Spacer(modifier = Modifier.height(18.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFFE9F7EF),
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Premium confirmado pelo servidor", fontWeight = FontWeight.Bold, color = Color(0xFF176B3A))
+                        state.entitlementPlan?.let { plan ->
+                            Text("Plano: $plan", style = MaterialTheme.typography.bodyMedium)
+                        }
+                        state.entitlementExpiresAt?.let { expiresAt ->
+                            Text("Válido até: $expiresAt", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            }
+            state.errorMessage?.let { error ->
+                Spacer(modifier = Modifier.height(16.dp))
+                ErrorBanner(error) { viewModel.clearMessages() }
+                if (state.status == BillingUiStatus.ERROR) {
+                    TextButton(
+                        onClick = viewModel::start,
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Tentar novamente", color = VibePurple)
+                    }
+                }
+            }
+            if (state.status == BillingUiStatus.NOT_CONFIGURED) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Nenhum produto está configurado neste ambiente. Nenhum acesso Premium foi concedido.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF72717D),
+                )
+            }
+            Spacer(modifier = Modifier.height(28.dp))
+            TextButton(onClick = onLogout, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+                Text("Sair da conta", color = Color(0xFF9E2D2D))
+            }
+        }
     }
 }

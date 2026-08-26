@@ -20,8 +20,8 @@ android {
         applicationId = "com.vibematch.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
     buildTypes {
@@ -35,9 +35,17 @@ android {
             val debugLiveKitUrl = providers.gradleProperty("LIVEKIT_URL")
                 .orElse("")
                 .get()
+            val debugBillingProductId = providers.gradleProperty("BILLING_PRODUCT_ID")
+                .orElse("")
+                .get()
+            val debugBillingValidationPath = providers.gradleProperty("BILLING_VALIDATION_PATH")
+                .orElse("/api/billing/verify-purchase")
+                .get()
             buildConfigField("String", "API_BASE_URL", debugApiBaseUrl.toBuildConfigString())
             buildConfigField("String", "GOOGLE_SERVER_CLIENT_ID", debugGoogleClientId.toBuildConfigString())
             buildConfigField("String", "LIVEKIT_URL", debugLiveKitUrl.toBuildConfigString())
+            buildConfigField("String", "BILLING_PRODUCT_ID", debugBillingProductId.toBuildConfigString())
+            buildConfigField("String", "BILLING_VALIDATION_PATH", debugBillingValidationPath.toBuildConfigString())
         }
         release {
             val releaseApiBaseUrl = providers.gradleProperty("API_BASE_URL")
@@ -49,6 +57,12 @@ android {
             val releaseLiveKitUrl = providers.gradleProperty("LIVEKIT_URL")
                 .orElse("MISSING_LIVEKIT_URL")
                 .get()
+            val releaseBillingProductId = providers.gradleProperty("BILLING_PRODUCT_ID")
+                .orElse("MISSING_BILLING_PRODUCT_ID")
+                .get()
+            val releaseBillingValidationPath = providers.gradleProperty("BILLING_VALIDATION_PATH")
+                .orElse("/api/billing/verify-purchase")
+                .get()
             require(releaseApiBaseUrl.startsWith("https://")) {
                 "Release API_BASE_URL must use HTTPS"
             }
@@ -59,10 +73,18 @@ android {
                 require(releaseLiveKitUrl.startsWith("wss://")) {
                     "Release LIVEKIT_URL must use wss://"
                 }
+                require(releaseBillingProductId != "MISSING_BILLING_PRODUCT_ID") {
+                    "Release BILLING_PRODUCT_ID must be configured"
+                }
+            }
+            require(releaseBillingValidationPath.startsWith("/")) {
+                "Release BILLING_VALIDATION_PATH must be an absolute API path"
             }
             buildConfigField("String", "API_BASE_URL", releaseApiBaseUrl.toBuildConfigString())
             buildConfigField("String", "GOOGLE_SERVER_CLIENT_ID", releaseGoogleClientId.toBuildConfigString())
             buildConfigField("String", "LIVEKIT_URL", releaseLiveKitUrl.toBuildConfigString())
+            buildConfigField("String", "BILLING_PRODUCT_ID", releaseBillingProductId.toBuildConfigString())
+            buildConfigField("String", "BILLING_VALIDATION_PATH", releaseBillingValidationPath.toBuildConfigString())
             isDebuggable = false
         }
     }
@@ -105,6 +127,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("io.livekit:livekit-android:2.28.1")
+    implementation("com.android.billingclient:billing:9.1.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 
