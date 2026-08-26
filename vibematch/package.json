@@ -9,7 +9,7 @@
   "scripts": {
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"**/*.{ts,json,md}\"",
-    "format:check": "prettier --check \"**/*.{ts,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,json,md}\" || (prettier --write \"**/*.{ts,json,md}\" && git diff -- && exit 1)",
     "typecheck": "tsc --noEmit",
     "db:up": "bash scripts/db-up.sh",
     "db:down": "bash scripts/db-down.sh",
