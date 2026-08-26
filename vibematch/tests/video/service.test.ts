@@ -1,6 +1,7 @@
 import {
   VideoSessionService,
   type AuthorizedVideoParticipant,
+  type VideoRateLimitScope,
   type VideoSession,
   type VideoSessionRepositoryPort,
   type VideoTokenProvider,
@@ -25,8 +26,20 @@ class FakeVideoRepository implements VideoSessionRepositoryPort {
     roomName: 'vibematch-test-room',
     userId: USER_ID,
   };
+  rateLimitAllowed = true;
+  rateLimitCalls: Array<{ userId: string; scope: VideoRateLimitScope; now: Date; limit: number }> = [];
   createCall: { userId: string; consentId: string; roomName: string; now: Date } | null = null;
   revalidateCall: { userId: string; sessionId: string; now: Date } | null = null;
+
+  consumeRateLimit(
+    userId: string,
+    scope: VideoRateLimitScope,
+    now: Date,
+    limit: number,
+  ): Promise<boolean> {
+    this.rateLimitCalls.push({ userId, scope, now, limit });
+    return Promise.resolve(this.rateLimitAllowed);
+  }
 
   createAuthorized(
     userId: string,
@@ -65,6 +78,21 @@ class FakeTokenProvider implements VideoTokenProvider {
 }
 
 describe('VideoSessionService', () => {
+  test('rate limits session creation before creating a room', async () => {
+    const repository = new FakeVideoRepository();
+    repository.rateLimitAllowed = false;
+    const provider = new FakeTokenProvider();
+    const service = new VideoSessionService(repository, provider, () => NOW);
+
+    await expect(service.create(USER_ID, CONSENT_ID)).rejects.toMatchObject({
+      code: 'RATE_LIMITED',
+    });
+    expect(repository.rateLimitCalls).toEqual([
+      { userId: USER_ID, scope: 'SESSION_CREATE', now: NOW, limit: 30 },
+    ]);
+    expect(repository.createCall).toBeNull();
+  });
+
   test('creates only through the authorized repository path with a server room name', async () => {
     const repository = new FakeVideoRepository();
     const provider = new FakeTokenProvider();
@@ -79,6 +107,22 @@ describe('VideoSessionService', () => {
       now: NOW,
     });
     expect(repository.createCall?.roomName).toMatch(/^vibematch-[0-9a-f-]+$/i);
+  });
+
+  test('rate limits token requests before revalidation and signing', async () => {
+    const repository = new FakeVideoRepository();
+    repository.rateLimitAllowed = false;
+    const provider = new FakeTokenProvider();
+    const service = new VideoSessionService(repository, provider, () => NOW);
+
+    await expect(service.issueToken(USER_ID, SESSION_ID)).rejects.toMatchObject({
+      code: 'RATE_LIMITED',
+    });
+    expect(repository.rateLimitCalls).toEqual([
+      { userId: USER_ID, scope: 'TOKEN', now: NOW, limit: 30 },
+    ]);
+    expect(repository.revalidateCall).toBeNull();
+    expect(provider.calls).toHaveLength(0);
   });
 
   test('never signs a token when immediate server-side revalidation fails', async () => {
