@@ -58,6 +58,24 @@ export const env = {
   jwtIssuer: () => required('JWT_ISSUER'),
   jwtAudience: () => required('JWT_AUDIENCE'),
 
+  /** Twilio Verify v2. Credenciais nunca são expostas ao Android. */
+  twilioAccountSid: () => required('TWILIO_ACCOUNT_SID'),
+  twilioAuthToken: () => required('TWILIO_AUTH_TOKEN'),
+  twilioVerifyServiceSid: () => required('TWILIO_VERIFY_SERVICE_SID'),
+  twilioVerifyBaseUrl: () =>
+    process.env.TWILIO_VERIFY_BASE_URL
+      ? requiredUrl('TWILIO_VERIFY_BASE_URL', 'https:')
+      : 'https://verify.twilio.com',
+  phoneHashPepper: () => required('PHONE_HASH_PEPPER'),
+
+  /** Didit hosted verification. API key/workflow remain backend-only. */
+  diditApiKey: () => required('DIDIT_API_KEY'),
+  diditWorkflowId: () => required('DIDIT_WORKFLOW_ID'),
+  diditApiBaseUrl: () =>
+    process.env.DIDIT_API_BASE_URL
+      ? requiredUrl('DIDIT_API_BASE_URL', 'https:')
+      : 'https://verification.didit.me',
+
   /** LiveKit RTC público consumido pelo cliente. Nunca contém segredo. */
   liveKitRtcUrl: () => requiredUrl('LIVEKIT_URL', 'wss:'),
 
@@ -71,8 +89,7 @@ export const env = {
   googlePlayApiBaseUrl:
     process.env.GOOGLE_PLAY_API_BASE_URL ?? 'https://androidpublisher.googleapis.com',
   googlePlayPubSubAudience: () => required('GOOGLE_PLAY_PUBSUB_AUDIENCE'),
-  googlePlayPubSubServiceAccountEmail: () =>
-    required('GOOGLE_PLAY_PUBSUB_SERVICE_ACCOUNT_EMAIL'),
+  googlePlayPubSubServiceAccountEmail: () => required('GOOGLE_PLAY_PUBSUB_SERVICE_ACCOUNT_EMAIL'),
 
   /** ChatGPT é acessado apenas pelo backend; a chave é resolvida somente no uso. */
   openAiApiKey: () => required('OPENAI_API_KEY'),
