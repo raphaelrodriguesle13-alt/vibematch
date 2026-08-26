@@ -5,7 +5,7 @@
  * declarado na V1.2 §12, não um bug destes testes.
  */
 import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
-import { ownerPool, withRollback, closeAll } from '../../helpers/db';
+import { ownerPool, withRollback, seedAcceptedIntent, closeAll } from '../../helpers/db';
 
 afterAll(closeAll);
 
@@ -21,9 +21,6 @@ const first = <T extends QueryResultRow>(result: QueryResult<T>): T => {
   return row;
 };
 
-// Correção 7: o chamador NUNCA fornece row_hash/prev_hash — o trigger é a
-// única autoridade. O runtime só recebe GRANT nas colunas legítimas do evento
-// (migration 006); este teste reflete exatamente esse contrato.
 const insertAudit = (c: PoolClient, action: string): Promise<QueryResult<AuditRow>> =>
   c.query<AuditRow>(
     `INSERT INTO audit_logs (actor_type, action, object_type, reason)
@@ -106,24 +103,11 @@ describe('audit_logs hash chain', () => {
 describe('consent_decisions hash chain', () => {
   test('H06 consent_decisions rows are chained deterministically', async () => {
     await withRollback(ownerPool, async (c) => {
-      const a = await c.query<IdRow>(
-        `INSERT INTO users (google_subject_id) VALUES ('h06-a') RETURNING id`,
-      );
-      const b = await c.query<IdRow>(
-        `INSERT INTO users (google_subject_id) VALUES ('h06-b') RETURNING id`,
-      );
-      const aRow = first(a);
-      const bRow = first(b);
-      const intent = await c.query<IdRow>(
-        `INSERT INTO match_intents (sender_id,receiver_id,status,expires_at,responded_at)
-         VALUES ($1,$2,'ACCEPTED', now() + interval '1 day', now()) RETURNING id`,
-        [aRow.id, bRow.id],
-      );
-      const intentRow = first(intent);
+      const { userA, userB, intentId } = await seedAcceptedIntent(c);
       const consent = await c.query<IdRow>(
         `INSERT INTO consents (match_intent_id,user_a_id,user_b_id,expires_at)
          VALUES ($1,$2,$3, now() + interval '1 hour') RETURNING id`,
-        [intentRow.id, aRow.id, bRow.id],
+        [intentId, userA, userB],
       );
       const consentRow = first(consent);
 
@@ -131,13 +115,13 @@ describe('consent_decisions hash chain', () => {
         `INSERT INTO consent_decisions (consent_id,acting_user_id,decision,auth_session_ref,request_id,row_hash)
          VALUES ($1,$2,'ACCEPTED','jti-placeholder-1',gen_random_uuid(),'placeholder')
          RETURNING row_hash`,
-        [consentRow.id, bRow.id],
+        [consentRow.id, userB],
       );
       const d2 = await c.query<LinkedHashRow>(
         `INSERT INTO consent_decisions (consent_id,acting_user_id,decision,auth_session_ref,request_id,row_hash)
          VALUES ($1,$2,'ACCEPTED','jti-placeholder-2',gen_random_uuid(),'placeholder')
          RETURNING prev_hash, row_hash`,
-        [consentRow.id, aRow.id],
+        [consentRow.id, userA],
       );
 
       expect(first(d1).row_hash).toMatch(/^[0-9a-f]{64}$/);
@@ -147,35 +131,23 @@ describe('consent_decisions hash chain', () => {
 
   test('H07 same user cannot record two decisions for the same Consent', async () => {
     await withRollback(ownerPool, async (c) => {
-      const a = await c.query<IdRow>(
-        `INSERT INTO users (google_subject_id) VALUES ('h07-a') RETURNING id`,
-      );
-      const b = await c.query<IdRow>(
-        `INSERT INTO users (google_subject_id) VALUES ('h07-b') RETURNING id`,
-      );
-      const aRow = first(a);
-      const bRow = first(b);
-      const intent = await c.query<IdRow>(
-        `INSERT INTO match_intents (sender_id,receiver_id,status,expires_at,responded_at)
-         VALUES ($1,$2,'ACCEPTED', now() + interval '1 day', now()) RETURNING id`,
-        [aRow.id, bRow.id],
-      );
+      const { userA, userB, intentId } = await seedAcceptedIntent(c);
       const consent = await c.query<IdRow>(
         `INSERT INTO consents (match_intent_id,user_a_id,user_b_id,expires_at)
          VALUES ($1,$2,$3, now() + interval '1 hour') RETURNING id`,
-        [first(intent).id, aRow.id, bRow.id],
+        [intentId, userA, userB],
       );
       const consentRow = first(consent);
       await c.query(
         `INSERT INTO consent_decisions (consent_id,acting_user_id,decision,auth_session_ref,request_id,row_hash)
          VALUES ($1,$2,'ACCEPTED','jti-a',gen_random_uuid(),'placeholder')`,
-        [consentRow.id, aRow.id],
+        [consentRow.id, userA],
       );
       await expect(
         c.query(
           `INSERT INTO consent_decisions (consent_id,acting_user_id,decision,auth_session_ref,request_id,row_hash)
            VALUES ($1,$2,'DECLINED','jti-a2',gen_random_uuid(),'placeholder')`,
-          [consentRow.id, aRow.id],
+          [consentRow.id, userA],
         ),
       ).rejects.toThrow();
     });
