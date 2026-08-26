@@ -72,3 +72,9 @@ O Android exibe `PENDING`, `ACCEPTED_BOTH`, `DECLINED`, `EXPIRED`, `CANCELLED` e
 Quando o usuário solicita explicitamente a próxima etapa após `ACCEPTED_BOTH`, o Android chama `POST /api/video/sessions` com `{ "consent_id": "..." }`. Se o backend autorizar, a tela oferece a solicitação de token por `POST /api/video/sessions/{id}/token`. A credencial recebida é mantida apenas em memória transitória durante o callback da operação; não é gravada em `SharedPreferences`, logs ou arquivos.
 
 Os estados `CREATED`, `ACTIVE`, `ENDED` e desconhecidos, além de `VIDEO_NOT_AUTHORIZED`, `PHONE_VERIFICATION_REQUIRED`, `AGE_ASSURANCE_REQUIRED`, `RATE_LIMITED`, HTTP 401 e erros do provedor, são tratados sem liberação local. Nesta etapa não há câmera, WebRTC, LiveKit, publicação de mídia ou reconexão automática; a integração de mídia deve ser feita somente depois de revisar o fornecedor RTC e o contrato JIT.
+
+## Proteção da comunidade
+
+A tela de Consent oferece `Bloquear ou denunciar` para o participante oposto. Bloqueios chamam `POST /api/blocks` com `blocked_id`; denúncias chamam `POST /api/reports` com `reported_id`, `session_id` opcional e categorias `HARASSMENT`, `HATE`, `SEXUAL_CONTENT`, `SCAM`, `SPAM` ou `OTHER`.
+
+O Android não calcula severidade, não decide punições e não altera o estado de outra conta localmente. O backend valida identidade, participantes, sessão, categoria e encaminhamento operacional. HTTP 401 encerra a sessão, HTTP 429 é apresentado como erro recuperável e estados desconhecidos permanecem sem autorização local.

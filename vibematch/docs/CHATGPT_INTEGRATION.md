@@ -89,11 +89,13 @@ Após uma MatchIntent aceita, o Android pode criar Consent com `POST /api/consen
 
 Quando o usuário solicita explicitamente a etapa seguinte, o Android chama `POST /api/video/sessions` com `consent_id` e, após criação autorizada, `POST /api/video/sessions/{id}/token`. O cliente não envia `user_id`, `room_name`, consentimento, idade, telefone ou estado de bloqueio para obter autorização; esses dados são derivados e revalidados no backend. O token retorna somente para um callback transitório em memória, sem persistência. Câmera, WebRTC e LiveKit permanecem fora desta etapa.
 
+A tela de Consent também oferece proteção da comunidade. O Android chama `POST /api/blocks` com `blocked_id` ou `POST /api/reports` com `reported_id`, `session_id` opcional e categoria pública. O backend continua responsável por validar participantes, sessão, categoria, severidade, encaminhamento humano e efeitos operacionais; o Android não decide punições nem modifica a conta alvo localmente.
+
 O manifest debug é a única variante que habilita HTTP local; o manifest release força `android:usesCleartextTraffic=false` e o Gradle rejeita `API_BASE_URL` sem HTTPS.
 
 ## Próxima etapa
 
-A próxima entrega deve validar telefone, MatchIntent, Consent e Video Session em dispositivo com provedores/ambiente reais, definir renovação/expiração de sessão conforme o contrato do backend e conectar câmera/RTC somente por autorização JIT. Rate limiting, persistência de conversas, observabilidade e moderação ainda precisam ser revisados antes de produção. O cliente não autoriza localmente idade, matchmaking, consentimento ou vídeo.
+A próxima entrega deve validar telefone, MatchIntent, Consent, Video Session e Moderação em dispositivo com provedores/ambiente reais, definir renovação/expiração de sessão conforme o contrato do backend e conectar câmera/RTC somente por autorização JIT. Rate limiting, persistência de conversas, observabilidade e moderação operacional ainda precisam ser revisados antes de produção. O cliente não autoriza localmente idade, matchmaking, consentimento, vídeo ou punições.
 
 ## Referências oficiais
 

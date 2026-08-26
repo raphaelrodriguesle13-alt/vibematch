@@ -28,13 +28,15 @@
 - `ACCEPTED_BOTH` não cria localmente sessão de vídeo, token RTC ou entitlement; a autorização permanece JIT no backend.
 - Cliente e ViewModel Android de Video Session para criar sessão e solicitar token somente após ação explícita do usuário.
 - Token JIT não é persistido; câmera, WebRTC, LiveKit e publicação de mídia permanecem desativados nesta etapa.
-- Testes Android de contrato JSON, Age Assurance, telefone, MatchIntent, Consent, Video Session, AuthViewModel e ProfileViewModel.
+- Tela Android de proteção da comunidade para bloquear e denunciar o participante oposto, usando apenas as rotas server-side de Moderação.
+- O Android não decide severidade, punição ou estado de outra conta; HTTP 401 encerra a sessão e HTTP 429 é recuperável.
+- Testes Android de contrato JSON, Age Assurance, telefone, MatchIntent, Consent, Video Session, Moderação, AuthViewModel e ProfileViewModel.
 
 ### Limitações conhecidas
 
 - A validação OAuth Google em dispositivo, renovação de sessão, rate limiting, persistência de conversas e observabilidade ainda estão pendentes.
 - A configuração real do Web client ID e a validação OAuth em dispositivo ainda dependem do ambiente Google do projeto.
-- A validação de Consent, MatchIntent e Video Session com ambiente real, a integração efetiva de câmera/RTC, renovação de sessão, rate limiting, persistência de conversas e observabilidade ainda estão pendentes.
+- A validação de Consent, MatchIntent, Video Session e Moderação com ambiente real, a integração efetiva de câmera/RTC, renovação de sessão, rate limiting, persistência de conversas e observabilidade ainda estão pendentes.
 
 ## [0.1.0] — Etapa 0 + Etapa 1 (implementação de schema e fundação)
 

@@ -81,6 +81,10 @@ import com.vibematch.app.video.VideoSessionApiClient
 import com.vibematch.app.video.VideoSessionStatus
 import com.vibematch.app.video.VideoSessionViewModel
 import com.vibematch.app.video.VideoSessionViewModelFactory
+import com.vibematch.app.moderation.ModerationApiClient
+import com.vibematch.app.moderation.ReportCategory
+import com.vibematch.app.moderation.ModerationViewModel
+import com.vibematch.app.moderation.ModerationViewModelFactory
 import com.vibematch.app.profile.ProfileApiClient
 import com.vibematch.app.profile.ProfileGate
 import com.vibematch.app.profile.ProfileViewModel
@@ -165,6 +169,13 @@ class MainActivity : ComponentActivity() {
                         },
                     ),
                 )
+                val moderationViewModel: ModerationViewModel = viewModel(
+                    factory = ModerationViewModelFactory(
+                        gateway = ModerationApiClient(BuildConfig.API_BASE_URL),
+                        accessTokenProvider = sessionStore::readAccessToken,
+                        onSessionExpired = authViewModel::signOut,
+                    ),
+                )
                 VibeMatchApp(
                     activity = this@MainActivity,
                     authViewModel = authViewModel,
@@ -174,6 +185,7 @@ class MainActivity : ComponentActivity() {
                     matchIntentViewModel = matchIntentViewModel,
                     consentViewModel = consentViewModel,
                     videoViewModel = videoViewModel,
+                    moderationViewModel = moderationViewModel,
                 )
             }
         }
@@ -202,6 +214,7 @@ private fun VibeMatchApp(
     matchIntentViewModel: MatchIntentViewModel,
     consentViewModel: ConsentViewModel,
     videoViewModel: VideoSessionViewModel,
+    moderationViewModel: ModerationViewModel,
 ) {
     val authState by authViewModel.state
     val session = authState.session
@@ -212,6 +225,9 @@ private fun VibeMatchApp(
     var consentMatchIntentId by remember(sessionId) { mutableStateOf<String?>(null) }
     var showVideo by remember(sessionId) { mutableStateOf(false) }
     var videoConsentId by remember(sessionId) { mutableStateOf<String?>(null) }
+    var showModeration by remember(sessionId) { mutableStateOf(false) }
+    var moderationTargetUserId by remember(sessionId) { mutableStateOf<String?>(null) }
+    var moderationReturnsToConsent by remember(sessionId) { mutableStateOf(false) }
 
     LaunchedEffect(sessionId) {
         profileViewModel.reset()
@@ -219,10 +235,14 @@ private fun VibeMatchApp(
         matchIntentViewModel.reset()
         consentViewModel.reset()
         videoViewModel.reset()
+        moderationViewModel.reset()
         showConsent = false
         consentMatchIntentId = null
         showVideo = false
         videoConsentId = null
+        showModeration = false
+        moderationTargetUserId = null
+        moderationReturnsToConsent = false
         if (sessionId != null) profileViewModel.load()
     }
 
@@ -232,6 +252,7 @@ private fun VibeMatchApp(
         val profileState by profileViewModel.state
         val selectedConsentMatchIntentId = consentMatchIntentId
         val selectedVideoConsentId = videoConsentId
+        val selectedModerationTargetUserId = moderationTargetUserId
         when {
             showProfile ||
                 !profileState.hasLoaded ||
@@ -260,6 +281,32 @@ private fun VibeMatchApp(
                     },
                 )
             }
+            showModeration && selectedModerationTargetUserId != null -> {
+                ModerationScreen(
+                    viewModel = moderationViewModel,
+                    targetUserId = selectedModerationTargetUserId,
+                    sessionId = null,
+                    onClose = {
+                        showModeration = false
+                        moderationTargetUserId = null
+                        moderationViewModel.reset()
+                        if (moderationReturnsToConsent) {
+                            showConsent = true
+                        } else {
+                            showMatchIntents = true
+                        }
+                        moderationReturnsToConsent = false
+                    },
+                    onLogout = {
+                        moderationViewModel.reset()
+                        consentViewModel.reset()
+                        matchIntentViewModel.reset()
+                        chatViewModel.clearConversation()
+                        phoneViewModel.reset()
+                        authViewModel.signOut()
+                    },
+                )
+            }
             showVideo && selectedVideoConsentId != null -> {
                 VideoSessionScreen(
                     viewModel = videoViewModel,
@@ -284,6 +331,13 @@ private fun VibeMatchApp(
                     viewModel = consentViewModel,
                     matchIntentId = selectedConsentMatchIntentId,
                     currentUserId = session.userId,
+                    onOpenModeration = { targetUserId ->
+                        moderationViewModel.reset()
+                        moderationTargetUserId = targetUserId
+                        moderationReturnsToConsent = true
+                        showConsent = false
+                        showModeration = true
+                    },
                     onOpenVideo = { consentId ->
                         videoConsentId = consentId
                         showConsent = false
@@ -756,6 +810,136 @@ private fun ProfileScreen(
 }
 
 @Composable
+private fun ModerationScreen(
+    viewModel: ModerationViewModel,
+    targetUserId: String,
+    sessionId: String?,
+    onClose: () -> Unit,
+    onLogout: () -> Unit,
+) {
+    val state by viewModel.state
+    val isBusy = state.isBlocking || state.isReporting
+
+    LaunchedEffect(state.blockCompleted) {
+        if (state.blockCompleted) onClose()
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = VibeBackground,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = onClose, enabled = !isBusy) {
+                    Text("Voltar", color = VibePurple)
+                }
+                Text(
+                    text = "Proteção da comunidade",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                )
+                TextButton(onClick = onLogout, enabled = !isBusy) {
+                    Text("Sair", color = VibePurple)
+                }
+            }
+
+            Text(
+                text = "Você pode bloquear esta pessoa ou registrar uma denúncia. O backend fará a validação e o encaminhamento operacional; o app não decide punições localmente.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = VibeInk,
+            )
+            state.errorMessage?.let { error ->
+                ErrorBanner(error) { viewModel.clearMessages() }
+            }
+            state.infoMessage?.let { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color(0xFF2F7D4A),
+                )
+            }
+
+            Button(
+                onClick = { viewModel.block(targetUserId) },
+                enabled = !isBusy && !state.blockCompleted,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF8A3D4A)),
+                shape = RoundedCornerShape(14.dp),
+            ) {
+                if (state.isBlocking) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp,
+                    )
+                } else {
+                    Text("Bloquear esta pessoa")
+                }
+            }
+
+            Text(
+                text = "Denunciar por categoria",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = "Selecione o motivo que melhor descreve a situação. A severidade e a necessidade de revisão humana são calculadas pelo backend.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFF72717D),
+            )
+            ReportCategory.values().forEach { category ->
+                FilterChip(
+                    selected = state.selectedCategory == category,
+                    onClick = { viewModel.selectCategory(category) },
+                    label = { Text(reportCategoryLabel(category)) },
+                    enabled = !isBusy,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Button(
+                onClick = { viewModel.report(targetUserId, sessionId) },
+                enabled = !isBusy && !state.reportCompleted && !state.blockCompleted,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = VibePurple),
+                shape = RoundedCornerShape(14.dp),
+            ) {
+                if (state.isReporting) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp,
+                    )
+                } else if (state.reportCompleted) {
+                    Text("Denúncia registrada")
+                } else {
+                    Text("Enviar denúncia")
+                }
+            }
+        }
+    }
+}
+
+private fun reportCategoryLabel(category: ReportCategory): String = when (category) {
+    ReportCategory.HARASSMENT -> "Assédio"
+    ReportCategory.HATE -> "Discurso de ódio"
+    ReportCategory.SEXUAL_CONTENT -> "Conteúdo sexual"
+    ReportCategory.SCAM -> "Golpe ou fraude"
+    ReportCategory.SPAM -> "Spam"
+    ReportCategory.OTHER -> "Outro motivo"
+}
+
+@Composable
 private fun VideoSessionScreen(
     viewModel: VideoSessionViewModel,
     consentId: String,
@@ -944,6 +1128,7 @@ private fun ConsentScreen(
     viewModel: com.vibematch.app.consent.ConsentViewModel,
     matchIntentId: String,
     currentUserId: String,
+    onOpenModeration: (String) -> Unit,
     onOpenVideo: (String) -> Unit,
     onClose: () -> Unit,
     onLogout: () -> Unit,
@@ -1039,6 +1224,9 @@ private fun ConsentScreen(
                                                     currentUserId = currentUserId,
                         isDeciding = state.isDeciding,
                         onDecision = viewModel::decide,
+                        onOpenModeration = { targetUserId ->
+                            onOpenModeration(targetUserId)
+                        },
                         onOpenVideo = {
                             if (consent.status == ConsentStatus.ACCEPTED_BOTH) {
                                 onOpenVideo(consent.id)
@@ -1060,6 +1248,7 @@ private fun ConsentCard(
     currentUserId: String,
     isDeciding: Boolean,
     onDecision: (ConsentDecision) -> Unit,
+    onOpenModeration: (String) -> Unit,
     onOpenVideo: () -> Unit,
 ) {
     val ownStatus = when (currentUserId) {
@@ -1071,6 +1260,11 @@ private fun ConsentCard(
         consent.userAId -> consent.userBStatus
         consent.userBId -> consent.userAStatus
         else -> ConsentParticipantStatus.UNKNOWN
+    }
+    val otherParticipantId = when (currentUserId) {
+        consent.userAId -> consent.userBId
+        consent.userBId -> consent.userAId
+        else -> null
     }
     val canDecide = consent.status == ConsentStatus.PENDING &&
         ownStatus == ConsentParticipantStatus.PENDING
@@ -1161,6 +1355,15 @@ private fun ConsentCard(
                     shape = RoundedCornerShape(14.dp),
                 ) {
                     Text("Preparar vídeo com o servidor")
+                }
+            }
+            if (otherParticipantId != null) {
+                TextButton(
+                    onClick = { onOpenModeration(otherParticipantId) },
+                    enabled = !isDeciding,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Bloquear ou denunciar", color = Color(0xFF8A3D4A))
                 }
             }
         }
