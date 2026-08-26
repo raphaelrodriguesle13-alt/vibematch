@@ -17,20 +17,40 @@ import {
   type MatchIntent,
   type MatchIntentService,
 } from '../matchmaking/service';
+import { ConsentError, type Consent, type ConsentService } from '../consent/service';
+import {
+  VideoAuthorizationError,
+  type VideoSession,
+  type VideoSessionService,
+} from '../video/service';
+import {
+  ModerationError,
+  type Block,
+  type ModerationService,
+  type Report,
+} from '../moderation/service';
 
 export interface ActiveSessionStore {
   findActiveSession(userId: string, sessionId: string, now: Date): Promise<AuthSession | null>;
   touchSession(userId: string, sessionId: string, seenAt: Date): Promise<void>;
 }
 
+export interface PhoneStateStore {
+  isPhoneVerified(userId: string): Promise<boolean>;
+}
+
 export interface AuthHttpDependencies {
   authService: Pick<AuthService, 'loginWithGoogle' | 'logout'>;
   sessionTokenVerifier: SessionTokenVerifier;
   activeSessionStore: ActiveSessionStore;
+  phoneStateStore?: PhoneStateStore;
   phoneVerificationService?: Pick<PhoneVerificationService, 'start' | 'confirm'>;
   profileService?: Pick<ProfileService, 'get' | 'update' | 'listInterests'>;
   ageAssuranceService?: Pick<AgeAssuranceService, 'getStatus' | 'isApproved'>;
   matchIntentService?: Pick<MatchIntentService, 'create' | 'listIncoming' | 'respond'>;
+  consentService?: Pick<ConsentService, 'create' | 'decide'>;
+  videoSessionService?: Pick<VideoSessionService, 'create' | 'issueToken'>;
+  moderationService?: Pick<ModerationService, 'block' | 'report'>;
   chatService?: Pick<ChatService, 'respond'>;
   now?: () => Date;
 }
@@ -48,6 +68,13 @@ type ProfileBody = {
 type MatchIntentCreateBody = { receiver_id?: unknown };
 type MatchIntentRespondBody = { decision?: unknown };
 type MatchIntentParams = { id: string };
+type ConsentCreateBody = { match_intent_id?: unknown };
+type ConsentDecisionBody = { decision?: unknown; request_id?: unknown };
+type ConsentParams = { id: string };
+type VideoSessionCreateBody = { consent_id?: unknown };
+type VideoSessionParams = { id: string };
+type BlockBody = { blocked_id?: unknown };
+type ReportBody = { reported_id?: unknown; session_id?: unknown; category?: unknown };
 type ChatBody = { message?: unknown; history?: unknown };
 
 type AuthenticatedRequest = {
@@ -93,6 +120,22 @@ const authenticate = async (
   }
 };
 
+const requirePhoneVerified = async (
+  userId: string,
+  reply: FastifyReply,
+  deps: AuthHttpDependencies,
+): Promise<boolean> => {
+  if (!deps.phoneStateStore) {
+    await reply.code(503).send({ error: 'PHONE_STATE_NOT_CONFIGURED' });
+    return false;
+  }
+  if (!(await deps.phoneStateStore.isPhoneVerified(userId))) {
+    await reply.code(403).send({ error: 'PHONE_VERIFICATION_REQUIRED' });
+    return false;
+  }
+  return true;
+};
+
 const requireAgeApproved = async (
   userId: string,
   reply: FastifyReply,
@@ -107,6 +150,15 @@ const requireAgeApproved = async (
     return false;
   }
   return true;
+};
+
+const requireRestrictedEligibility = async (
+  userId: string,
+  reply: FastifyReply,
+  deps: AuthHttpDependencies,
+): Promise<boolean> => {
+  if (!(await requirePhoneVerified(userId, reply, deps))) return false;
+  return requireAgeApproved(userId, reply, deps);
 };
 
 const phoneErrorStatus = (error: PhoneVerificationError): number => {
@@ -134,6 +186,38 @@ const matchIntentErrorStatus = (error: MatchIntentError): number => {
   }
 };
 
+const consentErrorStatus = (error: ConsentError): number => {
+  switch (error.code) {
+    case 'INVALID_CONSENT':
+      return 400;
+    case 'CONSENT_NOT_ELIGIBLE':
+      return 409;
+    case 'CONSENT_NOT_AVAILABLE':
+      return 404;
+  }
+};
+
+const videoErrorStatus = (error: VideoAuthorizationError): number => {
+  switch (error.code) {
+    case 'INVALID_VIDEO_REQUEST':
+      return 400;
+    case 'VIDEO_NOT_AUTHORIZED':
+      return 403;
+    case 'VIDEO_PROVIDER_UNAVAILABLE':
+      return 503;
+  }
+};
+
+const moderationErrorStatus = (error: ModerationError): number => {
+  switch (error.code) {
+    case 'INVALID_MODERATION_REQUEST':
+      return 400;
+    case 'BLOCK_NOT_AVAILABLE':
+    case 'REPORT_NOT_AVAILABLE':
+      return 409;
+  }
+};
+
 const serializeProfile = (profile: UserProfile) => ({
   user_id: profile.userId,
   display_name: profile.displayName,
@@ -152,6 +236,45 @@ const serializeMatchIntent = (intent: MatchIntent) => ({
   responded_at: intent.respondedAt?.toISOString() ?? null,
   closed_at: intent.closedAt?.toISOString() ?? null,
   created_at: intent.createdAt.toISOString(),
+});
+
+const serializeConsent = (consent: Consent) => ({
+  id: consent.id,
+  match_intent_id: consent.matchIntentId,
+  user_a_id: consent.userAId,
+  user_b_id: consent.userBId,
+  user_a_status: consent.userAStatus,
+  user_b_status: consent.userBStatus,
+  status: consent.status,
+  expires_at: consent.expiresAt.toISOString(),
+  video_deadline: consent.videoDeadline?.toISOString() ?? null,
+  accepted_both_at: consent.acceptedBothAt?.toISOString() ?? null,
+});
+
+const serializeVideoSession = (session: VideoSession) => ({
+  id: session.id,
+  consent_id: session.consentId,
+  status: session.status,
+  revocation_pending: session.revocationPending,
+  revoked_at: session.revokedAt?.toISOString() ?? null,
+});
+
+const serializeBlock = (block: Block) => ({
+  id: block.id,
+  blocker_id: block.blockerId,
+  blocked_id: block.blockedId,
+  created_at: block.createdAt.toISOString(),
+});
+
+const serializeReport = (report: Report) => ({
+  id: report.id,
+  reporter_id: report.reporterId,
+  reported_id: report.reportedId,
+  session_id: report.sessionId,
+  category: report.category,
+  severity: report.severity,
+  status: report.status,
+  created_at: report.createdAt.toISOString(),
 });
 
 const isStringArray = (value: unknown): value is string[] =>
@@ -344,7 +467,7 @@ export const buildApp = (deps: AuthHttpDependencies): FastifyInstance => {
   app.post<{ Body: MatchIntentCreateBody }>('/api/match-intents', async (request, reply) => {
     const auth = await authenticate(request, reply, deps, now);
     if (!auth) return;
-    if (!(await requireAgeApproved(auth.claims.userId, reply, deps))) return;
+    if (!(await requireRestrictedEligibility(auth.claims.userId, reply, deps))) return;
     if (!deps.matchIntentService) {
       return reply.code(503).send({ error: 'MATCHMAKING_NOT_CONFIGURED' });
     }
@@ -368,7 +491,7 @@ export const buildApp = (deps: AuthHttpDependencies): FastifyInstance => {
   app.get('/api/match-intents/incoming', async (request, reply) => {
     const auth = await authenticate(request, reply, deps, now);
     if (!auth) return;
-    if (!(await requireAgeApproved(auth.claims.userId, reply, deps))) return;
+    if (!(await requireRestrictedEligibility(auth.claims.userId, reply, deps))) return;
     if (!deps.matchIntentService) {
       return reply.code(503).send({ error: 'MATCHMAKING_NOT_CONFIGURED' });
     }
@@ -382,7 +505,7 @@ export const buildApp = (deps: AuthHttpDependencies): FastifyInstance => {
     async (request, reply) => {
       const auth = await authenticate(request, reply, deps, now);
       if (!auth) return;
-      if (!(await requireAgeApproved(auth.claims.userId, reply, deps))) return;
+      if (!(await requireRestrictedEligibility(auth.claims.userId, reply, deps))) return;
       if (!deps.matchIntentService) {
         return reply.code(503).send({ error: 'MATCHMAKING_NOT_CONFIGURED' });
       }
@@ -407,6 +530,167 @@ export const buildApp = (deps: AuthHttpDependencies): FastifyInstance => {
       }
     },
   );
+
+  app.post<{ Body: ConsentCreateBody }>('/api/consents', async (request, reply) => {
+    const auth = await authenticate(request, reply, deps, now);
+    if (!auth) return;
+    if (!(await requireRestrictedEligibility(auth.claims.userId, reply, deps))) return;
+    if (!deps.consentService) {
+      return reply.code(503).send({ error: 'CONSENT_NOT_CONFIGURED' });
+    }
+
+    const matchIntentId = request.body?.match_intent_id;
+    if (typeof matchIntentId !== 'string') {
+      return reply.code(400).send({ error: 'INVALID_REQUEST' });
+    }
+    try {
+      const consent = await deps.consentService.create(auth.claims.userId, matchIntentId);
+      return reply.code(201).send({ data: serializeConsent(consent) });
+    } catch (error) {
+      if (error instanceof ConsentError) {
+        return reply.code(consentErrorStatus(error)).send({ error: error.code });
+      }
+      request.log.error({ err: error }, 'api/consents create failed');
+      return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
+  app.post<{ Params: ConsentParams; Body: ConsentDecisionBody }>(
+    '/api/consents/:id/decision',
+    async (request, reply) => {
+      const auth = await authenticate(request, reply, deps, now);
+      if (!auth) return;
+      if (!(await requireRestrictedEligibility(auth.claims.userId, reply, deps))) return;
+      if (!deps.consentService) {
+        return reply.code(503).send({ error: 'CONSENT_NOT_CONFIGURED' });
+      }
+
+      const decision = request.body?.decision;
+      const requestId = request.body?.request_id;
+      if (
+        (decision !== 'ACCEPTED' && decision !== 'DECLINED') ||
+        typeof requestId !== 'string'
+      ) {
+        return reply.code(400).send({ error: 'INVALID_REQUEST' });
+      }
+      try {
+        const consent = await deps.consentService.decide(
+          auth.claims.userId,
+          request.params.id,
+          decision,
+          auth.claims.sessionId,
+          requestId,
+        );
+        return reply.code(200).send({ data: serializeConsent(consent) });
+      } catch (error) {
+        if (error instanceof ConsentError) {
+          return reply.code(consentErrorStatus(error)).send({ error: error.code });
+        }
+        request.log.error({ err: error }, 'api/consents decision failed');
+        return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+      }
+    },
+  );
+
+  app.post<{ Body: VideoSessionCreateBody }>('/api/video/sessions', async (request, reply) => {
+    const auth = await authenticate(request, reply, deps, now);
+    if (!auth) return;
+    if (!(await requireRestrictedEligibility(auth.claims.userId, reply, deps))) return;
+    if (!deps.videoSessionService) {
+      return reply.code(503).send({ error: 'VIDEO_NOT_CONFIGURED' });
+    }
+
+    const consentId = request.body?.consent_id;
+    if (typeof consentId !== 'string') {
+      return reply.code(400).send({ error: 'INVALID_REQUEST' });
+    }
+    try {
+      const session = await deps.videoSessionService.create(auth.claims.userId, consentId);
+      return reply.code(201).send({ data: serializeVideoSession(session) });
+    } catch (error) {
+      if (error instanceof VideoAuthorizationError) {
+        return reply.code(videoErrorStatus(error)).send({ error: error.code });
+      }
+      request.log.error({ err: error }, 'api/video/sessions create failed');
+      return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
+  app.post<{ Params: VideoSessionParams }>('/api/video/sessions/:id/token', async (request, reply) => {
+    const auth = await authenticate(request, reply, deps, now);
+    if (!auth) return;
+    if (!(await requireRestrictedEligibility(auth.claims.userId, reply, deps))) return;
+    if (!deps.videoSessionService) {
+      return reply.code(503).send({ error: 'VIDEO_NOT_CONFIGURED' });
+    }
+
+    try {
+      const token = await deps.videoSessionService.issueToken(auth.claims.userId, request.params.id);
+      return reply.code(200).send({ data: { session_id: request.params.id, token } });
+    } catch (error) {
+      if (error instanceof VideoAuthorizationError) {
+        return reply.code(videoErrorStatus(error)).send({ error: error.code });
+      }
+      request.log.error({ err: error }, 'api/video/sessions token failed');
+      return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
+  app.post<{ Body: BlockBody }>('/api/blocks', async (request, reply) => {
+    const auth = await authenticate(request, reply, deps, now);
+    if (!auth) return;
+    if (!deps.moderationService) {
+      return reply.code(503).send({ error: 'MODERATION_NOT_CONFIGURED' });
+    }
+
+    const blockedId = request.body?.blocked_id;
+    if (typeof blockedId !== 'string') {
+      return reply.code(400).send({ error: 'INVALID_REQUEST' });
+    }
+    try {
+      const block = await deps.moderationService.block(auth.claims.userId, blockedId);
+      return reply.code(201).send({ data: serializeBlock(block) });
+    } catch (error) {
+      if (error instanceof ModerationError) {
+        return reply.code(moderationErrorStatus(error)).send({ error: error.code });
+      }
+      request.log.error({ err: error }, 'api/blocks failed');
+      return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
+  app.post<{ Body: ReportBody }>('/api/reports', async (request, reply) => {
+    const auth = await authenticate(request, reply, deps, now);
+    if (!auth) return;
+    if (!deps.moderationService) {
+      return reply.code(503).send({ error: 'MODERATION_NOT_CONFIGURED' });
+    }
+
+    const reportedId = request.body?.reported_id;
+    const sessionId = request.body?.session_id;
+    const category = request.body?.category;
+    if (
+      typeof reportedId !== 'string' ||
+      typeof category !== 'string' ||
+      (sessionId !== undefined && sessionId !== null && typeof sessionId !== 'string')
+    ) {
+      return reply.code(400).send({ error: 'INVALID_REQUEST' });
+    }
+    try {
+      const report = await deps.moderationService.report(auth.claims.userId, {
+        reportedId,
+        sessionId: sessionId ?? null,
+        category,
+      });
+      return reply.code(201).send({ data: serializeReport(report) });
+    } catch (error) {
+      if (error instanceof ModerationError) {
+        return reply.code(moderationErrorStatus(error)).send({ error: error.code });
+      }
+      request.log.error({ err: error }, 'api/reports failed');
+      return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+    }
+  });
 
   app.post<{ Body: ChatBody }>('/api/chat', async (request, reply) => {
     const auth = await authenticate(request, reply, deps, now);
