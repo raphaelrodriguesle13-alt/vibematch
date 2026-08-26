@@ -33,6 +33,11 @@ export const env = {
 
   consentDecisionExpirySeconds: intFromEnv('CONSENT_DECISION_EXPIRY_SECONDS', 86400),
 
+  /** LiveKit: URL pública para RTC e credenciais somente server-side. */
+  liveKitUrl: () => required('LIVEKIT_URL'),
+  liveKitApiKey: () => required('LIVEKIT_API_KEY'),
+  liveKitApiSecret: () => required('LIVEKIT_API_SECRET'),
+
   /** ChatGPT é acessado apenas pelo backend; a chave é resolvida somente no uso. */
   openAiApiKey: () => required('OPENAI_API_KEY'),
   openAiBaseUrl: process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1',
