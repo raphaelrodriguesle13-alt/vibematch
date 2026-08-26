@@ -461,6 +461,7 @@ class BillingViewModel(
     private val mutableState = androidx.compose.runtime.mutableStateOf(BillingUiState())
     val state: androidx.compose.runtime.State<BillingUiState> = mutableState
     private var operationJob: Job? = null
+    private var flowActive = false
 
     init {
         viewModelScope.launch {
@@ -479,12 +480,14 @@ class BillingViewModel(
             mutableState.value.status == BillingUiStatus.PURCHASING
         ) return
         if (productId.isBlank()) {
+            flowActive = false
             mutableState.value = BillingUiState(
                 status = BillingUiStatus.NOT_CONFIGURED,
                 errorMessage = "O produto Premium ainda não foi configurado para este ambiente.",
             )
             return
         }
+        flowActive = true
         runOperation {
             mutableState.value = mutableState.value.copy(
                 status = BillingUiStatus.CONNECTING,
@@ -623,13 +626,14 @@ class BillingViewModel(
     }
 
     fun reset() {
+        flowActive = false
         operationJob?.cancel()
         operationJob = null
         mutableState.value = BillingUiState()
     }
 
     private suspend fun handlePurchase(purchase: BillingPurchase) {
-        if (purchase.productId != productId) return
+        if (!flowActive || purchase.productId != productId) return
         if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) {
             mutableState.value = mutableState.value.copy(
                 status = BillingUiStatus.READY,
@@ -750,6 +754,7 @@ class BillingViewModel(
         result.responseCode == BillingClient.BillingResponseCode.OK
 
     override fun onCleared() {
+        flowActive = false
         operationJob?.cancel()
         playGateway.close()
         super.onCleared()
