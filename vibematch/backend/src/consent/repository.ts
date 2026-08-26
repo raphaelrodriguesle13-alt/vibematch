@@ -51,6 +51,19 @@ export class ConsentRepository implements ConsentRepositoryPort {
     return result.rows[0] ? this.map(result.rows[0]) : null;
   }
 
+  async consumeDecisionRateLimit(userId: string, now: Date, limit: number): Promise<boolean> {
+    const result = await this.pool.query(
+      `INSERT INTO matchmaking_rate_limits (user_id, scope, window_started_at, request_count)
+       VALUES ($1, 'CONSENT_DECISION', date_trunc('minute', $2::timestamptz), 1)
+       ON CONFLICT (user_id, scope, window_started_at)
+       DO UPDATE SET request_count = matchmaking_rate_limits.request_count + 1
+       WHERE matchmaking_rate_limits.request_count < $3
+       RETURNING request_count`,
+      [userId, now, limit],
+    );
+    return (result.rowCount ?? 0) === 1;
+  }
+
   async decide(
     actingUserId: string,
     consentId: string,
