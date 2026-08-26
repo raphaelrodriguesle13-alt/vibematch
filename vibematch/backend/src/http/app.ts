@@ -15,7 +15,6 @@ import {
 import {
   MatchIntentError,
   type MatchIntent,
-  type MatchIntentDecision,
   type MatchIntentService,
 } from '../matchmaking/service';
 
@@ -155,6 +154,9 @@ const serializeMatchIntent = (intent: MatchIntent) => ({
   created_at: intent.createdAt.toISOString(),
 });
 
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item: unknown) => typeof item === 'string');
+
 const parseProfileBody = (body: ProfileBody | undefined): UpdateProfileInput | null => {
   if (
     typeof body?.display_name !== 'string' ||
@@ -163,25 +165,23 @@ const parseProfileBody = (body: ProfileBody | undefined): UpdateProfileInput | n
   ) {
     return null;
   }
-  if (
-    body.avatar_url !== undefined &&
-    body.avatar_url !== null &&
-    typeof body.avatar_url !== 'string'
-  ) {
+
+  const avatarUrl = body.avatar_url;
+  if (avatarUrl !== undefined && avatarUrl !== null && typeof avatarUrl !== 'string') {
     return null;
   }
-  if (
-    body.interest_ids !== undefined &&
-    (!Array.isArray(body.interest_ids) || body.interest_ids.some((id) => typeof id !== 'string'))
-  ) {
+
+  const interestIds = body.interest_ids;
+  if (interestIds !== undefined && !isStringArray(interestIds)) {
     return null;
   }
+
   return {
     displayName: body.display_name,
     language: body.language,
     region: body.region,
-    ...(body.avatar_url !== undefined ? { avatarUrl: body.avatar_url as string | null } : {}),
-    ...(body.interest_ids !== undefined ? { interestIds: body.interest_ids } : {}),
+    ...(avatarUrl !== undefined ? { avatarUrl } : {}),
+    ...(interestIds !== undefined ? { interestIds } : {}),
   };
 };
 
@@ -395,7 +395,7 @@ export const buildApp = (deps: AuthHttpDependencies): FastifyInstance => {
         const intent = await deps.matchIntentService.respond(
           auth.claims.userId,
           request.params.id,
-          decision as MatchIntentDecision,
+          decision,
         );
         return reply.code(200).send({ data: serializeMatchIntent(intent) });
       } catch (error) {
