@@ -1,10 +1,4 @@
-export type ReportCategory =
-  | 'HARASSMENT'
-  | 'HATE'
-  | 'SEXUAL_CONTENT'
-  | 'SCAM'
-  | 'SPAM'
-  | 'OTHER';
+export type ReportCategory = 'HARASSMENT' | 'HATE' | 'SEXUAL_CONTENT' | 'SCAM' | 'SPAM' | 'OTHER';
 export type ReportSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
 
 export type Block = {
@@ -38,9 +32,7 @@ export interface ModerationRepositoryPort {
 }
 
 export type ModerationErrorCode =
-  | 'INVALID_MODERATION_REQUEST'
-  | 'BLOCK_NOT_AVAILABLE'
-  | 'REPORT_NOT_AVAILABLE';
+  'INVALID_MODERATION_REQUEST' | 'BLOCK_NOT_AVAILABLE' | 'REPORT_NOT_AVAILABLE';
 
 export class ModerationError extends Error {
   constructor(

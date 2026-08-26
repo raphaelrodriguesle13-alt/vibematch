@@ -93,9 +93,10 @@ describe('Phone verification database boundary', () => {
       await client.query('UPDATE users SET phone_verified = FALSE WHERE id = $1', [userA]);
 
       const message = await expectRejection(() =>
-        client.query(`INSERT INTO sessions (consent_id, livekit_room) VALUES ($1, 'phone-denied')`, [
-          consentId,
-        ]),
+        client.query(
+          `INSERT INTO sessions (consent_id, livekit_room) VALUES ($1, 'phone-denied')`,
+          [consentId],
+        ),
       );
 
       expect(message).toMatch(/phone verification required/);

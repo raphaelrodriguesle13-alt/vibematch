@@ -72,13 +72,7 @@ export class ModerationRepository implements ModerationRepositoryPort {
                )
              )
            RETURNING id, reporter_id, reported_id, session_id, category, severity, status, created_at`,
-          [
-            input.reporterId,
-            input.reportedId,
-            input.sessionId,
-            input.category,
-            input.severity,
-          ],
+          [input.reporterId, input.reportedId, input.sessionId, input.category, input.severity],
         );
         const row = report.rows[0];
         if (!row) {
