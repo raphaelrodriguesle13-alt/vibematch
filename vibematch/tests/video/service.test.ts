@@ -73,7 +73,11 @@ describe('VideoSessionService', () => {
     await service.create(USER_ID, CONSENT_ID);
 
     expect(repository.createCall).not.toBeNull();
-    expect(repository.createCall).toMatchObject({ userId: USER_ID, consentId: CONSENT_ID, now: NOW });
+    expect(repository.createCall).toMatchObject({
+      userId: USER_ID,
+      consentId: CONSENT_ID,
+      now: NOW,
+    });
     expect(repository.createCall?.roomName).toMatch(/^vibematch-[0-9a-f-]+$/i);
   });
 
