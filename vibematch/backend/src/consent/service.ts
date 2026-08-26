@@ -29,10 +29,7 @@ export interface ConsentRepositoryPort {
 }
 
 export type ConsentErrorCode =
-  | 'INVALID_CONSENT'
-  | 'CONSENT_NOT_ELIGIBLE'
-  | 'CONSENT_NOT_AVAILABLE'
-  | 'RATE_LIMITED';
+  'INVALID_CONSENT' | 'CONSENT_NOT_ELIGIBLE' | 'CONSENT_NOT_AVAILABLE' | 'RATE_LIMITED';
 
 export class ConsentError extends Error {
   constructor(
@@ -78,7 +75,9 @@ export class ConsentService {
       throw new ConsentError('INVALID_CONSENT', 'Consent decision metadata is invalid');
     }
     const now = this.now();
-    if (!(await this.repository.consumeDecisionRateLimit(actingUserId, now, this.decisionRateLimit))) {
+    if (
+      !(await this.repository.consumeDecisionRateLimit(actingUserId, now, this.decisionRateLimit))
+    ) {
       throw new ConsentError('RATE_LIMITED', 'Consent decision rate limit exceeded');
     }
 

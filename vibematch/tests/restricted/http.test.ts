@@ -80,15 +80,13 @@ const baseDeps = (): AuthHttpDependencies => ({
 
 describe('Restricted HTTP safety boundaries', () => {
   test('consent decision derives actor and auth session from authentication, not payload', async () => {
-    let call:
-      | {
-          actingUserId: string;
-          consentId: string;
-          decision: ConsentDecision;
-          authSessionRef: string;
-          requestId: string;
-        }
-      | null = null;
+    let call: {
+      actingUserId: string;
+      consentId: string;
+      decision: ConsentDecision;
+      authSessionRef: string;
+      requestId: string;
+    } | null = null;
     const deps = baseDeps();
     deps.consentService = {
       create: () => Promise.resolve(consent),

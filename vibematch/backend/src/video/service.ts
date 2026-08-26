@@ -47,10 +47,7 @@ export interface VideoTokenProvider {
 }
 
 export type VideoAuthorizationErrorCode =
-  | 'INVALID_VIDEO_REQUEST'
-  | 'VIDEO_NOT_AUTHORIZED'
-  | 'VIDEO_PROVIDER_UNAVAILABLE'
-  | 'RATE_LIMITED';
+  'INVALID_VIDEO_REQUEST' | 'VIDEO_NOT_AUTHORIZED' | 'VIDEO_PROVIDER_UNAVAILABLE' | 'RATE_LIMITED';
 
 export class VideoAuthorizationError extends Error {
   constructor(
@@ -78,7 +75,14 @@ export class VideoSessionService {
       throw new VideoAuthorizationError('INVALID_VIDEO_REQUEST', 'Consent id is invalid');
     }
     const now = this.now();
-    if (!(await this.repository.consumeRateLimit(userId, 'SESSION_CREATE', now, this.requestRateLimit))) {
+    if (
+      !(await this.repository.consumeRateLimit(
+        userId,
+        'SESSION_CREATE',
+        now,
+        this.requestRateLimit,
+      ))
+    ) {
       throw new VideoAuthorizationError('RATE_LIMITED', 'Video session rate limit exceeded');
     }
 

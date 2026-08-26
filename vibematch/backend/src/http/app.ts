@@ -197,6 +197,7 @@ const consentErrorStatus = (error: ConsentError): number => {
     case 'RATE_LIMITED':
       return 429;
   }
+  throw new Error('Unhandled consent error code');
 };
 
 const videoErrorStatus = (error: VideoAuthorizationError): number => {
@@ -210,6 +211,7 @@ const videoErrorStatus = (error: VideoAuthorizationError): number => {
     case 'RATE_LIMITED':
       return 429;
   }
+  throw new Error('Unhandled video error code');
 };
 
 const moderationErrorStatus = (error: ModerationError): number => {
@@ -571,10 +573,7 @@ export const buildApp = (deps: AuthHttpDependencies): FastifyInstance => {
 
       const decision = request.body?.decision;
       const requestId = request.body?.request_id;
-      if (
-        (decision !== 'ACCEPTED' && decision !== 'DECLINED') ||
-        typeof requestId !== 'string'
-      ) {
+      if ((decision !== 'ACCEPTED' && decision !== 'DECLINED') || typeof requestId !== 'string') {
         return reply.code(400).send({ error: 'INVALID_REQUEST' });
       }
       try {

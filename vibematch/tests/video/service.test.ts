@@ -27,7 +27,8 @@ class FakeVideoRepository implements VideoSessionRepositoryPort {
     userId: USER_ID,
   };
   rateLimitAllowed = true;
-  rateLimitCalls: Array<{ userId: string; scope: VideoRateLimitScope; now: Date; limit: number }> = [];
+  rateLimitCalls: Array<{ userId: string; scope: VideoRateLimitScope; now: Date; limit: number }> =
+    [];
   createCall: { userId: string; consentId: string; roomName: string; now: Date } | null = null;
   revalidateCall: { userId: string; sessionId: string; now: Date } | null = null;
 

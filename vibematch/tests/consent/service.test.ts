@@ -90,13 +90,7 @@ describe('ConsentService', () => {
   test('rate limits consent decisions before touching consent state', async () => {
     const repository = new FakeConsentRepository();
     repository.rateLimitAllowed = false;
-    const service = new ConsentService(
-      repository,
-      () => NOW,
-      10 * 60 * 1000,
-      5 * 60 * 1000,
-      30,
-    );
+    const service = new ConsentService(repository, () => NOW, 10 * 60 * 1000, 5 * 60 * 1000, 30);
 
     await expect(
       service.decide(USER_A, CONSENT_ID, 'ACCEPTED', 'session-1', REQUEST_ID),
