@@ -12,9 +12,9 @@ describe('LiveKitRoomAdmin', () => {
       apiKey: 'test-key',
       apiSecret: secret,
       now: () => new Date('2026-08-26T20:00:00.000Z'),
-      fetcher: async (url, init) => {
+      fetcher: (url, init) => {
         calls.push({ url, init });
-        return new Response('{}', { status: 200 });
+        return Promise.resolve(new Response('{}', { status: 200 }));
       },
     });
 
@@ -28,8 +28,13 @@ describe('LiveKitRoomAdmin', () => {
     expect(calls[0]?.init.body).toBe(JSON.stringify({ room: 'vibematch-room-1' }));
 
     const headers = calls[0]?.init.headers as Record<string, string>;
-    const token = headers.authorization.replace('Bearer ', '');
-    const verified = await jwtVerify(token, key, { issuer: 'test-key' });
+    const authorization = headers.authorization;
+    if (!authorization) throw new Error('Missing Authorization header');
+    const token = authorization.replace('Bearer ', '');
+    const verified = await jwtVerify(token, key, {
+      issuer: 'test-key',
+      currentDate: new Date('2026-08-26T20:00:00.000Z'),
+    });
     expect(verified.payload.video).toEqual({ room: 'vibematch-room-1', roomAdmin: true });
     expect((verified.payload.exp ?? 0) - (verified.payload.iat ?? 0)).toBe(60);
   });
@@ -50,7 +55,7 @@ describe('LiveKitRoomAdmin', () => {
       baseUrl: 'https://example.livekit.cloud',
       apiKey: 'key',
       apiSecret: secret,
-      fetcher: async () => new Response('{}', { status: 503 }),
+      fetcher: () => Promise.resolve(new Response('{}', { status: 503 })),
     });
 
     await expect(admin.terminateRoom('room')).rejects.toThrow('HTTP 503');
