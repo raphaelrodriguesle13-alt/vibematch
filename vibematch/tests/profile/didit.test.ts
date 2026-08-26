@@ -13,7 +13,7 @@ describe('DiditAgeAssuranceProvider', () => {
     const provider = new DiditAgeAssuranceProvider({
       apiKey: 'server-only-key',
       workflowId: 'workflow-123',
-      fetchImpl: fetchImpl as unknown as typeof fetch,
+      fetchImpl,
     });
 
     await expect(provider.start('user-1')).resolves.toEqual({
@@ -37,7 +37,7 @@ describe('DiditAgeAssuranceProvider', () => {
       fetchImpl: jest.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({ session_id: 'session-123', status: providerStatus }),
-      }) as unknown as typeof fetch,
+      }),
     });
 
     await expect(provider.getResult('session-123')).resolves.toMatchObject({ decision: expected });
@@ -51,7 +51,7 @@ describe('DiditAgeAssuranceProvider', () => {
         ok: true,
         json: () =>
           Promise.resolve({ session_id: 'session-123', url: 'http://unsafe.example/session' }),
-      }) as unknown as typeof fetch,
+      }),
     });
 
     await expect(provider.start('user-1')).rejects.toThrow('must use HTTPS');
