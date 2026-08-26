@@ -1,4 +1,4 @@
-import { decodeJwt, jwtVerify } from 'jose';
+import { jwtVerify } from 'jose';
 import { LiveKitRoomAdmin } from '../../backend/src/video/livekit-room-admin';
 
 const secret = 'test-livekit-secret-value';
