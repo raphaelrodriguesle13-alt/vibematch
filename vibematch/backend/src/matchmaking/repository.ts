@@ -32,12 +32,18 @@ export class MatchIntentRepository implements MatchIntentRepositoryPort {
          AND EXISTS (
            SELECT 1 FROM users u
            JOIN profiles p ON p.user_id = u.id
-           WHERE u.id = $1 AND u.status = 'ACTIVE' AND u.age_assurance_status = 'APPROVED'
+           WHERE u.id = $1
+             AND u.status = 'ACTIVE'
+             AND u.phone_verified = TRUE
+             AND u.age_assurance_status = 'APPROVED'
          )
          AND EXISTS (
            SELECT 1 FROM users u
            JOIN profiles p ON p.user_id = u.id
-           WHERE u.id = $2 AND u.status = 'ACTIVE' AND u.age_assurance_status = 'APPROVED'
+           WHERE u.id = $2
+             AND u.status = 'ACTIVE'
+             AND u.phone_verified = TRUE
+             AND u.age_assurance_status = 'APPROVED'
          )
          AND NOT EXISTS (
            SELECT 1 FROM blocks b
@@ -66,11 +72,26 @@ export class MatchIntentRepository implements MatchIntentRepositoryPort {
       [receiverId, now],
     );
     const result = await this.pool.query<MatchIntentRow>(
-      `SELECT id, sender_id, receiver_id, status, expires_at,
-              responded_at, closed_at, created_at
-       FROM match_intents
-       WHERE receiver_id = $1 AND status = 'SENT' AND expires_at > $2
-       ORDER BY created_at DESC`,
+      `SELECT mi.id, mi.sender_id, mi.receiver_id, mi.status, mi.expires_at,
+              mi.responded_at, mi.closed_at, mi.created_at
+       FROM match_intents mi
+       JOIN users sender ON sender.id = mi.sender_id
+       JOIN users receiver ON receiver.id = mi.receiver_id
+       WHERE mi.receiver_id = $1
+         AND mi.status = 'SENT'
+         AND mi.expires_at > $2
+         AND sender.status = 'ACTIVE'
+         AND receiver.status = 'ACTIVE'
+         AND sender.phone_verified = TRUE
+         AND receiver.phone_verified = TRUE
+         AND sender.age_assurance_status = 'APPROVED'
+         AND receiver.age_assurance_status = 'APPROVED'
+         AND NOT EXISTS (
+           SELECT 1 FROM blocks b
+           WHERE (b.blocker_id = mi.sender_id AND b.blocked_id = mi.receiver_id)
+              OR (b.blocker_id = mi.receiver_id AND b.blocked_id = mi.sender_id)
+         )
+       ORDER BY mi.created_at DESC`,
       [receiverId, now],
     );
     return result.rows.map((row) => this.map(row));
@@ -113,11 +134,17 @@ export class MatchIntentRepository implements MatchIntentRepositoryPort {
           `SELECT 1
            WHERE EXISTS (
              SELECT 1 FROM users u
-             WHERE u.id = $1 AND u.status = 'ACTIVE' AND u.age_assurance_status = 'APPROVED'
+             WHERE u.id = $1
+               AND u.status = 'ACTIVE'
+               AND u.phone_verified = TRUE
+               AND u.age_assurance_status = 'APPROVED'
            )
              AND EXISTS (
              SELECT 1 FROM users u
-             WHERE u.id = $2 AND u.status = 'ACTIVE' AND u.age_assurance_status = 'APPROVED'
+             WHERE u.id = $2
+               AND u.status = 'ACTIVE'
+               AND u.phone_verified = TRUE
+               AND u.age_assurance_status = 'APPROVED'
            )
              AND NOT EXISTS (
              SELECT 1 FROM blocks b
