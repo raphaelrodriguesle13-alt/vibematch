@@ -187,6 +187,7 @@ class MainActivity : ComponentActivity() {
                             profileViewModel.reset()
                             profileViewModel.load()
                         },
+                        onAuthorizationRevoked = rtcRoomViewModel::disconnect,
                         onTokenIssued = { token, _ ->
                             rtcRoomViewModel.setPendingJitToken(token)
                         },
@@ -256,8 +257,13 @@ private fun VibeMatchApp(
     var moderationSessionId by remember(sessionId) { mutableStateOf<String?>(null) }
     var moderationReturnsToConsent by remember(sessionId) { mutableStateOf(false) }
 
+    fun stopRtc() {
+        rtcRoomViewModel.disconnect()
+        rtcRoomViewModel.discardPendingJitToken()
+    }
+
     DisposableEffect(Unit) {
-        onDispose { rtcRoomViewModel.disconnect() }
+        onDispose { stopRtc() }
     }
 
     LaunchedEffect(sessionId) {
@@ -267,7 +273,7 @@ private fun VibeMatchApp(
         consentViewModel.reset()
         videoViewModel.reset()
         moderationViewModel.reset()
-        rtcRoomViewModel.disconnect()
+        stopRtc()
         showConsent = false
         consentMatchIntentId = null
         showVideo = false
@@ -303,6 +309,7 @@ private fun VibeMatchApp(
                     viewModel = profileViewModel,
                     onClose = { showProfile = false },
                     onLogout = {
+                        stopRtc()
                         profileViewModel.reset()
                         matchIntentViewModel.reset()
                         chatViewModel.clearConversation()
@@ -315,6 +322,7 @@ private fun VibeMatchApp(
                 PhoneVerificationScreen(
                     viewModel = phoneViewModel,
                     onLogout = {
+                        stopRtc()
                         phoneViewModel.reset()
                         matchIntentViewModel.reset()
                         chatViewModel.clearConversation()
@@ -340,6 +348,7 @@ private fun VibeMatchApp(
                         moderationReturnsToConsent = false
                     },
                     onLogout = {
+                        stopRtc()
                         moderationViewModel.reset()
                         consentViewModel.reset()
                         matchIntentViewModel.reset()
@@ -356,7 +365,7 @@ private fun VibeMatchApp(
                     liveKitUrl = BuildConfig.LIVEKIT_URL,
                     consentId = selectedVideoConsentId,
                     onOpenModeration = {
-                        rtcRoomViewModel.disconnect()
+                        stopRtc()
                         val targetUserId = videoOtherParticipantId
                         if (targetUserId != null) {
                             moderationViewModel.reset()
@@ -368,14 +377,13 @@ private fun VibeMatchApp(
                         }
                     },
                     onClose = {
-                        rtcRoomViewModel.disconnect()
-                        rtcRoomViewModel.discardPendingJitToken()
+                        stopRtc()
                         showVideo = false
                         videoConsentId = null
                         showConsent = true
                     },
                     onLogout = {
-                        rtcRoomViewModel.disconnect()
+                        stopRtc()
                         videoViewModel.reset()
                         consentViewModel.reset()
                         matchIntentViewModel.reset()
@@ -408,6 +416,7 @@ private fun VibeMatchApp(
                         showMatchIntents = true
                     },
                     onLogout = {
+                        stopRtc()
                         consentViewModel.reset()
                         matchIntentViewModel.reset()
                         chatViewModel.clearConversation()
@@ -426,6 +435,7 @@ private fun VibeMatchApp(
                         showConsent = true
                     },
                     onLogout = {
+                        stopRtc()
                         matchIntentViewModel.reset()
                         consentViewModel.reset()
                         chatViewModel.clearConversation()
@@ -439,6 +449,7 @@ private fun VibeMatchApp(
                     viewModel = chatViewModel,
                     isSigningOut = authState.isLoading,
                     onLogout = {
+                        stopRtc()
                         chatViewModel.clearConversation()
                         matchIntentViewModel.reset()
                         phoneViewModel.reset()
@@ -1187,6 +1198,7 @@ private fun RtcCallPanel(
                 AndroidView(
                     factory = { context -> SurfaceViewRenderer(context) },
                     update = rtcViewModel::attachRemoteRenderer,
+                    onRelease = rtcViewModel::detachRemoteRenderer,
                     modifier = Modifier
                         .weight(1f)
                         .height(250.dp),
@@ -1194,6 +1206,7 @@ private fun RtcCallPanel(
                 AndroidView(
                     factory = { context -> SurfaceViewRenderer(context) },
                     update = rtcViewModel::attachLocalRenderer,
+                    onRelease = rtcViewModel::detachLocalRenderer,
                     modifier = Modifier
                         .weight(1f)
                         .height(250.dp),

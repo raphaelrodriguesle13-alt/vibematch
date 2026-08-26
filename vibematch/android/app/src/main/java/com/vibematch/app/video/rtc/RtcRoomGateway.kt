@@ -54,7 +54,9 @@ interface RtcRoomGateway {
     suspend fun setMicrophoneEnabled(enabled: Boolean)
     suspend fun setCameraEnabled(enabled: Boolean)
     fun attachLocalRenderer(renderer: SurfaceViewRenderer)
+    fun detachLocalRenderer(renderer: SurfaceViewRenderer)
     fun attachRemoteRenderer(renderer: SurfaceViewRenderer)
+    fun detachRemoteRenderer(renderer: SurfaceViewRenderer)
     fun disconnectNow()
 }
 
@@ -148,15 +150,35 @@ class LiveKitRtcRoomGateway(
     }
 
     override fun attachLocalRenderer(renderer: SurfaceViewRenderer) {
-        localRenderer = renderer
-        room?.initVideoRenderer(renderer)
+        if (localRenderer !== renderer) {
+            localRenderer?.let(::detachLocalRenderer)
+            localRenderer = renderer
+            room?.initVideoRenderer(renderer)
+        }
         localVideoTrack?.addRenderer(renderer)
     }
 
+    override fun detachLocalRenderer(renderer: SurfaceViewRenderer) {
+        if (localRenderer !== renderer) return
+        localVideoTrack?.removeRenderer(renderer)
+        localRenderer = null
+        renderer.release()
+    }
+
     override fun attachRemoteRenderer(renderer: SurfaceViewRenderer) {
-        remoteRenderer = renderer
-        room?.initVideoRenderer(renderer)
+        if (remoteRenderer !== renderer) {
+            remoteRenderer?.let(::detachRemoteRenderer)
+            remoteRenderer = renderer
+            room?.initVideoRenderer(renderer)
+        }
         remoteVideoTrack?.addRenderer(renderer)
+    }
+
+    override fun detachRemoteRenderer(renderer: SurfaceViewRenderer) {
+        if (remoteRenderer !== renderer) return
+        remoteVideoTrack?.removeRenderer(renderer)
+        remoteRenderer = null
+        renderer.release()
     }
 
     override fun disconnectNow() {
@@ -164,16 +186,12 @@ class LiveKitRtcRoomGateway(
         try {
             eventsJob?.cancel()
             eventsJob = null
-            remoteRenderer?.let { renderer -> remoteVideoTrack?.removeRenderer(renderer) }
-            localRenderer?.let { renderer -> localVideoTrack?.removeRenderer(renderer) }
+            remoteRenderer?.let(::detachRemoteRenderer)
+            localRenderer?.let(::detachLocalRenderer)
             remoteVideoTrack = null
             localVideoTrack = null
             room?.disconnect()
             room?.release()
-            localRenderer?.release()
-            remoteRenderer?.release()
-            localRenderer = null
-            remoteRenderer = null
             room = null
             mutableState.value = RtcRoomUiState(status = RtcRoomStatus.DISCONNECTED)
         } finally {
@@ -332,10 +350,12 @@ class RtcRoomViewModel(
     }
 
     fun setMicrophoneEnabled(enabled: Boolean) {
+        if (mutableState.value.status != RtcRoomStatus.CONNECTED) return
         viewModelScope.launch { gateway.setMicrophoneEnabled(enabled) }
     }
 
     fun setCameraEnabled(enabled: Boolean) {
+        if (mutableState.value.status != RtcRoomStatus.CONNECTED) return
         viewModelScope.launch { gateway.setCameraEnabled(enabled) }
     }
 
@@ -343,8 +363,16 @@ class RtcRoomViewModel(
         gateway.attachLocalRenderer(renderer)
     }
 
+    fun detachLocalRenderer(renderer: SurfaceViewRenderer) {
+        gateway.detachLocalRenderer(renderer)
+    }
+
     fun attachRemoteRenderer(renderer: SurfaceViewRenderer) {
         gateway.attachRemoteRenderer(renderer)
+    }
+
+    fun detachRemoteRenderer(renderer: SurfaceViewRenderer) {
+        gateway.detachRemoteRenderer(renderer)
     }
 
     override fun onCleared() {

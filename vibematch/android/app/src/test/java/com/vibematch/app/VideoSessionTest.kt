@@ -84,6 +84,25 @@ class VideoSessionTest {
     }
 
     @Test
+    fun `disconnects RTC when backend revokes video authorization`() = runTest {
+        var authorizationRevoked = false
+        gateway.tokenError = VideoApiException(403, "VIDEO_NOT_AUTHORIZED", "revoked")
+        val viewModel = VideoSessionViewModel(
+            gateway = gateway,
+            accessTokenProvider = { "session-jwt" },
+            onAuthorizationRevoked = { authorizationRevoked = true },
+        )
+
+        viewModel.create("consent-1")
+        viewModel.issueToken()
+
+        assertTrue(authorizationRevoked)
+        assertFalse(viewModel.state.value.tokenIssued)
+        assertFalse(viewModel.state.value.isIssuingToken)
+        assertEquals("O backend não autorizou esta sessão de vídeo.", viewModel.state.value.errorMessage)
+    }
+
+    @Test
     fun `does not create or issue when session is absent`() = runTest {
         val viewModel = VideoSessionViewModel(gateway, { "session-jwt" })
 

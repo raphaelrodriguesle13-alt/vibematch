@@ -43,6 +43,8 @@ class RtcRoomGatewayTest {
         assertEquals(0, gateway.connectCalls)
 
         viewModel.setPendingJitToken("short-lived-token")
+        assertTrue(viewModel.state.value.jitTokenReady)
+        assertFalse(viewModel.state.value.toString().contains("short-lived-token"))
         assertTrue(viewModel.connectWithPendingJitToken("wss://livekit.example"))
         assertEquals(1, gateway.connectCalls)
         assertEquals("wss://livekit.example", gateway.lastServerUrl)
@@ -53,6 +55,24 @@ class RtcRoomGatewayTest {
     }
 
     @Test
+    fun `media controls do nothing before authorized connection`() = runTest {
+        val viewModel = RtcRoomViewModel(gateway)
+
+        viewModel.setCameraEnabled(true)
+        viewModel.setMicrophoneEnabled(true)
+        assertEquals(0, gateway.cameraCalls)
+        assertEquals(0, gateway.microphoneCalls)
+
+        viewModel.setPendingJitToken("short-lived-token")
+        assertTrue(viewModel.connectWithPendingJitToken("wss://livekit.example"))
+        viewModel.setCameraEnabled(true)
+        viewModel.setMicrophoneEnabled(true)
+
+        assertEquals(1, gateway.cameraCalls)
+        assertEquals(1, gateway.microphoneCalls)
+    }
+
+    @Test
     fun `blank public LiveKit URL fails closed without connecting`() = runTest {
         val viewModel = RtcRoomViewModel(gateway)
         viewModel.setPendingJitToken("short-lived-token")
@@ -60,6 +80,25 @@ class RtcRoomGatewayTest {
         assertFalse(viewModel.connectWithPendingJitToken(""))
         assertEquals(0, gateway.connectCalls)
         assertEquals(RtcRoomStatus.FAILED, viewModel.state.value.status)
+    }
+
+    @Test
+    fun `connection failure requires a new JIT token`() = runTest {
+        val viewModel = RtcRoomViewModel(gateway)
+        viewModel.setPendingJitToken("first-token")
+
+        assertTrue(viewModel.connectWithPendingJitToken("wss://livekit.example"))
+        gateway.emitState(RtcRoomUiState(status = RtcRoomStatus.FAILED, errorMessage = "connection failed"))
+
+        assertEquals(RtcRoomStatus.FAILED, viewModel.state.value.status)
+        assertFalse(viewModel.state.value.jitTokenReady)
+        assertFalse(viewModel.connectWithPendingJitToken("wss://livekit.example"))
+        assertEquals(1, gateway.connectCalls)
+
+        gateway.emitState(RtcRoomUiState(status = RtcRoomStatus.DISCONNECTED))
+        viewModel.setPendingJitToken("second-token")
+        assertTrue(viewModel.connectWithPendingJitToken("wss://livekit.example"))
+        assertEquals(2, gateway.connectCalls)
     }
 
     @Test
@@ -88,6 +127,8 @@ class RtcRoomGatewayTest {
         override val state = mutableState
         var connectCalls = 0
         var disconnectCalls = 0
+        var cameraCalls = 0
+        var microphoneCalls = 0
         var lastServerUrl: String? = null
         var lastToken: String? = null
 
@@ -103,13 +144,25 @@ class RtcRoomGatewayTest {
             mutableState.value = RtcRoomUiState(status = RtcRoomStatus.DISCONNECTED)
         }
 
-        override suspend fun setMicrophoneEnabled(enabled: Boolean) = Unit
+        override suspend fun setMicrophoneEnabled(enabled: Boolean) {
+            microphoneCalls += 1
+        }
 
-        override suspend fun setCameraEnabled(enabled: Boolean) = Unit
+        override suspend fun setCameraEnabled(enabled: Boolean) {
+            cameraCalls += 1
+        }
+
+        fun emitState(value: RtcRoomUiState) {
+            mutableState.value = value
+        }
 
         override fun attachLocalRenderer(renderer: SurfaceViewRenderer) = Unit
 
+        override fun detachLocalRenderer(renderer: SurfaceViewRenderer) = Unit
+
         override fun attachRemoteRenderer(renderer: SurfaceViewRenderer) = Unit
+
+        override fun detachRemoteRenderer(renderer: SurfaceViewRenderer) = Unit
 
         override fun disconnectNow() {
             disconnectCalls += 1

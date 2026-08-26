@@ -28,6 +28,7 @@ class VideoSessionViewModel(
     private val onSessionExpired: () -> Unit = {},
     private val onPhoneVerificationRequired: () -> Unit = {},
     private val onAgeAssuranceRequired: () -> Unit = {},
+    private val onAuthorizationRevoked: () -> Unit = {},
     private val onTokenIssued: (token: String, session: VideoSession) -> Unit = { _, _ -> },
 ) : ViewModel() {
     private val mutableState: MutableState<VideoSessionUiState> = mutableStateOf(VideoSessionUiState())
@@ -150,6 +151,16 @@ class VideoSessionViewModel(
             onAgeAssuranceRequired()
             return true
         }
+        if (error is VideoApiException && error.errorCode == "VIDEO_NOT_AUTHORIZED") {
+            mutableState.value = mutableState.value.copy(
+                isCreating = false,
+                isIssuingToken = false,
+                tokenIssued = false,
+                errorMessage = publicError(error),
+            )
+            onAuthorizationRevoked()
+            return true
+        }
         return false
     }
 
@@ -185,6 +196,7 @@ class VideoSessionViewModelFactory(
     private val onSessionExpired: () -> Unit = {},
     private val onPhoneVerificationRequired: () -> Unit = {},
     private val onAgeAssuranceRequired: () -> Unit = {},
+    private val onAuthorizationRevoked: () -> Unit = {},
     private val onTokenIssued: (token: String, session: VideoSession) -> Unit = { _, _ -> },
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
