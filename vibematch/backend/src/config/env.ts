@@ -55,6 +55,10 @@ export const env = {
   liveKitApiKey: () => required('LIVEKIT_API_KEY'),
   liveKitApiSecret: () => required('LIVEKIT_API_SECRET'),
 
+  /** Google Play Android Publisher API. Credenciais vêm de ADC/Workload Identity. */
+  googlePlayPackageName: () => required('GOOGLE_PLAY_PACKAGE_NAME'),
+  googlePlayApiBaseUrl: process.env.GOOGLE_PLAY_API_BASE_URL ?? 'https://androidpublisher.googleapis.com',
+
   /** ChatGPT é acessado apenas pelo backend; a chave é resolvida somente no uso. */
   openAiApiKey: () => required('OPENAI_API_KEY'),
   openAiBaseUrl: process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1',
@@ -64,9 +68,10 @@ export const env = {
   /** 'env' apenas para desenvolvimento/teste; produção usa GCP Secret Manager. */
   secretBackend: (process.env.SECRET_BACKEND ?? 'env') as 'env' | 'gcp-secret-manager',
 
-  /** Owner/migrations. Runtime de vídeo deve usar exclusivamente svc_video. */
+  /** Owner/migrations. Runtime services must use their least-privilege role. */
   databaseUrl: () => required('DATABASE_URL'),
   videoDatabaseUrl: () => required('DATABASE_URL_VIDEO'),
+  billingDatabaseUrl: () => required('DATABASE_URL_BILLING'),
 } as const;
 
 /**
