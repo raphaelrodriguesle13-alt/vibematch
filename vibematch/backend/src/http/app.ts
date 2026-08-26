@@ -5,6 +5,7 @@ import { ChatGptProviderError } from '../shared/providers/openai';
 import { AuthError, type AuthService } from '../auth/service';
 import type { AuthSession } from '../auth/repository';
 import { PhoneVerificationError, type PhoneVerificationService } from '../auth/phone-service';
+import type { AgeAssuranceService } from '../profile/age-assurance';
 import {
   ProfileError,
   type ProfileService,
@@ -23,6 +24,7 @@ export interface AuthHttpDependencies {
   activeSessionStore: ActiveSessionStore;
   phoneVerificationService?: Pick<PhoneVerificationService, 'start' | 'confirm'>;
   profileService?: Pick<ProfileService, 'get' | 'update' | 'listInterests'>;
+  ageAssuranceService?: Pick<AgeAssuranceService, 'getStatus' | 'isApproved'>;
   chatService?: Pick<ChatService, 'respond'>;
   now?: () => Date;
 }
@@ -80,6 +82,22 @@ const authenticate = async (
     await reply.code(401).send({ error: 'UNAUTHORIZED' });
     return null;
   }
+};
+
+const requireAgeApproved = async (
+  userId: string,
+  reply: FastifyReply,
+  deps: AuthHttpDependencies,
+): Promise<boolean> => {
+  if (!deps.ageAssuranceService) {
+    await reply.code(503).send({ error: 'AGE_ASSURANCE_NOT_CONFIGURED' });
+    return false;
+  }
+  if (!(await deps.ageAssuranceService.isApproved(userId))) {
+    await reply.code(403).send({ error: 'AGE_ASSURANCE_REQUIRED' });
+    return false;
+  }
+  return true;
 };
 
 const phoneErrorStatus = (error: PhoneVerificationError): number => {
@@ -279,9 +297,22 @@ export const buildApp = (deps: AuthHttpDependencies): FastifyInstance => {
     }
   });
 
+  app.get('/api/age-assurance/status', async (request, reply) => {
+    const auth = await authenticate(request, reply, deps, now);
+    if (!auth) return;
+    if (!deps.ageAssuranceService) {
+      return reply.code(503).send({ error: 'AGE_ASSURANCE_NOT_CONFIGURED' });
+    }
+
+    const status = await deps.ageAssuranceService.getStatus(auth.claims.userId);
+    if (!status) return reply.code(404).send({ error: 'ACCOUNT_NOT_FOUND' });
+    return reply.code(200).send({ data: { status } });
+  });
+
   app.post<{ Body: ChatBody }>('/api/chat', async (request, reply) => {
     const auth = await authenticate(request, reply, deps, now);
     if (!auth) return;
+    if (!(await requireAgeApproved(auth.claims.userId, reply, deps))) return;
     if (!deps.chatService) {
       return reply.code(503).send({ error: 'CHAT_NOT_CONFIGURED' });
     }
