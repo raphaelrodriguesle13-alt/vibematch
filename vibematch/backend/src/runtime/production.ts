@@ -1,0 +1,120 @@
+import { Pool } from 'pg';
+import type { FastifyInstance } from 'fastify';
+import { AuthRepository } from '../auth/repository';
+import { AuthService } from '../auth/service';
+import { GoogleOidcProvider } from '../auth/providers/google';
+import { JwtSessionProvider } from '../auth/providers/jwt';
+import { createBillingRuntime, type BillingRuntime } from '../billing/factory';
+import { registerBillingRoutes } from '../billing/http';
+import { createChatService } from '../chat/factory';
+import { env } from '../config/env';
+import { ConsentRepository } from '../consent/repository';
+import { ConsentService } from '../consent/service';
+import { buildApp } from '../http/app';
+import { MatchIntentRepository } from '../matchmaking/repository';
+import { MatchIntentService } from '../matchmaking/service';
+import { ModerationRepository } from '../moderation/repository';
+import { ModerationService } from '../moderation/service';
+import { AgeAssuranceRepository } from '../profile/age-assurance-repository';
+import { AgeAssuranceService } from '../profile/age-assurance';
+import { ProfileRepository } from '../profile/repository';
+import { ProfileService } from '../profile/service';
+import { createVideoRuntime, type VideoRuntime } from '../video/factory';
+
+export type ProductionRuntime = {
+  app: FastifyInstance;
+  video: VideoRuntime;
+  billing: BillingRuntime;
+  reconcileVideoRevocations(): Promise<{ revoked: number; failed: number }>;
+  close(): Promise<void>;
+};
+
+/**
+ * Unified production composition root.
+ *
+ * Security boundary:
+ * - each domain receives its least-privilege PostgreSQL connection string;
+ * - migration/owner DATABASE_URL is never used by runtime services;
+ * - Google OIDC and API-session JWT verification are server-side;
+ * - Billing and LiveKit secrets/providers remain server-only;
+ * - optional providers that are not configured are not silently emulated.
+ */
+export const createProductionRuntime = (): ProductionRuntime => {
+  const authPool = new Pool({ connectionString: env.authDatabaseUrl() });
+  const profilePool = new Pool({ connectionString: env.profileDatabaseUrl() });
+  const matchmakingPool = new Pool({ connectionString: env.matchmakingDatabaseUrl() });
+  const moderationPool = new Pool({ connectionString: env.moderationDatabaseUrl() });
+
+  const authRepository = new AuthRepository(authPool);
+  const sessionTokens = new JwtSessionProvider({
+    privateKeyPem: env.jwtPrivateKeyPem(),
+    publicKeyPem: env.jwtPublicKeyPem(),
+    issuer: env.jwtIssuer(),
+    audience: env.jwtAudience(),
+  });
+  const authService = new AuthService(
+    authRepository,
+    new GoogleOidcProvider(env.googleOidcAudience()),
+    sessionTokens,
+    { sessionTtlSeconds: env.authSessionTtlSeconds },
+  );
+
+  const profileService = new ProfileService(new ProfileRepository(profilePool));
+  const ageAssuranceService = new AgeAssuranceService(new AgeAssuranceRepository(profilePool));
+  const matchIntentService = new MatchIntentService(new MatchIntentRepository(matchmakingPool));
+  const consentService = new ConsentService(new ConsentRepository(matchmakingPool));
+  const moderationService = new ModerationService(new ModerationRepository(moderationPool));
+  const video = createVideoRuntime();
+  const billing = createBillingRuntime();
+  const chatService = createChatService();
+
+  const app = buildApp({
+    authService,
+    sessionTokenVerifier: sessionTokens,
+    activeSessionStore: authRepository,
+    phoneStateStore: authRepository,
+    profileService,
+    ageAssuranceService,
+    matchIntentService,
+    consentService,
+    videoSessionService: video.sessionService,
+    moderationService,
+    chatService,
+  });
+
+  registerBillingRoutes(app, {
+    service: billing.service,
+    sessionTokenVerifier: sessionTokens,
+    activeSessionStore: authRepository,
+    rtdnVerifier: billing.rtdnVerifier,
+    googlePlayPackageName: billing.packageName,
+  });
+
+  let closed = false;
+  const close = async (): Promise<void> => {
+    if (closed) return;
+    closed = true;
+
+    const results = await Promise.allSettled([
+      app.close(),
+      billing.close(),
+      video.close(),
+      moderationPool.end(),
+      matchmakingPool.end(),
+      profilePool.end(),
+      authPool.end(),
+    ]);
+    const rejected = results.find(
+      (result): result is PromiseRejectedResult => result.status === 'rejected',
+    );
+    if (rejected) throw rejected.reason;
+  };
+
+  return {
+    app,
+    video,
+    billing,
+    reconcileVideoRevocations: () => video.revocationService.reconcile(),
+    close,
+  };
+};
