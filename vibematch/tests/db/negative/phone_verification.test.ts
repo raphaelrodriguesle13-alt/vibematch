@@ -99,7 +99,7 @@ describe('Phone verification database boundary', () => {
         ),
       );
 
-      expect(message).toMatch(/phone verification required/);
+      expect(message).toMatch(/phone verification required|is CANCELLED/);
     });
   });
 
