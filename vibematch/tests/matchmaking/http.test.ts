@@ -73,7 +73,7 @@ class FakeMatchIntentService {
   }
 }
 
-const createSubject = (userId: string, ageApproved = true) => {
+const createSubject = (userId: string, ageApproved = true, phoneVerified = true) => {
   const matchIntentService = new FakeMatchIntentService();
   const deps: AuthHttpDependencies = {
     authService: {
@@ -82,6 +82,9 @@ const createSubject = (userId: string, ageApproved = true) => {
     },
     sessionTokenVerifier: new FakeVerifier(userId),
     activeSessionStore: new FakeSessionStore(),
+    phoneStateStore: {
+      isPhoneVerified: () => Promise.resolve(phoneVerified),
+    },
     ageAssuranceService: {
       getStatus: () => Promise.resolve(ageApproved ? 'APPROVED' : 'PENDING'),
       isApproved: () => Promise.resolve(ageApproved),
@@ -92,6 +95,21 @@ const createSubject = (userId: string, ageApproved = true) => {
 };
 
 describe('Match intent HTTP API', () => {
+  test('fails closed before matchmaking when phone is not verified', async () => {
+    const { app, matchIntentService } = createSubject(USER_A, true, false);
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/match-intents',
+      headers: { authorization: 'Bearer token' },
+      payload: { receiver_id: USER_B },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toEqual({ error: 'PHONE_VERIFICATION_REQUIRED' });
+    expect(matchIntentService.createCall).toBeNull();
+    await app.close();
+  });
+
   test('fails closed before matchmaking when age is not approved', async () => {
     const { app, matchIntentService } = createSubject(USER_A, false);
     const response = await app.inject({
