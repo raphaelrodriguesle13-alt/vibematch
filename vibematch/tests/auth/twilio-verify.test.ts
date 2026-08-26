@@ -10,7 +10,7 @@ describe('TwilioVerifyProvider', () => {
       accountSid: 'AC123',
       authToken: 'server-secret',
       serviceSid: 'VA123',
-      fetchImpl: fetchImpl as unknown as typeof fetch,
+      fetchImpl,
       now: () => new Date('2026-08-26T00:00:00.000Z'),
     });
 
@@ -33,7 +33,7 @@ describe('TwilioVerifyProvider', () => {
       accountSid: 'AC123',
       authToken: 'server-secret',
       serviceSid: 'VA123',
-      fetchImpl: fetchImpl as unknown as typeof fetch,
+      fetchImpl,
     });
 
     await expect(provider.confirm('VE123', '123456')).resolves.toBe(true);
@@ -44,7 +44,7 @@ describe('TwilioVerifyProvider', () => {
       accountSid: 'AC123',
       authToken: 'server-secret',
       serviceSid: 'VA123',
-      fetchImpl: jest.fn().mockResolvedValue({ ok: false, status: 503 }) as unknown as typeof fetch,
+      fetchImpl: jest.fn().mockResolvedValue({ ok: false, status: 503 }),
     });
 
     await expect(provider.start('user-1', '+5511999999999')).rejects.toThrow(
