@@ -59,6 +59,9 @@ export const env = {
   googlePlayPackageName: () => required('GOOGLE_PLAY_PACKAGE_NAME'),
   googlePlayApiBaseUrl:
     process.env.GOOGLE_PLAY_API_BASE_URL ?? 'https://androidpublisher.googleapis.com',
+  googlePlayPubSubAudience: () => required('GOOGLE_PLAY_PUBSUB_AUDIENCE'),
+  googlePlayPubSubServiceAccountEmail: () =>
+    required('GOOGLE_PLAY_PUBSUB_SERVICE_ACCOUNT_EMAIL'),
 
   /** ChatGPT é acessado apenas pelo backend; a chave é resolvida somente no uso. */
   openAiApiKey: () => required('OPENAI_API_KEY'),
