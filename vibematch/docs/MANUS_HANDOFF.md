@@ -4,60 +4,63 @@ Atualizado em **2026-08-26** após a publicação na branch exclusiva `continuit
 
 ## Resumo da entrega
 
-Esta etapa adiciona ao Android a primeira UX de consentimento mútuo sobre as novas rotas HTTP públicas do backend. Depois de perfil completo, Age Assurance aprovado, telefone confirmado e MatchIntent aceita, o app cria Consent, mostra os estados dos dois participantes e envia a decisão do usuário com um `request_id` UUID. O Android exibe o resultado server-controlled e não cria sessão de vídeo, token RTC ou entitlement localmente.
+Esta etapa adiciona ao Android a camada de autorização de Video Session sobre os contratos server-side já consolidados pelo ChatGPT. Depois de perfil completo, Age Assurance aprovado, telefone confirmado, MatchIntent aceita e Consent em `ACCEPTED_BOTH`, o usuário pode solicitar explicitamente uma sessão de vídeo e, depois, uma credencial JIT do backend.
 
-O fluxo autenticado permanece **Perfil → Age Assurance → Telefone → Chat → MatchIntent → Consent**. A identidade, a elegibilidade, os participantes, os prazos, a transição para `ACCEPTED_BOTH` e a autorização de vídeo continuam sendo decisões do backend e do banco.
+O fluxo autenticado permanece **Perfil → Age Assurance → Telefone → Chat → MatchIntent → Consent → autorização de Video Session**. O Android apenas solicita e apresenta estados retornados pelo servidor. Identidade, elegibilidade, telefone, idade, bloqueios, participantes, validade, `video_deadline`, revogação e autorização de token continuam sob responsabilidade do backend e do banco.
 
-> **Fonte de verdade:** o cliente Android apresenta estados e solicita transições; ele não aprova localmente idade, telefone, matchmaking, consentimento, vídeo, bloqueio, suspensão ou entitlement.
+> **Fonte de verdade:** o cliente Android não aprova localmente idade, telefone, matchmaking, consentimento, vídeo ou entitlement. A tela de vídeo não inicia câmera, WebRTC, LiveKit ou publicação de mídia nesta etapa.
 
 ## Estado do Git
 
-| Item                                           | Valor                                                                 |
-| ---------------------------------------------- | --------------------------------------------------------------------- |
-| Repositório                                    | `raphaelrodriguesle13-alt/vibematch`                                  |
-| Branch utilizada                               | `continuity`                                                          |
-| HEAD inicial histórico desta retomada          | `d9487c9`                                                             |
-| Base cooperativa reconciliada antes de Consent | `b3743c7`                                                             |
-| HEAD final desta etapa                         | `c9dbed8`                                                             |
-| Estado final                                   | `continuity` sincronizada com `origin/continuity`, working tree limpo |
-| Push                                           | Realizado sem force-push e sem tocar na `main`                        |
+| Item                                  | Valor                                                                 |
+| ------------------------------------- | --------------------------------------------------------------------- |
+| Repositório                           | `raphaelrodriguesle13-alt/vibematch`                                  |
+| Branch utilizada                      | `continuity`                                                          |
+| HEAD inicial histórico desta retomada | `d9487c9`                                                             |
+| Base cooperativa antes desta etapa    | `a670567`                                                             |
+| HEAD final desta etapa                | `703d75aed63ccf036fdf64a61df05b5a01922c44`                            |
+| Estado final                          | `continuity` sincronizada com `origin/continuity`, working tree limpo |
+| Push                                  | Realizado sem force-push e sem tocar na `main`                        |
 
-Durante a implementação, o ChatGPT publicou em paralelo reforços de telefone, revogação ativa, rate limiting, APIs públicas de Consent/Video/Moderation e testes de banco. O trabalho Android foi preservado por rebases lineares sucessivos; não houve reset destrutivo nem sobrescrita de Auth, JWT, migrations, Fastify ou controles server-side.
+O ChatGPT publicou em paralelo reforços de telefone, revogação ativa, rate limiting, APIs públicas de Consent/Video/Moderation e fixtures de banco. O trabalho Android foi preservado por rebases lineares sucessivos, sem reset destrutivo ou sobrescrita dos controles server-side.
 
 ## Commits relevantes
 
-| Commit    | Descrição                                 |
-| --------- | ----------------------------------------- |
-| `4c99eda` | `feat: add Android match intent inbox`    |
-| `b241431` | `fix: complete restricted error mappings` |
-| `c9dbed8` | `feat: add Android mutual consent flow`   |
+| Commit    | Descrição                                    |
+| --------- | -------------------------------------------- |
+| `c9dbed8` | `feat: add Android mutual consent flow`      |
+| `b241431` | `fix: complete restricted error mappings`    |
+| `a994436` | `feat: add Android video authorization flow` |
+| `703d75a` | `style: format structural immutability test` |
 
-O commit `b241431` contém o fallback mínimo exigido pelo TypeScript para os mapeadores de erro de Consent/Video e a formatação dos arquivos cooperativos que bloqueavam o Prettier. Nenhum código desse ajuste altera os códigos HTTP públicos conhecidos.
+O commit `a994436` contém o cliente, ViewModel, tela Compose e testes de Video Session. O commit `703d75a` contém somente a formatação necessária de um teste cooperativo para o gate Prettier.
 
 ## Contratos Android integrados
 
-| Endpoint                               | Uso no Android                        | Regras preservadas                                                              |
-| -------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------- |
-| `GET /api/interests`                   | Chips do onboarding/perfil            | Catálogo server-side; máximo visual de 10 interesses                            |
-| `GET /api/profile`                     | Perfil existente ou onboarding        | `404 PROFILE_NOT_FOUND` inicia onboarding; `401` encerra sessão                 |
-| `PUT /api/profile`                     | Criação/edição do perfil              | Validação final permanece no backend                                            |
-| `GET /api/age-assurance/status`        | Gate etário                           | Somente `APPROVED` libera recursos restritos                                    |
-| `POST /auth/phone/start`               | Início do SMS                         | `verification_id` fica somente no estado da tela                                |
-| `POST /auth/phone/confirm`             | Confirmação SMS                       | A dica local só muda após resposta positiva server-side                         |
-| `GET /api/match-intents/incoming`      | Inbox de solicitações recebidas       | Backend controla elegibilidade, validade e participantes                        |
-| `POST /api/match-intents/{id}/respond` | Aceitar ou recusar MatchIntent        | Envia somente `ACCEPTED` ou `DECLINED`                                          |
-| `POST /api/consents`                   | Criar Consent após MatchIntent aceita | Envia somente `match_intent_id`                                                 |
-| `POST /api/consents/{id}/decision`     | Decidir Consent                       | Envia `decision` e `request_id` UUID; sessão autenticada é anexada pelo backend |
+| Endpoint                               | Uso no Android                        | Regras preservadas                                                                    |
+| -------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------- |
+| `GET /api/interests`                   | Chips do onboarding/perfil            | Catálogo server-side; máximo visual de 10 interesses                                  |
+| `GET /api/profile`                     | Perfil existente ou onboarding        | `404 PROFILE_NOT_FOUND` inicia onboarding; `401` encerra sessão                       |
+| `PUT /api/profile`                     | Criação/edição do perfil              | Validação final permanece no backend                                                  |
+| `GET /api/age-assurance/status`        | Gate etário                           | Somente `APPROVED` libera recursos restritos                                          |
+| `POST /auth/phone/start`               | Início do SMS                         | `verification_id` fica somente no estado da tela                                      |
+| `POST /auth/phone/confirm`             | Confirmação SMS                       | A dica local só muda após resposta positiva server-side                               |
+| `GET /api/match-intents/incoming`      | Inbox de solicitações recebidas       | Backend controla elegibilidade, validade e participantes                              |
+| `POST /api/match-intents/{id}/respond` | Aceitar ou recusar MatchIntent        | Envia somente `ACCEPTED` ou `DECLINED`                                                |
+| `POST /api/consents`                   | Criar Consent após MatchIntent aceita | Envia somente `match_intent_id`                                                       |
+| `POST /api/consents/{id}/decision`     | Decidir Consent                       | Envia decisão e `request_id` UUID; sessão autenticada é anexada pelo backend          |
+| `POST /api/video/sessions`             | Criar sessão autorizada               | Envia somente `consent_id`; backend revalida Consent, idade, telefone e elegibilidade |
+| `POST /api/video/sessions/{id}/token`  | Solicitar token JIT                   | Identidade e sala são derivadas pelo backend; token não é persistido                  |
 
-O Android trata `AGE_ASSURANCE_REQUIRED`, `PHONE_VERIFICATION_REQUIRED`, `401`, `429`, indisponibilidade, respostas inválidas e estados desconhecidos sem liberar recursos. Quando MatchIntent ou Consent informa que telefone foi revogado, o estado local volta ao onboarding telefônico. Quando idade deixa de ser elegível, o fluxo retorna ao cartão fail-closed de Age Assurance.
+O Android trata `AGE_ASSURANCE_REQUIRED`, `PHONE_VERIFICATION_REQUIRED`, `VIDEO_NOT_AUTHORIZED`, `RATE_LIMITED`, HTTP 401, HTTP 429, indisponibilidade, respostas inválidas e estados desconhecidos sem liberar recursos localmente. Se telefone ou idade forem revogados durante o fluxo, o Android retorna ao onboarding correspondente.
 
 ## Implementação Android
 
-O novo módulo `android/.../consent/` contém `Consent`, `ConsentDecision`, `ConsentStatus`, `ConsentParticipantStatus`, `ConsentGateway`, `ConsentApiClient` e `ConsentViewModel`. O cliente usa o mesmo Bearer token da sessão segura, serializa campos snake_case e gera um UUID novo para cada decisão. Os campos `expires_at`, `video_deadline` e `accepted_both_at` são apenas exibidos como dados controlados pelo servidor.
+O módulo `android/.../video/` contém `VideoSession`, `VideoSessionStatus`, `VideoSessionGateway`, `VideoSessionApiClient`, `VideoSessionUiState` e `VideoSessionViewModel`. O cliente serializa `consent_id`, envia Bearer token seguro e solicita o token em uma operação POST sem aceitar `user_id`, `room_name`, participante ou decisão de Consent fornecidos pelo cliente.
 
-A `MainActivity` passou a instanciar o `ConsentViewModel` e a abrir a tela de Consent a partir de uma MatchIntent aceita. A tela mostra o estado de cada participante, permite aceitar ou recusar quando o participante atual está `PENDING`, comunica espera quando apenas uma pessoa aceitou e informa claramente que `ACCEPTED_BOTH` ainda não significa que vídeo esteja autorizado.
+A tela Compose de Video Session é acessível somente a partir de Consent `ACCEPTED_BOTH`. Primeiro ela solicita a criação server-side da sessão. Depois de criada, uma ação explícita do usuário solicita o token JIT. A credencial é entregue apenas a um callback transitório em memória para a futura camada de mídia; não é gravada em `SharedPreferences`, logs ou arquivos e não é exibida na interface.
 
-Nenhuma chamada Android foi adicionada para criar sessão de vídeo ou emitir token RTC. A próxima integração de vídeo deve consumir exclusivamente os endpoints server-side, aguardar autorização JIT e revalidar Consent, idade, telefone, bloqueio e prazo imediatamente antes de qualquer token.
+Nesta etapa não foi adicionada dependência RTC, permissão de câmera, conexão LiveKit, WebRTC, publicação de mídia ou reconexão automática. O botão e as mensagens da tela deixam claro que a autorização do servidor não equivale à inicialização de vídeo.
 
 ## Testes e builds
 
@@ -76,21 +79,23 @@ O APK debug atualizado foi gerado em `android/app/build/outputs/apk/debug/app-de
 
 | Artefato        | SHA-256                                                            |
 | --------------- | ------------------------------------------------------------------ |
-| `app-debug.apk` | `cdc1269118083879ef694941914bf81fc74a0e48ae655a5c432e833a4d2b7835` |
+| `app-debug.apk` | `219c0d021275f7f954631866f42820d921a7940e8ec8cfdd765e6deb3c633f28` |
 
-Os testes PostgreSQL/migrations não foram executados neste sandbox por ausência de `DATABASE_URL_OWNER` e das demais URLs de banco de teste. Os novos testes DB de telefone, revogação, rate limiting e privilégios devem ser repetidos no CI ou em ambiente local com PostgreSQL configurado; isso é uma pendência ambiental, não uma falha dos testes unitários executados.
+Os testes PostgreSQL/migrations não foram executados neste sandbox por ausência de `DATABASE_URL_OWNER` e das demais URLs de banco de teste. Os testes DB de telefone, revogação, rate limiting, privilégios e imutabilidade devem ser repetidos no CI ou em ambiente local com PostgreSQL configurado. Isso permanece uma pendência ambiental, não uma falha dos gates unitários executados.
 
 ## Pendências externas e riscos
 
-A validação ponta a ponta ainda depende de um provedor SMS real, de um dispositivo/emulador que receba o código, de um Web client ID Google real e de credenciais/ambiente para exercer MatchIntent e Consent com participantes reais. A renovação de sessão e a coordenação de nonce server-side continuam pendentes; não foi implementado nonce apenas no cliente para evitar proteção ilusória.
+A validação ponta a ponta ainda depende de provedor SMS real, dispositivo/emulador, Web client ID Google real e ambiente com participantes reais para exercer MatchIntent, Consent e Video Session. A renovação de sessão e a coordenação de nonce server-side continuam pendentes; não foi implementado nonce apenas no cliente.
 
-A criação de MatchIntent de saída ainda não possui uma UX Android porque o branch não oferece, nesta etapa, uma API de descoberta de candidatos/perfis para selecionar o `receiver_id`. A inbox recebida e a resposta de intenções estão integradas; a origem da intenção permanece dependente de uma tela/API de descoberta futura.
+A criação de MatchIntent de saída ainda não possui UX Android porque não há, nesta etapa, uma API de descoberta de candidatos/perfis para selecionar `receiver_id`. A inbox recebida, a resposta de intenção, a criação de Consent e a decisão de Consent já estão integradas.
 
-A sessão de vídeo, LiveKit/RTC, notificações, persistência de conversas, rate limiting específico do chat, observabilidade, moderação operacional e execução comprovada das migrations Up/Down/Up ainda precisam ser concluídos. Os avisos de depreciação de `EncryptedSharedPreferences`/`MasterKey` devem ser revisados antes da release.
+A credencial JIT ainda não é consumida por uma camada de mídia. Antes de conectar LiveKit/WebRTC, é necessário definir fornecedor RTC, ciclo de vida da sessão, revogação ativa, tratamento de `VIDEO_NOT_AUTHORIZED`/`RATE_LIMITED`, expiração de `video_deadline`, limpeza de credenciais em memória e revalidação imediatamente antes de publicação.
+
+Persistência de conversas, rate limiting específico do chat, observabilidade, moderação operacional, notificações e execução comprovada das migrations Up/Down/Up ainda precisam ser concluídos. Os avisos de depreciação de `EncryptedSharedPreferences`/`MasterKey` devem ser revisados antes da release.
 
 ## Próximo passo recomendado
 
-Validar telefone, MatchIntent e Consent em dispositivo com ambiente real. Em seguida, implementar o cliente Android de Video Session somente para Consent `ACCEPTED_BOTH`, usando a API de criação de sessão e emissão de token do backend, com tratamento explícito de `VIDEO_NOT_AUTHORIZED`, `PHONE_VERIFICATION_REQUIRED`, `AGE_ASSURANCE_REQUIRED`, `RATE_LIMITED` e revogação. A implementação não deve iniciar câmera, WebRTC ou LiveKit antes da autorização JIT server-side.
+Validar telefone, MatchIntent, Consent e Video Session em dispositivo com ambiente real. Depois, implementar a camada RTC somente por autorização JIT server-side, sem permitir que o Android derive identidade, sala, participantes, prazo ou entitlement. A próxima mudança deve ser isolada, incluir testes negativos de revogação/expiração/rate limiting e preservar a separação entre autorização de vídeo e conexão efetiva de mídia.
 
 ## Invariantes preservados
 
