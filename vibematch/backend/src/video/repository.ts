@@ -1,6 +1,7 @@
 import type { Pool, QueryResultRow } from 'pg';
 import type {
   AuthorizedVideoParticipant,
+  VideoRateLimitScope,
   VideoSession,
   VideoSessionRepositoryPort,
 } from './service';
@@ -22,6 +23,24 @@ interface AuthorizedParticipantRow extends QueryResultRow {
 
 export class VideoSessionRepository implements VideoSessionRepositoryPort {
   constructor(private readonly pool: Pool) {}
+
+  async consumeRateLimit(
+    userId: string,
+    scope: VideoRateLimitScope,
+    now: Date,
+    limit: number,
+  ): Promise<boolean> {
+    const result = await this.pool.query(
+      `INSERT INTO video_rate_limits (user_id, scope, window_started_at, request_count)
+       VALUES ($1, $2, date_trunc('minute', $3::timestamptz), 1)
+       ON CONFLICT (user_id, scope, window_started_at)
+       DO UPDATE SET request_count = video_rate_limits.request_count + 1
+       WHERE video_rate_limits.request_count < $4
+       RETURNING request_count`,
+      [userId, scope, now, limit],
+    );
+    return (result.rowCount ?? 0) === 1;
+  }
 
   async createAuthorized(
     userId: string,
