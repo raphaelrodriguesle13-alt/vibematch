@@ -33,6 +33,7 @@ export class ConsentRepository implements ConsentRepositoryPort {
          AND mi.status = 'ACCEPTED'
          AND mi.expires_at > now()
          AND ua.status = 'ACTIVE' AND ub.status = 'ACTIVE'
+         AND ua.phone_verified = TRUE AND ub.phone_verified = TRUE
          AND ua.age_assurance_status = 'APPROVED'
          AND ub.age_assurance_status = 'APPROVED'
          AND EXISTS (SELECT 1 FROM profiles p WHERE p.user_id = ua.id)
@@ -104,11 +105,17 @@ export class ConsentRepository implements ConsentRepositoryPort {
           `SELECT 1
            WHERE EXISTS (
              SELECT 1 FROM users u
-             WHERE u.id = $1 AND u.status = 'ACTIVE' AND u.age_assurance_status = 'APPROVED'
+             WHERE u.id = $1
+               AND u.status = 'ACTIVE'
+               AND u.phone_verified = TRUE
+               AND u.age_assurance_status = 'APPROVED'
            )
              AND EXISTS (
              SELECT 1 FROM users u
-             WHERE u.id = $2 AND u.status = 'ACTIVE' AND u.age_assurance_status = 'APPROVED'
+             WHERE u.id = $2
+               AND u.status = 'ACTIVE'
+               AND u.phone_verified = TRUE
+               AND u.age_assurance_status = 'APPROVED'
            )
              AND NOT EXISTS (
              SELECT 1 FROM blocks b
