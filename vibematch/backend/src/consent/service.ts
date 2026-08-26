@@ -27,10 +27,7 @@ export interface ConsentRepositoryPort {
   ): Promise<Consent | null>;
 }
 
-export type ConsentErrorCode =
-  | 'INVALID_CONSENT'
-  | 'CONSENT_NOT_ELIGIBLE'
-  | 'CONSENT_NOT_AVAILABLE';
+export type ConsentErrorCode = 'INVALID_CONSENT' | 'CONSENT_NOT_ELIGIBLE' | 'CONSENT_NOT_AVAILABLE';
 
 export class ConsentError extends Error {
   constructor(

@@ -1,10 +1,5 @@
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
-import type {
-  Consent,
-  ConsentDecision,
-  ConsentRepositoryPort,
-  ConsentStatus,
-} from './service';
+import type { Consent, ConsentDecision, ConsentRepositoryPort, ConsentStatus } from './service';
 
 interface ConsentRow extends QueryResultRow {
   id: string;

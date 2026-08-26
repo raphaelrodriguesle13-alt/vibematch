@@ -39,9 +39,7 @@ export interface VideoTokenProvider {
 }
 
 export type VideoAuthorizationErrorCode =
-  | 'INVALID_VIDEO_REQUEST'
-  | 'VIDEO_NOT_AUTHORIZED'
-  | 'VIDEO_PROVIDER_UNAVAILABLE';
+  'INVALID_VIDEO_REQUEST' | 'VIDEO_NOT_AUTHORIZED' | 'VIDEO_PROVIDER_UNAVAILABLE';
 
 export class VideoAuthorizationError extends Error {
   constructor(

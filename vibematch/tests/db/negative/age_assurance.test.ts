@@ -79,7 +79,9 @@ describe('Age assurance database boundary', () => {
         [consentId],
       );
 
-      await client.query(`UPDATE users SET age_assurance_status = 'REJECTED' WHERE id = $1`, [userA]);
+      await client.query(`UPDATE users SET age_assurance_status = 'REJECTED' WHERE id = $1`, [
+        userA,
+      ]);
 
       const state = await client.query<SessionStateRow>(
         `SELECT status, end_reason, revocation_pending, revoked_at, ended_at
