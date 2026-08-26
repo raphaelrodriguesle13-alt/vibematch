@@ -18,9 +18,7 @@ const matchIntent = (status: MatchIntent['status'] = 'SENT'): MatchIntent => ({
   status,
   expiresAt: new Date('2026-08-26T10:10:00.000Z'),
   respondedAt:
-    status === 'ACCEPTED' || status === 'DECLINED'
-      ? new Date('2026-08-26T10:01:00.000Z')
-      : null,
+    status === 'ACCEPTED' || status === 'DECLINED' ? new Date('2026-08-26T10:01:00.000Z') : null,
   closedAt: null,
   createdAt: new Date('2026-08-26T10:00:00.000Z'),
 });
