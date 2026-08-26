@@ -5,6 +5,12 @@ import { ChatGptProviderError } from '../shared/providers/openai';
 import { AuthError, type AuthService } from '../auth/service';
 import type { AuthSession } from '../auth/repository';
 import { PhoneVerificationError, type PhoneVerificationService } from '../auth/phone-service';
+import {
+  ProfileError,
+  type ProfileService,
+  type UpdateProfileInput,
+  type UserProfile,
+} from '../profile/service';
 
 export interface ActiveSessionStore {
   findActiveSession(userId: string, sessionId: string, now: Date): Promise<AuthSession | null>;
@@ -16,6 +22,7 @@ export interface AuthHttpDependencies {
   sessionTokenVerifier: SessionTokenVerifier;
   activeSessionStore: ActiveSessionStore;
   phoneVerificationService?: Pick<PhoneVerificationService, 'start' | 'confirm'>;
+  profileService?: Pick<ProfileService, 'get' | 'update' | 'listInterests'>;
   chatService?: Pick<ChatService, 'respond'>;
   now?: () => Date;
 }
@@ -23,6 +30,13 @@ export interface AuthHttpDependencies {
 type GoogleLoginBody = { google_id_token?: unknown };
 type PhoneStartBody = { phone_e164?: unknown };
 type PhoneConfirmBody = { verification_id?: unknown; code?: unknown };
+type ProfileBody = {
+  display_name?: unknown;
+  avatar_url?: unknown;
+  language?: unknown;
+  region?: unknown;
+  interest_ids?: unknown;
+};
 type ChatBody = { message?: unknown; history?: unknown };
 
 type AuthenticatedRequest = {
@@ -80,6 +94,41 @@ const phoneErrorStatus = (error: PhoneVerificationError): number => {
     case 'SMS_PROVIDER_UNAVAILABLE':
       return 503;
   }
+};
+
+const serializeProfile = (profile: UserProfile) => ({
+  user_id: profile.userId,
+  display_name: profile.displayName,
+  avatar_url: profile.avatarUrl,
+  language: profile.language,
+  region: profile.region,
+  interests: profile.interests,
+});
+
+const parseProfileBody = (body: ProfileBody | undefined): UpdateProfileInput | null => {
+  if (
+    typeof body?.display_name !== 'string' ||
+    typeof body.language !== 'string' ||
+    typeof body.region !== 'string'
+  ) {
+    return null;
+  }
+  if (body.avatar_url !== undefined && body.avatar_url !== null && typeof body.avatar_url !== 'string') {
+    return null;
+  }
+  if (
+    body.interest_ids !== undefined &&
+    (!Array.isArray(body.interest_ids) || body.interest_ids.some((id) => typeof id !== 'string'))
+  ) {
+    return null;
+  }
+  return {
+    displayName: body.display_name,
+    avatarUrl: body.avatar_url as string | null | undefined,
+    language: body.language,
+    region: body.region,
+    interestIds: body.interest_ids as string[] | undefined,
+  };
 };
 
 export const buildApp = (deps: AuthHttpDependencies): FastifyInstance => {
@@ -177,6 +226,51 @@ export const buildApp = (deps: AuthHttpDependencies): FastifyInstance => {
         return reply.code(phoneErrorStatus(error)).send({ error: error.code });
       }
       request.log.error({ err: error }, 'auth/phone/confirm failed');
+      return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+    }
+  });
+
+  app.get('/api/profile', async (request, reply) => {
+    const auth = await authenticate(request, reply, deps, now);
+    if (!auth) return;
+    if (!deps.profileService) {
+      return reply.code(503).send({ error: 'PROFILE_NOT_CONFIGURED' });
+    }
+
+    const profile = await deps.profileService.get(auth.claims.userId);
+    if (!profile) return reply.code(404).send({ error: 'PROFILE_NOT_FOUND' });
+    return reply.code(200).send({ data: serializeProfile(profile) });
+  });
+
+  app.get('/api/interests', async (request, reply) => {
+    const auth = await authenticate(request, reply, deps, now);
+    if (!auth) return;
+    if (!deps.profileService) {
+      return reply.code(503).send({ error: 'PROFILE_NOT_CONFIGURED' });
+    }
+
+    const interests = await deps.profileService.listInterests();
+    return reply.code(200).send({ data: interests });
+  });
+
+  app.put<{ Body: ProfileBody }>('/api/profile', async (request, reply) => {
+    const auth = await authenticate(request, reply, deps, now);
+    if (!auth) return;
+    if (!deps.profileService) {
+      return reply.code(503).send({ error: 'PROFILE_NOT_CONFIGURED' });
+    }
+
+    const input = parseProfileBody(request.body);
+    if (!input) return reply.code(400).send({ error: 'INVALID_REQUEST' });
+
+    try {
+      const profile = await deps.profileService.update(auth.claims.userId, input);
+      return reply.code(200).send({ data: serializeProfile(profile) });
+    } catch (error) {
+      if (error instanceof ProfileError) {
+        return reply.code(400).send({ error: error.code });
+      }
+      request.log.error({ err: error }, 'api/profile failed');
       return reply.code(500).send({ error: 'INTERNAL_ERROR' });
     }
   });
