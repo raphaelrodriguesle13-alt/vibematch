@@ -194,6 +194,8 @@ const consentErrorStatus = (error: ConsentError): number => {
       return 409;
     case 'CONSENT_NOT_AVAILABLE':
       return 404;
+    case 'RATE_LIMITED':
+      return 429;
   }
 };
 
@@ -205,6 +207,8 @@ const videoErrorStatus = (error: VideoAuthorizationError): number => {
       return 403;
     case 'VIDEO_PROVIDER_UNAVAILABLE':
       return 503;
+    case 'RATE_LIMITED':
+      return 429;
   }
 };
 
@@ -616,25 +620,31 @@ export const buildApp = (deps: AuthHttpDependencies): FastifyInstance => {
     }
   });
 
-  app.post<{ Params: VideoSessionParams }>('/api/video/sessions/:id/token', async (request, reply) => {
-    const auth = await authenticate(request, reply, deps, now);
-    if (!auth) return;
-    if (!(await requireRestrictedEligibility(auth.claims.userId, reply, deps))) return;
-    if (!deps.videoSessionService) {
-      return reply.code(503).send({ error: 'VIDEO_NOT_CONFIGURED' });
-    }
-
-    try {
-      const token = await deps.videoSessionService.issueToken(auth.claims.userId, request.params.id);
-      return reply.code(200).send({ data: { session_id: request.params.id, token } });
-    } catch (error) {
-      if (error instanceof VideoAuthorizationError) {
-        return reply.code(videoErrorStatus(error)).send({ error: error.code });
+  app.post<{ Params: VideoSessionParams }>(
+    '/api/video/sessions/:id/token',
+    async (request, reply) => {
+      const auth = await authenticate(request, reply, deps, now);
+      if (!auth) return;
+      if (!(await requireRestrictedEligibility(auth.claims.userId, reply, deps))) return;
+      if (!deps.videoSessionService) {
+        return reply.code(503).send({ error: 'VIDEO_NOT_CONFIGURED' });
       }
-      request.log.error({ err: error }, 'api/video/sessions token failed');
-      return reply.code(500).send({ error: 'INTERNAL_ERROR' });
-    }
-  });
+
+      try {
+        const token = await deps.videoSessionService.issueToken(
+          auth.claims.userId,
+          request.params.id,
+        );
+        return reply.code(200).send({ data: { session_id: request.params.id, token } });
+      } catch (error) {
+        if (error instanceof VideoAuthorizationError) {
+          return reply.code(videoErrorStatus(error)).send({ error: error.code });
+        }
+        request.log.error({ err: error }, 'api/video/sessions token failed');
+        return reply.code(500).send({ error: 'INTERNAL_ERROR' });
+      }
+    },
+  );
 
   app.post<{ Body: BlockBody }>('/api/blocks', async (request, reply) => {
     const auth = await authenticate(request, reply, deps, now);
