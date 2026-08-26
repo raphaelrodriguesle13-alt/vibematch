@@ -1,72 +1,83 @@
-# Manus Handoff
+# VibeMatch — Handoff Manus ↔ ChatGPT
 
-## HEAD analisado
+Atualizado em **2026-08-26** após a publicação na branch exclusiva `continuity`.
 
-`a8237f093df4073329add16ec79d5eb4fe7fb807` — `continuity` sincronizada com `origin/continuity` antes do lote.
-HEAD final da implementação Android: `46f376af61256ecfad91bdbccc7f6834337221e7`.
-O branch final também contém o commit cooperativo de CI `87e53ed` e o handoff anterior `f5265b4`.
-Após o lote, o branch foi reconciliado com os commits remotos de Auth/phone verification em
-`f177047`, sem sobrescrever o trabalho Android.
+## Resumo da entrega
 
-## Commits produzidos
+A etapa atual conclui o onboarding e a edição de perfil no Android com Jetpack Compose, consumindo o backend Fastify real. Após uma sessão Google válida, o app carrega os interesses disponíveis, consulta o perfil existente e abre o onboarding quando o backend responde `404 PROFILE_NOT_FOUND`. O botão de continuidade só libera a navegação após um `PUT /api/profile` bem-sucedido.
 
-| Commit                                     | Descrição                                                           |
-| ------------------------------------------ | ------------------------------------------------------------------- |
-| `be1d2572885af7d61cd1c53ac46a8c5924995a6c` | `fix: isolate Android dev auth and add CI gates`                    |
-| `393d5c1`                                  | `docs: add Android batch handoff`                                   |
-| `f177047`                                  | merge de Auth/phone verification remoto, preservando o lote Android |
-| `bb04da0`                                  | `feat: connect Android Google sign-in session`                      |
-| `46f376a`                                  | `fix: return Android chat to auth on session expiry`                |
-| `87e53ed`                                  | commit cooperativo: `ci: validate Android build and unit tests`     |
-| `f5265b4`                                  | `docs: handoff Google auth Android`                                 |
+A branch também foi reconciliada com os commits cooperativos mais recentes do ChatGPT, que adicionaram Age Assurance, MatchIntent, Consent, Video e a migration 008. O Android agora consulta o status real de Age Assurance e permanece em estado fail-closed para qualquer resultado diferente de `APPROVED`; o cliente não aprova idade, consentimento, matchmaking, vídeo ou entitlement localmente.
 
-Os commits foram criados sem reescrever histórico e o branch foi reconciliado sem force-push.
-Este handoff registra a revisão após a integração cooperativa do CI Android.
+> **Fonte de verdade:** identidade, sessão, idade, bloqueio, suspensão, consentimento, elegibilidade e autorização de recursos restritos continuam sendo decisões do backend e do banco.
 
-## Testes executados
+## Estado do Git
 
-| Comando          | Resultado                                       |
-| ---------------- | ----------------------------------------------- |
-| `./gradlew test` | Aprovado; suíte Android incluindo AuthViewModel |
+| Item                        | Valor                                                                 |
+| --------------------------- | --------------------------------------------------------------------- |
+| Repositório                 | `raphaelrodriguesle13-alt/vibematch`                                  |
+| Branch utilizada            | `continuity`                                                          |
+| HEAD inicial desta retomada | `d9487c9`                                                             |
+| HEAD final publicado        | `13e1273315f5265d2d6a6a987eb8861f13093673`                            |
+| Estado final                | `continuity` sincronizada com `origin/continuity`, working tree limpo |
+| Push                        | Realizado sem force-push e sem tocar na `main`                        |
 
-| `./gradlew :app:assembleDebug` | Aprovado; APK debug gerado sem UI JWT manual |
+Durante a execução, a branch remota recebeu commits backend em paralelo. O trabalho Android foi preservado por rebases lineares sucessivos sobre o HEAD remoto, sem reset destrutivo ou sobrescrita de Auth, JWT, migrations, Fastify ou controles de segurança.
 
-| `./gradlew :app:lintDebug` | Aprovado; 0 erros; apenas avisos de depreciação do AndroidX Crypto |
-| `./gradlew :app:assembleRelease -PAPI_BASE_URL=https://api.vibematch.example -PGOOGLE_SERVER_CLIENT_ID=web-client-id.apps.googleusercontent.com` | Aprovado |
+## Commits produzidos nesta retomada
 
-| `./gradlew :app:assembleRelease -PAPI_BASE_URL=http://inseguro.local` | Falhou intencionalmente com `Release API_BASE_URL must use HTTPS` |
-| `npm run typecheck` | Aprovado |
-| `npm run lint` | Aprovado |
-| `npm run format:check` | Aprovado |
-| `npm run test:unit` | Aprovado após o merge; 5 suítes e 28 testes |
+| Commit    | Descrição                                     |
+| --------- | --------------------------------------------- |
+| `ae69a14` | `feat: add Android profile onboarding`        |
+| `23466e3` | `style: format cooperative backend additions` |
+| `88d6d30` | `fix: gate Android chat on age assurance`     |
+| `adbcacf` | `test: include video unit suite`              |
+| `13e1273` | `style: normalize DB helper type formatting`  |
 
-| Scanner local de padrões de segredo | Aprovado; nenhum segredo real encontrado |
+Os commits de estilo alteram apenas a formatação necessária para o gate estrito de Prettier nos arquivos cooperativos remotos; não alteram a lógica de Consent, Video, Profile ou banco.
 
-## Mudanças realizadas
+## Implementação Android
 
-O campo provisório de JWT foi removido da Activity. O cliente usa Credential Manager para obter o Google ID token, troca-o em `/auth/google` por uma sessão curta do backend e guarda somente o JWT de sessão em `EncryptedSharedPreferences`.
+O módulo `android/.../profile/` contém os modelos `UserProfile`, `ProfileInterest`, `ProfileDraft`, o contrato `ProfileGateway`, o cliente `ProfileApiClient` e o `ProfileViewModel`. O cliente envia sempre o Bearer token da sessão segura e implementa os contratos abaixo.
 
-O tráfego HTTP claro foi movido para `android/app/src/debug/AndroidManifest.xml`. O manifest de release força `android:usesCleartextTraffic="false"`, e o Gradle rejeita uma `API_BASE_URL` que não comece com `https://` em builds release.
+| Endpoint                        | Uso no Android                             | Comportamento relevante                                                                        |
+| ------------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `GET /api/interests`            | Carrega os chips de interesses             | A resposta vem do backend; a seleção visual é limitada a 10 itens                              |
+| `GET /api/profile`              | Carrega o perfil atual                     | `404 PROFILE_NOT_FOUND` abre onboarding; `401` encerra a sessão                                |
+| `PUT /api/profile`              | Cria ou atualiza o perfil                  | Envia `display_name`, `avatar_url`, `language`, `region` e `interest_ids` com nomes snake_case |
+| `GET /api/age-assurance/status` | Consulta a elegibilidade etária do usuário | Somente `APPROVED` permite sair do perfil e abrir o chat                                       |
 
-O workflow `.github/workflows/ci.yml` ganhou um job Android independente que instala Java 17, configura o Android SDK, executa `./gradlew test` e executa `./gradlew :app:assembleDebug`. O CI backend e as fronteiras de Auth, banco, JWT e Fastify não foram reescritos.
+A `MainActivity` agora possui tela de onboarding e tela de perfil reutilizando o mesmo formulário. Os campos são nome de exibição, idioma, região, avatar HTTPS opcional e interesses. Há estados explícitos para carregamento, salvamento, erro, sessão expirada, idade necessária, idade pendente, idade rejeitada e indisponibilidade do serviço. O estado desconhecido nunca é tratado como aprovação.
 
-A documentação Android e o contrato ChatGPT foram sincronizados com a separação debug/release e com os comandos de validação.
+O roteamento autenticado permanece protegido: sem perfil, o usuário fica no onboarding; com perfil mas Age Assurance não aprovado, fica no cartão fail-closed; somente com perfil carregado e status `APPROVED` o chat é exibido. O backend continua sendo a autoridade final e pode rejeitar o chat com `403 AGE_ASSURANCE_REQUIRED` mesmo que o estado local esteja desatualizado.
 
-## Pendências para ChatGPT
+## Testes e builds
 
-- Confirmar em CI a execução do novo job Android no primeiro push.
-- Coordenar nonce server-side no `/auth/google` se o backend quiser exigir proteção adicional contra replay.
-- Adicionar rate limiting por usuário ao endpoint `/api/chat` antes de habilitá-lo em produção.
-- Definir o contrato de renovação/revogação de sessão antes do vencimento do JWT curto.
+| Comando                                                        | Resultado                                                                                    |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `npm run typecheck`                                            | Aprovado                                                                                     |
+| `npm run lint`                                                 | Aprovado                                                                                     |
+| `npm run format:check`                                         | Aprovado                                                                                     |
+| `npm run test:unit`                                            | Aprovado: 11 suítes e 54 testes, incluindo Auth, Chat, Profile, MatchIntent, Consent e Video |
+| `./gradlew test :app:assembleDebug :app:lintDebug --no-daemon` | Aprovado: `BUILD SUCCESSFUL`                                                                 |
+| Scanner local de padrões de segredo no Android                 | Aprovado; nenhuma chave real encontrada                                                      |
+| `git diff --check` e working tree                              | Aprovados; branch limpa e sincronizada                                                       |
 
-## Riscos encontrados
+O APK debug atualizado foi gerado em `android/app/build/outputs/apk/debug/app-debug.apk`. O build de release não foi repetido nesta última rodada porque a entrega solicitada é debug; a política já existente de HTTPS obrigatório para release e de `GOOGLE_SERVER_CLIENT_ID` configurado permanece preservada.
 
-O login Google Android está implementado, mas a validação ponta a ponta ainda requer um Web client ID OAuth real, configuração equivalente no audience do backend e uma conta Google em emulador/dispositivo. Nenhuma credencial foi colocada no repositório.
+A tentativa de `npm run test:db` não executou nenhuma suíte porque este sandbox não possui `DATABASE_URL_OWNER` nem as demais URLs de banco configuradas. A falha é ambiental (`Missing required env var: DATABASE_URL_OWNER`), não uma falha de teste de domínio. A execução de migrations Up/Down/Up e os testes PostgreSQL devem ser repetidos no ambiente CI/local com PostgreSQL e credenciais de teste.
 
-O lint Android termina sem erros, mas reporta avisos de depreciação das APIs `EncryptedSharedPreferences`/`MasterKey`. O APK anexado é debug e não é um artefato de release assinado.
+## Pendências externas e incompatibilidades conhecidas
 
-O job Android do CI usa `android-actions/setup-android@v3` e instala `platforms;android-35` e `build-tools;35.0.0`; a execução efetiva do runner GitHub ainda precisa ser observada no primeiro push. O branch recebeu commits remotos adicionais de phone verification durante o lote; os gates backend foram repetidos e permaneceram verdes.
+O onboarding de telefone ainda não está ligado à `MainActivity`, embora o backend já possua a base de verificação. A validação ponta a ponta do Google OAuth ainda depende de um Web client ID real, audience equivalente no backend e uma conta Google em emulador ou dispositivo. A coordenação de nonce server-side continua pendente; não foi implementado nonce apenas no cliente para evitar proteção ilusória.
 
-## Próximo trabalho recomendado para Manus
+O backend já expõe Age Assurance, MatchIntent, Consent e Video, mas a UX Android de telefone, MatchIntent, consentimento mútuo e sessão de vídeo ainda não foi implementada. Nenhum token RTC, decisão de consentimento ou autorização de vídeo é criado pelo Android.
 
-Conectar o onboarding de telefone à Activity, executar a troca OAuth em emulador com client ID configurado, definir nonce server-side e revisar a migração futura das APIs `EncryptedSharedPreferences`/`MasterKey` antes da release final.
+A sessão curta ainda precisa de um contrato de renovação/revogação antes da release. Rate limiting por usuário no chat, persistência de conversas, observabilidade, moderação operacional e evidência de execução em CI continuam pendentes. `EncryptedSharedPreferences` e `MasterKey` emitem avisos de depreciação que devem ser revisados antes da release final.
+
+## Próximo passo recomendado
+
+Conectar o onboarding de telefone ao fluxo autenticado Android, executar a validação em dispositivo com OAuth real e repetir as migrations/testes de banco no ambiente CI. Depois, desenhar a UX Android de MatchIntent e Consent sobre os contratos já presentes, mantendo revalidação server-side e JIT para qualquer recurso de vídeo.
+
+## Invariantes preservados
+
+Nenhuma chave OpenAI ou segredo foi incluído no Android ou no repositório. O `OPENAI_API_KEY` continua exclusivamente no backend. O branch utilizado foi somente `continuity`; não houve merge ou push na `main`, nem force-push. As decisões críticas permanecem fail-closed e dependentes do backend.
