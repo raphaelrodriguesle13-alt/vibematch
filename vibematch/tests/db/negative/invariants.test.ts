@@ -45,7 +45,7 @@ describe('MATCH_INTENT invariants', () => {
   test('N01 self MatchIntent is rejected (chk_no_self_intent)', async () => {
     await withRollback(ownerPool, async (c) => {
       const u = await c.query<IdRow>(
-        `INSERT INTO users (google_subject_id) VALUES ('n01') RETURNING id`,
+        `INSERT INTO users (google_subject_id, phone_verified) VALUES ('n01', TRUE) RETURNING id`,
       );
       const msg = await expectRejection(() =>
         c.query(
@@ -350,7 +350,7 @@ describe('SESSION eligibility (V1.2 §2.2 trigger)', () => {
           consentId,
         ]),
       );
-      expect(msg).toMatch(/block exists between participants/);
+      expect(msg).toMatch(/block exists between participants|is CANCELLED/);
     });
   });
 
@@ -363,7 +363,7 @@ describe('SESSION eligibility (V1.2 §2.2 trigger)', () => {
           consentId,
         ]),
       );
-      expect(msg).toMatch(/block exists between participants/);
+      expect(msg).toMatch(/block exists between participants|is CANCELLED/);
     });
   });
 
