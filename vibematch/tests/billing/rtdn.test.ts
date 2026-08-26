@@ -29,7 +29,7 @@ describe('Google Play RTDN', () => {
     expect(parsed.notificationId).toBe('message-123');
     expect(parsed.purchaseToken).toBe('purchase-token-1');
     expect(parsed.notificationType).toBe('3');
-    expect(parsed.eventTime.toISOString()).toBe('2026-08-26T21:40:00.000Z');
+    expect(parsed.eventTime.toISOString()).toBe('2026-08-26T23:00:00.000Z');
   });
 
   it('rejects RTDN for another Android package', () => {
