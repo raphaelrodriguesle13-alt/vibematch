@@ -1,5 +1,4 @@
 import {
-  MatchIntentError,
   MatchIntentService,
   type MatchIntent,
   type MatchIntentDecision,
@@ -67,12 +66,12 @@ describe('MatchIntentService', () => {
     const repository = new FakeMatchIntentRepository();
     const service = new MatchIntentService(repository, () => NOW);
 
-    await expect(service.create(USER_A, USER_A)).rejects.toMatchObject<Partial<MatchIntentError>>({
+    await expect(service.create(USER_A, USER_A)).rejects.toMatchObject({
       code: 'INVALID_TARGET',
     });
-    await expect(service.create(USER_A, 'not-a-uuid')).rejects.toMatchObject<
-      Partial<MatchIntentError>
-    >({ code: 'INVALID_TARGET' });
+    await expect(service.create(USER_A, 'not-a-uuid')).rejects.toMatchObject({
+      code: 'INVALID_TARGET',
+    });
     expect(repository.created).toBeNull();
   });
 
@@ -81,7 +80,7 @@ describe('MatchIntentService', () => {
     repository.createResult = null;
     const service = new MatchIntentService(repository, () => NOW);
 
-    await expect(service.create(USER_A, USER_B)).rejects.toMatchObject<Partial<MatchIntentError>>({
+    await expect(service.create(USER_A, USER_B)).rejects.toMatchObject({
       code: 'NOT_ELIGIBLE',
     });
   });
