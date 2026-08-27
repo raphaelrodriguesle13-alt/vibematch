@@ -41,24 +41,17 @@ export const env = {
   port: intFromEnv('PORT', 3000),
   host: process.env.HOST?.trim() || '0.0.0.0',
   videoRevocationIntervalMs: intFromEnv('VIDEO_REVOCATION_INTERVAL_MS', 5_000),
-
-  /** V1.2 D2 — configuração server-side, nunca constante embutida. */
   sessionInactivityTimeoutSeconds: intFromEnv('SESSION_INACTIVITY_TIMEOUT_SECONDS', 60),
   authSessionTtlSeconds: intFromEnv('AUTH_SESSION_TTL_SECONDS', 15 * 60),
-
-  /** V1.2 D3 — 1 hora por padrão, ajustável sem alterar regra de negócio. */
   consentVideoDeadlineSeconds: intFromEnv('CONSENT_VIDEO_DEADLINE_SECONDS', 3600),
-
   consentDecisionExpirySeconds: intFromEnv('CONSENT_DECISION_EXPIRY_SECONDS', 86400),
 
-  /** Auth/OIDC/JWT. Chaves privadas são server-side only. */
   googleOidcAudience: () => required('GOOGLE_OIDC_AUDIENCE'),
   jwtPrivateKeyPem: () => required('JWT_PRIVATE_KEY_PEM').replace(/\\n/g, '\n'),
   jwtPublicKeyPem: () => required('JWT_PUBLIC_KEY_PEM').replace(/\\n/g, '\n'),
   jwtIssuer: () => required('JWT_ISSUER'),
   jwtAudience: () => required('JWT_AUDIENCE'),
 
-  /** Twilio Verify v2. Credenciais nunca são expostas ao Android. */
   twilioAccountSid: () => required('TWILIO_ACCOUNT_SID'),
   twilioAuthToken: () => required('TWILIO_AUTH_TOKEN'),
   twilioVerifyServiceSid: () => required('TWILIO_VERIFY_SERVICE_SID'),
@@ -68,39 +61,32 @@ export const env = {
       : 'https://verify.twilio.com',
   phoneHashPepper: () => required('PHONE_HASH_PEPPER'),
 
-  /** Didit hosted verification. API key/workflow remain backend-only. */
   diditApiKey: () => required('DIDIT_API_KEY'),
   diditWorkflowId: () => required('DIDIT_WORKFLOW_ID'),
+  diditWebhookSecret: () => required('DIDIT_WEBHOOK_SECRET'),
   diditApiBaseUrl: () =>
     process.env.DIDIT_API_BASE_URL
       ? requiredUrl('DIDIT_API_BASE_URL', 'https:')
       : 'https://verification.didit.me',
 
-  /** LiveKit RTC público consumido pelo cliente. Nunca contém segredo. */
   liveKitRtcUrl: () => requiredUrl('LIVEKIT_URL', 'wss:'),
-
-  /** LiveKit API administrativa usada somente no backend. */
   liveKitApiUrl: () => requiredUrl('LIVEKIT_API_URL', 'https:'),
   liveKitApiKey: () => required('LIVEKIT_API_KEY'),
   liveKitApiSecret: () => required('LIVEKIT_API_SECRET'),
 
-  /** Google Play Android Publisher API. Credenciais vêm de ADC/Workload Identity. */
   googlePlayPackageName: () => required('GOOGLE_PLAY_PACKAGE_NAME'),
   googlePlayApiBaseUrl:
     process.env.GOOGLE_PLAY_API_BASE_URL ?? 'https://androidpublisher.googleapis.com',
   googlePlayPubSubAudience: () => required('GOOGLE_PLAY_PUBSUB_AUDIENCE'),
   googlePlayPubSubServiceAccountEmail: () => required('GOOGLE_PLAY_PUBSUB_SERVICE_ACCOUNT_EMAIL'),
 
-  /** ChatGPT é acessado apenas pelo backend; a chave é resolvida somente no uso. */
   openAiApiKey: () => required('OPENAI_API_KEY'),
   openAiBaseUrl: process.env.OPENAI_BASE_URL ?? 'https://api.openai.com/v1',
   openAiModel: process.env.OPENAI_MODEL ?? 'gpt-5.6',
   openAiTimeoutMs: intFromEnv('OPENAI_TIMEOUT_MS', 30_000),
 
-  /** 'env' apenas para desenvolvimento/teste; produção usa GCP Secret Manager. */
   secretBackend: (process.env.SECRET_BACKEND ?? 'env') as 'env' | 'gcp-secret-manager',
 
-  /** Owner/migrations. Runtime services must use their least-privilege role. */
   databaseUrl: () => required('DATABASE_URL'),
   authDatabaseUrl: () => required('DATABASE_URL_AUTH'),
   profileDatabaseUrl: () => required('DATABASE_URL_PROFILE'),
@@ -110,10 +96,6 @@ export const env = {
   billingDatabaseUrl: () => required('DATABASE_URL_BILLING'),
 } as const;
 
-/**
- * Abstração de segredos. Etapa 0 implementa apenas o backend 'env'.
- * O adaptador GCP Secret Manager entra nas etapas 2+ sem alterar chamadores.
- */
 export interface SecretResolver {
   get(key: string): Promise<string>;
 }
