@@ -90,6 +90,8 @@ import com.vibematch.app.auth.PhoneVerificationStep
 import com.vibematch.app.auth.PhoneVerificationViewModel
 import com.vibematch.app.auth.PhoneVerificationViewModelFactory
 import com.vibematch.app.auth.SecureSessionStore
+import com.vibematch.app.auth.SessionRefreshCoordinator
+import com.vibematch.app.auth.buildSessionAwareHttpClient
 import com.vibematch.app.billing.BillingApiClient
 import com.vibematch.app.billing.BillingUiStatus
 import com.vibematch.app.billing.BillingViewModel
@@ -143,6 +145,20 @@ class MainActivity : ComponentActivity() {
                         sessionStore = sessionStore,
                     ),
                 )
+                val sessionRefreshCoordinator = remember {
+                    SessionRefreshCoordinator(
+                        sessionStore = sessionStore,
+                        authGateway = authGateway,
+                        onSessionExpired = {
+                            if (!isFinishing && !isDestroyed) {
+                                runOnUiThread(authViewModel::signOut)
+                            }
+                        },
+                    )
+                }
+                val sessionHttpClient = remember {
+                    buildSessionAwareHttpClient(sessionRefreshCoordinator)
+                }
                 val billingGateway = remember { PlayBillingClientGateway(applicationContext) }
                 val billingViewModel: BillingViewModel = viewModel(
                     factory = BillingViewModelFactory(
@@ -150,6 +166,7 @@ class MainActivity : ComponentActivity() {
                         validationGateway = BillingApiClient(
                             BuildConfig.API_BASE_URL,
                             BuildConfig.BILLING_VALIDATION_PATH,
+                            httpClient = sessionHttpClient,
                         ),
                         accessTokenProvider = sessionStore::readAccessToken,
                         productId = BuildConfig.BILLING_PRODUCT_ID,
@@ -158,21 +175,30 @@ class MainActivity : ComponentActivity() {
                 )
                 val chatViewModel: ChatViewModel = viewModel(
                     factory = ChatViewModelFactory(
-                        gateway = ChatApiClient(BuildConfig.API_BASE_URL),
+                        gateway = ChatApiClient(
+                            BuildConfig.API_BASE_URL,
+                            httpClient = sessionHttpClient,
+                        ),
                         accessTokenProvider = sessionStore::readAccessToken,
                         onSessionExpired = authViewModel::signOut,
                     ),
                 )
                 val profileViewModel: ProfileViewModel = viewModel(
                     factory = ProfileViewModelFactory(
-                        gateway = ProfileApiClient(BuildConfig.API_BASE_URL),
+                        gateway = ProfileApiClient(
+                            BuildConfig.API_BASE_URL,
+                            httpClient = sessionHttpClient,
+                        ),
                         accessTokenProvider = sessionStore::readAccessToken,
                         onSessionExpired = authViewModel::signOut,
                     ),
                 )
                 val phoneViewModel: PhoneVerificationViewModel = viewModel(
                     factory = PhoneVerificationViewModelFactory(
-                        gateway = PhoneVerificationApiClient(BuildConfig.API_BASE_URL),
+                        gateway = PhoneVerificationApiClient(
+                            BuildConfig.API_BASE_URL,
+                            httpClient = sessionHttpClient,
+                        ),
                         accessTokenProvider = sessionStore::readAccessToken,
                         onSessionExpired = authViewModel::signOut,
                         onPhoneVerified = authViewModel::markPhoneVerified,
@@ -180,7 +206,10 @@ class MainActivity : ComponentActivity() {
                 )
                 val matchIntentViewModel: MatchIntentViewModel = viewModel(
                     factory = MatchIntentViewModelFactory(
-                        gateway = MatchIntentApiClient(BuildConfig.API_BASE_URL),
+                        gateway = MatchIntentApiClient(
+                            BuildConfig.API_BASE_URL,
+                            httpClient = sessionHttpClient,
+                        ),
                         accessTokenProvider = sessionStore::readAccessToken,
                         onSessionExpired = authViewModel::signOut,
                         onPhoneVerificationRequired = authViewModel::markPhoneUnverified,
@@ -188,7 +217,10 @@ class MainActivity : ComponentActivity() {
                 )
                 val consentViewModel: ConsentViewModel = viewModel(
                     factory = ConsentViewModelFactory(
-                        gateway = ConsentApiClient(BuildConfig.API_BASE_URL),
+                        gateway = ConsentApiClient(
+                            BuildConfig.API_BASE_URL,
+                            httpClient = sessionHttpClient,
+                        ),
                         accessTokenProvider = sessionStore::readAccessToken,
                         currentUserIdProvider = { authViewModel.state.value.session?.userId },
                         onSessionExpired = authViewModel::signOut,
@@ -205,7 +237,10 @@ class MainActivity : ComponentActivity() {
                 )
                 val videoViewModel: VideoSessionViewModel = viewModel(
                     factory = VideoSessionViewModelFactory(
-                        gateway = VideoSessionApiClient(BuildConfig.API_BASE_URL),
+                        gateway = VideoSessionApiClient(
+                            BuildConfig.API_BASE_URL,
+                            httpClient = sessionHttpClient,
+                        ),
                         accessTokenProvider = sessionStore::readAccessToken,
                         onSessionExpired = authViewModel::signOut,
                         onPhoneVerificationRequired = authViewModel::markPhoneUnverified,
@@ -221,7 +256,10 @@ class MainActivity : ComponentActivity() {
                 )
                 val moderationViewModel: ModerationViewModel = viewModel(
                     factory = ModerationViewModelFactory(
-                        gateway = ModerationApiClient(BuildConfig.API_BASE_URL),
+                        gateway = ModerationApiClient(
+                            BuildConfig.API_BASE_URL,
+                            httpClient = sessionHttpClient,
+                        ),
                         accessTokenProvider = sessionStore::readAccessToken,
                         onSessionExpired = authViewModel::signOut,
                         onBlocked = rtcRoomViewModel::disconnect,

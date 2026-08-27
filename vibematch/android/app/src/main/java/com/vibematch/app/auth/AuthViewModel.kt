@@ -32,9 +32,12 @@ class AuthViewModel(
         viewModelScope.launch {
             try {
                 val googleIdToken = googleOidcClient.signIn(activity)
-                val session = authGateway.loginWithGoogle(googleIdToken)
-                sessionStore.save(session)
-                mutableState.value = AuthUiState(session = session)
+                val sessionBundle = authGateway.loginWithGoogle(googleIdToken)
+                sessionStore.saveWithRefresh(
+                    sessionBundle.session,
+                    sessionBundle.refreshCredentials,
+                )
+                mutableState.value = AuthUiState(session = sessionBundle.session)
             } catch (error: Exception) {
                 mutableState.value = AuthUiState(
                     errorMessage = publicSignInError(error),

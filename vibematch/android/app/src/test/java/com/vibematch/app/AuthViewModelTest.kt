@@ -3,6 +3,8 @@ package com.vibematch.app
 import android.app.Activity
 import com.vibematch.app.auth.AuthGateway
 import com.vibematch.app.auth.AuthSession
+import com.vibematch.app.auth.AuthSessionBundle
+import com.vibematch.app.auth.RefreshCredentials
 import com.vibematch.app.auth.AuthViewModel
 import com.vibematch.app.auth.GoogleSignInGateway
 import com.vibematch.app.auth.SessionStore
@@ -49,6 +51,7 @@ class AuthViewModelTest {
         assertEquals("google-id-token", auth.lastGoogleIdToken)
         assertEquals("session-jwt", viewModel.state.value.session?.sessionJwt)
         assertEquals("session-jwt", store.session?.sessionJwt)
+        assertEquals("refresh-token", store.refreshCredentials?.refreshToken)
         assertFalse(viewModel.state.value.isLoading)
         assertNull(viewModel.state.value.errorMessage)
     }
@@ -119,16 +122,25 @@ class AuthViewModelTest {
         var lastGoogleIdToken: String? = null
         var lastLogoutToken: String? = null
 
-        override suspend fun loginWithGoogle(googleIdToken: String): AuthSession {
+        override suspend fun loginWithGoogle(googleIdToken: String): AuthSessionBundle {
             lastGoogleIdToken = googleIdToken
-            return AuthSession(
-                sessionJwt = "session-jwt",
-                userId = "user-1",
-                isNewUser = true,
-                phoneVerified = false,
-                expiresAtMillis = System.currentTimeMillis() + 60_000,
+            return AuthSessionBundle(
+                session = AuthSession(
+                    sessionJwt = "session-jwt",
+                    userId = "user-1",
+                    isNewUser = true,
+                    phoneVerified = false,
+                    expiresAtMillis = System.currentTimeMillis() + 60_000,
+                ),
+                refreshCredentials = RefreshCredentials(
+                    refreshToken = "refresh-token",
+                    refreshExpiresAtMillis = System.currentTimeMillis() + 86_400_000,
+                ),
             )
         }
+
+        override suspend fun refreshSession(refreshToken: String): AuthSessionBundle =
+            loginWithGoogle("unused")
 
         override suspend fun logout(sessionJwt: String) {
             lastLogoutToken = sessionJwt
@@ -137,17 +149,26 @@ class AuthViewModelTest {
 
     private class FakeSessionStore : SessionStore {
         var session: AuthSession? = null
+        var refreshCredentials: RefreshCredentials? = null
 
         override fun read(): AuthSession? = session
 
         override fun readAccessToken(): String? = session?.sessionJwt
 
+        override fun readRefreshCredentials(): RefreshCredentials? = refreshCredentials
+
         override fun save(session: AuthSession) {
             this.session = session
         }
 
+        override fun saveWithRefresh(session: AuthSession, credentials: RefreshCredentials) {
+            this.session = session
+            this.refreshCredentials = credentials
+        }
+
         override fun clear() {
             session = null
+            refreshCredentials = null
         }
     }
 }
