@@ -77,7 +77,35 @@ export class BillingRepository implements BillingRepositoryPort {
     currentPeriodEnd: Date;
     now: Date;
   }): Promise<SubscriptionEntitlement | null> {
-    return upsertSubscription(this.pool, input);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const account = await client.query<{ status: string }>(
+        `SELECT status
+         FROM users
+         WHERE id = $1
+         FOR SHARE`,
+        [input.userId],
+      );
+      if (account.rows[0]?.status !== 'ACTIVE') {
+        await client.query('ROLLBACK');
+        return null;
+      }
+
+      const entitlement = await upsertSubscription(client, input);
+      if (!entitlement) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+
+      await client.query('COMMIT');
+      return entitlement;
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   async findLatestEntitlementForUser(userId: string): Promise<SubscriptionEntitlement | null> {
