@@ -24,7 +24,10 @@ export type VideoRuntime = {
  * - callers receive only the public RTC URL, never API secret/key material.
  */
 export const createVideoRuntime = (): VideoRuntime => {
-  const pool = new Pool({ connectionString: env.videoDatabaseUrl() });
+  const pool = new Pool({
+    connectionString: env.videoDatabaseUrl(),
+    connectionTimeoutMillis: env.databaseConnectionTimeoutMs,
+  });
   const apiKey = env.liveKitApiKey();
   const apiSecret = env.liveKitApiSecret();
 
