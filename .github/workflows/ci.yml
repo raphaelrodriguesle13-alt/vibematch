@@ -92,7 +92,7 @@ jobs:
         run: npm run test:db
 
       - name: Unit tests
-        run: npm test
+        run: npm run test:unit
 
       - name: Secret scanning
         uses: gitleaks/gitleaks-action@v2
