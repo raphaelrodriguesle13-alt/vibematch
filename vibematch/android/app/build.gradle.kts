@@ -1,3 +1,5 @@
+import java.net.URI
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -63,22 +65,35 @@ android {
             val releaseBillingValidationPath = providers.gradleProperty("BILLING_VALIDATION_PATH")
                 .orElse("/api/billing/verify-purchase")
                 .get()
-            require(releaseApiBaseUrl.startsWith("https://")) {
-                "Release API_BASE_URL must use HTTPS"
-            }
             if (releaseBuildRequested) {
+                val releaseApiHost = runCatching { URI(releaseApiBaseUrl).host?.lowercase() }
+                    .getOrNull()
+                val releaseLiveKitHost = runCatching { URI(releaseLiveKitUrl).host?.lowercase() }
+                    .getOrNull()
+                val localHosts = setOf("localhost", "127.0.0.1", "0.0.0.0", "10.0.2.2")
+                require(releaseApiBaseUrl.startsWith("https://")) {
+                    "Release API_BASE_URL must use HTTPS"
+                }
+                require(releaseApiHost != null && releaseApiHost !in localHosts) {
+                    "Release API_BASE_URL must not use a local host"
+                }
                 require(releaseGoogleClientId != "MISSING_GOOGLE_SERVER_CLIENT_ID") {
                     "Release GOOGLE_SERVER_CLIENT_ID must be configured"
                 }
                 require(releaseLiveKitUrl.startsWith("wss://")) {
                     "Release LIVEKIT_URL must use wss://"
                 }
+                require(releaseLiveKitHost != null && releaseLiveKitHost !in localHosts) {
+                    "Release LIVEKIT_URL must not use a local host"
+                }
                 require(releaseBillingProductId != "MISSING_BILLING_PRODUCT_ID") {
                     "Release BILLING_PRODUCT_ID must be configured"
                 }
             }
-            require(releaseBillingValidationPath.startsWith("/")) {
-                "Release BILLING_VALIDATION_PATH must be an absolute API path"
+            if (releaseBuildRequested) {
+                require(releaseBillingValidationPath.startsWith("/")) {
+                    "Release BILLING_VALIDATION_PATH must be an absolute API path"
+                }
             }
             buildConfigField("String", "API_BASE_URL", releaseApiBaseUrl.toBuildConfigString())
             buildConfigField("String", "GOOGLE_SERVER_CLIENT_ID", releaseGoogleClientId.toBuildConfigString())
