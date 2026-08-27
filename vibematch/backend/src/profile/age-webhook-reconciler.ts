@@ -35,7 +35,11 @@ export class AgeWebhookReconciler {
         `UPDATE age_assurance_sessions
          SET status = $2, updated_at = $3
          WHERE provider_session_ref = $1
-           AND (status = 'PENDING' OR status = $2)
+           AND (
+             status = 'PENDING'
+             OR status = $2
+             OR (status = 'APPROVED' AND $2 = 'REJECTED')
+           )
          RETURNING status`,
         [providerSessionRef, decision, now],
       );
