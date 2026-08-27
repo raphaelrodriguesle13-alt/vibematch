@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { TwilioVerifyProvider } from '../../backend/src/auth/providers/twilio-verify';
 
 describe('TwilioVerifyProvider', () => {
