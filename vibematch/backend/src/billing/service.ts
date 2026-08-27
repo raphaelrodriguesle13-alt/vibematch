@@ -124,6 +124,9 @@ export class BillingService {
       now,
     });
     if (!stored) {
+      if (!(await this.repository.isUserActive(userId))) {
+        throw new BillingError('ACCOUNT_UNAVAILABLE', 'Account is not eligible for billing');
+      }
       throw new BillingError('PURCHASE_NOT_OWNED', 'Purchase token belongs to another account');
     }
 
