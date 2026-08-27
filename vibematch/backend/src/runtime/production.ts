@@ -20,6 +20,8 @@ import { ModerationService } from '../moderation/service';
 import { registerAgeAssuranceRoutes } from '../profile/age-http';
 import { AgeAssuranceRepository } from '../profile/age-assurance-repository';
 import { AgeAssuranceService } from '../profile/age-assurance';
+import { AgeWebhookReconciler } from '../profile/age-webhook-reconciler';
+import { registerAgeWebhookRoute } from '../profile/age-webhook-http';
 import { DiditAgeAssuranceProvider } from '../profile/providers/didit';
 import { ProfileRepository } from '../profile/repository';
 import { ProfileService } from '../profile/service';
@@ -33,16 +35,6 @@ export type ProductionRuntime = {
   close(): Promise<void>;
 };
 
-/**
- * Unified production composition root.
- *
- * Security boundary:
- * - each domain receives its least-privilege PostgreSQL connection string;
- * - migration/owner DATABASE_URL is never used by runtime services;
- * - Google OIDC and API-session JWT verification are server-side;
- * - Billing, SMS, Didit and LiveKit credentials remain server-only;
- * - provider absence is a startup/configuration failure, never a local bypass.
- */
 export const createProductionRuntime = (): ProductionRuntime => {
   const authPool = new Pool({ connectionString: env.authDatabaseUrl() });
   const profilePool = new Pool({ connectionString: env.profileDatabaseUrl() });
@@ -74,14 +66,16 @@ export const createProductionRuntime = (): ProductionRuntime => {
   );
 
   const profileService = new ProfileService(new ProfileRepository(profilePool));
+  const diditProvider = new DiditAgeAssuranceProvider({
+    apiKey: env.diditApiKey(),
+    workflowId: env.diditWorkflowId(),
+    baseUrl: env.diditApiBaseUrl(),
+  });
   const ageAssuranceService = new AgeAssuranceService(
     new AgeAssuranceRepository(profilePool),
-    new DiditAgeAssuranceProvider({
-      apiKey: env.diditApiKey(),
-      workflowId: env.diditWorkflowId(),
-      baseUrl: env.diditApiBaseUrl(),
-    }),
+    diditProvider,
   );
+  const ageWebhookReconciler = new AgeWebhookReconciler(profilePool, diditProvider);
   const matchIntentService = new MatchIntentService(new MatchIntentRepository(matchmakingPool));
   const consentService = new ConsentService(new ConsentRepository(matchmakingPool));
   const moderationService = new ModerationService(new ModerationRepository(moderationPool));
@@ -108,6 +102,11 @@ export const createProductionRuntime = (): ProductionRuntime => {
     service: ageAssuranceService,
     sessionTokenVerifier: sessionTokens,
     activeSessionStore: authRepository,
+  });
+
+  registerAgeWebhookRoute(app, {
+    webhookSecret: env.diditWebhookSecret(),
+    reconciler: ageWebhookReconciler,
   });
 
   registerBillingRoutes(app, {
