@@ -90,6 +90,26 @@ describe('HTTP observability', () => {
     await app.close();
   });
 
+  test('marks auth credential responses as non-cacheable even for routes registered first', async () => {
+    const app = fastify({ logger: false });
+    const logs = makeSink();
+    app.post('/auth/google', () => ({ session_jwt: 'access', refresh_token: 'refresh' }));
+    app.post('/auth/refresh', () => ({ session_jwt: 'access-2', refresh_token: 'refresh-2' }));
+    app.get('/public', () => ({ ok: true }));
+    installHttpObservability(app, { logger: logs.sink });
+
+    const login = await app.inject({ method: 'POST', url: '/auth/google' });
+    const refresh = await app.inject({ method: 'POST', url: '/auth/refresh' });
+    const publicResponse = await app.inject({ method: 'GET', url: '/public' });
+
+    expect(login.headers['cache-control']).toBe('no-store');
+    expect(login.headers.pragma).toBe('no-cache');
+    expect(refresh.headers['cache-control']).toBe('no-store');
+    expect(refresh.headers.pragma).toBe('no-cache');
+    expect(publicResponse.headers['cache-control']).toBeUndefined();
+    await app.close();
+  });
+
   test('rejects unsafe incoming request ids and generates a server id', async () => {
     const app = fastify({ logger: false });
     const logs = makeSink();
