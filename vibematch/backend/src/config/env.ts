@@ -52,7 +52,12 @@ function optionalStringRecord(name: string): Readonly<Record<string, string>> {
 
   const result: Record<string, string> = {};
   for (const [key, value] of Object.entries(parsed)) {
-    if (key.trim() === '' || key !== key.trim() || typeof value !== 'string' || value.trim() === '') {
+    if (
+      key.trim() === '' ||
+      key !== key.trim() ||
+      typeof value !== 'string' ||
+      value.trim() === ''
+    ) {
       throw new Error(`Environment variable ${name} must map non-empty key ids to public keys`);
     }
     result[key] = value.replace(/\\n/g, '\n');
