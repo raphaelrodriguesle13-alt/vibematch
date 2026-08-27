@@ -12,6 +12,17 @@ const first = <T extends QueryResultRow>(result: QueryResult<T>): T => {
   return row;
 };
 
+const expectRejection = async (fn: () => Promise<unknown>): Promise<string> => {
+  try {
+    await fn();
+    throw new Error('EXPECTED REJECTION BUT STATEMENT SUCCEEDED');
+  } catch (error) {
+    const message = (error as Error).message;
+    if (message === 'EXPECTED REJECTION BUT STATEMENT SUCCEEDED') throw error;
+    return message;
+  }
+};
+
 const createUserWithTwoSessions = async () => {
   const client = await ownerPool.connect();
   try {
@@ -61,6 +72,49 @@ describe('Auth session revocation on account restriction', () => {
       }
     },
   );
+
+  test.each(['SUSPENDED', 'PENDING_DELETION', 'DELETED'])(
+    '%s account cannot mint a new auth session after restriction',
+    async (status) => {
+      await withRollback(ownerPool, async (client) => {
+        const user = await client.query<IdRow>(
+          `INSERT INTO users (google_subject_id, status)
+           VALUES ($1, $2)
+           RETURNING id`,
+          [`status-no-mint-${status}-${Math.random()}`, status],
+        );
+        const userId = first(user).id;
+
+        const message = await expectRejection(() =>
+          client.query(
+            `INSERT INTO auth_sessions (user_id, expires_at, refresh_token_hash, refresh_expires_at)
+             VALUES ($1, now() + interval '15 minutes', repeat('d', 64), now() + interval '30 days')`,
+            [userId],
+          ),
+        );
+
+        expect(message).toMatch(/account must be ACTIVE/);
+      });
+    },
+  );
+
+  test('ACTIVE account still mints an auth session (control)', async () => {
+    await withRollback(ownerPool, async (client) => {
+      const user = await client.query<IdRow>(
+        `INSERT INTO users (google_subject_id)
+         VALUES ($1)
+         RETURNING id`,
+        [`status-active-mint-${Math.random()}`],
+      );
+      const session = await client.query<IdRow>(
+        `INSERT INTO auth_sessions (user_id, expires_at, refresh_token_hash, refresh_expires_at)
+         VALUES ($1, now() + interval '15 minutes', repeat('e', 64), now() + interval '30 days')
+         RETURNING id`,
+        [first(user).id],
+      );
+      expect(first(session).id).toBeTruthy();
+    });
+  });
 
   test('returning an account to ACTIVE never resurrects revoked sessions', async () => {
     await withRollback(ownerPool, async (client) => {
