@@ -45,6 +45,7 @@ export const createProductionRuntime = (): ProductionRuntime => {
   const sessionTokens = new JwtSessionProvider({
     privateKeyPem: env.jwtPrivateKeyPem(),
     publicKeyPem: env.jwtPublicKeyPem(),
+    keyId: env.jwtKeyId(),
     issuer: env.jwtIssuer(),
     audience: env.jwtAudience(),
   });
