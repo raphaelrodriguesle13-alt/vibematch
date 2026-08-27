@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import fastify from 'fastify';
 import { registerAgeAssuranceRoutes } from '../../backend/src/profile/age-http';
 import { AgeAssuranceError } from '../../backend/src/profile/age-assurance';
