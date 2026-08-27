@@ -315,7 +315,7 @@ describe('SESSION eligibility (V1.2 §2.2 trigger)', () => {
     });
   });
 
-  test('S03 Session rejected when user A is SUSPENDED', async () => {
+  test('S03 Session rejected after user A suspension cancels Consent', async () => {
     await withRollback(ownerPool, async (c) => {
       const { consentId, userA } = await mkConsent(c, 'ACCEPTED_BOTH');
       await c.query(`UPDATE users SET status='SUSPENDED' WHERE id=$1`, [userA]);
@@ -324,11 +324,11 @@ describe('SESSION eligibility (V1.2 §2.2 trigger)', () => {
           consentId,
         ]),
       );
-      expect(msg).toMatch(/participant not ACTIVE/);
+      expect(msg).toMatch(/is CANCELLED \(expected ACCEPTED_BOTH\)/);
     });
   });
 
-  test('S04 Session rejected when user B is PENDING_DELETION', async () => {
+  test('S04 Session rejected after user B pending deletion cancels Consent', async () => {
     await withRollback(ownerPool, async (c) => {
       const { consentId, userB } = await mkConsent(c, 'ACCEPTED_BOTH');
       await c.query(`UPDATE users SET status='PENDING_DELETION' WHERE id=$1`, [userB]);
@@ -337,7 +337,7 @@ describe('SESSION eligibility (V1.2 §2.2 trigger)', () => {
           consentId,
         ]),
       );
-      expect(msg).toMatch(/participant not ACTIVE/);
+      expect(msg).toMatch(/is CANCELLED \(expected ACCEPTED_BOTH\)/);
     });
   });
 
