@@ -139,28 +139,36 @@ describe('Restrictive moderation decisions', () => {
       );
 
       expect(
-        first(await client.query<UserStateRow>('SELECT status FROM users WHERE id = $1', [ids.reportedId]))
-          .status,
+        first(
+          await client.query<UserStateRow>('SELECT status FROM users WHERE id = $1', [
+            ids.reportedId,
+          ]),
+        ).status,
       ).toBe('SUSPENDED');
       expect(
         first(
-          await client.query<SessionStateRow>('SELECT revoked_at FROM auth_sessions WHERE id = $1', [
-            ids.sessionId,
-          ]),
+          await client.query<SessionStateRow>(
+            'SELECT revoked_at FROM auth_sessions WHERE id = $1',
+            [ids.sessionId],
+          ),
         ).revoked_at,
       ).not.toBeNull();
 
       await client.query('ROLLBACK');
 
       expect(
-        first(await client.query<UserStateRow>('SELECT status FROM users WHERE id = $1', [ids.reportedId]))
-          .status,
+        first(
+          await client.query<UserStateRow>('SELECT status FROM users WHERE id = $1', [
+            ids.reportedId,
+          ]),
+        ).status,
       ).toBe('ACTIVE');
       expect(
         first(
-          await client.query<SessionStateRow>('SELECT revoked_at FROM auth_sessions WHERE id = $1', [
-            ids.sessionId,
-          ]),
+          await client.query<SessionStateRow>(
+            'SELECT revoked_at FROM auth_sessions WHERE id = $1',
+            [ids.sessionId],
+          ),
         ).revoked_at,
       ).toBeNull();
       const moderationCase = first(

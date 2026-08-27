@@ -80,9 +80,15 @@ describe('Billing persistence safety', () => {
       );
       expect(persisted.rows[0]?.count).toBe('1');
     } finally {
-      await ownerPool.query('DELETE FROM billing_events WHERE notification_id = $1', [notificationId]);
-      await ownerPool.query('DELETE FROM subscriptions WHERE play_purchase_token = $1', [purchaseToken]);
-      await ownerPool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [[ownerId, otherUserId]]);
+      await ownerPool.query('DELETE FROM billing_events WHERE notification_id = $1', [
+        notificationId,
+      ]);
+      await ownerPool.query('DELETE FROM subscriptions WHERE play_purchase_token = $1', [
+        purchaseToken,
+      ]);
+      await ownerPool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [
+        [ownerId, otherUserId],
+      ]);
     }
   });
 
@@ -126,7 +132,9 @@ describe('Billing persistence safety', () => {
     } finally {
       if (!committed) await restrictClient.query('ROLLBACK').catch(() => undefined);
       restrictClient.release();
-      await ownerPool.query('DELETE FROM subscriptions WHERE play_purchase_token = $1', [purchaseToken]);
+      await ownerPool.query('DELETE FROM subscriptions WHERE play_purchase_token = $1', [
+        purchaseToken,
+      ]);
       await ownerPool.query('DELETE FROM users WHERE id = $1', [userId]);
     }
   });
