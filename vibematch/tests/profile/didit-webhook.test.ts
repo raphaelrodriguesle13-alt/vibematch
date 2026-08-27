@@ -1,7 +1,10 @@
 import { jest } from '@jest/globals';
 import { createHmac } from 'node:crypto';
 import fastify from 'fastify';
-import { registerAgeWebhookRoute } from '../../backend/src/profile/age-webhook-http';
+import {
+  registerAgeWebhookRoute,
+  type AgeWebhookHttpDependencies,
+} from '../../backend/src/profile/age-webhook-http';
 import { verifyDiditWebhookV2 } from '../../backend/src/profile/didit-webhook';
 
 const secret = 'test-webhook-secret-not-production';
@@ -26,6 +29,8 @@ const signatureFor = (payload: Record<string, unknown>): string => {
   return createHmac('sha256', secret).update(canonical).digest('hex');
 };
 
+type Reconcile = AgeWebhookHttpDependencies['reconciler']['reconcileProviderSession'];
+
 describe('Didit V3 webhook security', () => {
   it('accepts a valid V2 signature inside the replay window', () => {
     expect(verifyDiditWebhookV2(body, signatureFor(body), timestamp, secret, now)).toBe(true);
@@ -39,10 +44,10 @@ describe('Didit V3 webhook security', () => {
 
   it('authenticates before reconciling and ignores webhook decision as authority', async () => {
     const app = fastify();
-    const reconcileProviderSession = jest.fn().mockResolvedValue({
+    const reconcileProviderSession: Reconcile = jest.fn(async () => ({
       outcome: 'APPLIED',
       status: 'APPROVED',
-    });
+    }));
     registerAgeWebhookRoute(app, {
       webhookSecret: secret,
       reconciler: { reconcileProviderSession },
@@ -67,7 +72,9 @@ describe('Didit V3 webhook security', () => {
 
   it('rejects unauthenticated requests before reconciliation', async () => {
     const app = fastify();
-    const reconcileProviderSession = jest.fn();
+    const reconcileProviderSession: Reconcile = jest.fn(async () => ({
+      outcome: 'SESSION_NOT_FOUND',
+    }));
     registerAgeWebhookRoute(app, {
       webhookSecret: secret,
       reconciler: { reconcileProviderSession },
@@ -87,11 +94,12 @@ describe('Didit V3 webhook security', () => {
 
   it('requests provider retry when the session is not persisted yet', async () => {
     const app = fastify();
+    const reconcileProviderSession: Reconcile = jest.fn(async () => ({
+      outcome: 'SESSION_NOT_FOUND',
+    }));
     registerAgeWebhookRoute(app, {
       webhookSecret: secret,
-      reconciler: {
-        reconcileProviderSession: jest.fn().mockResolvedValue({ outcome: 'SESSION_NOT_FOUND' }),
-      },
+      reconciler: { reconcileProviderSession },
       now: () => now,
     });
 
@@ -112,11 +120,12 @@ describe('Didit V3 webhook security', () => {
 
   it('fails closed when server-to-server reconciliation fails', async () => {
     const app = fastify();
+    const reconcileProviderSession: Reconcile = jest.fn(async () => {
+      throw new Error('provider timeout');
+    });
     registerAgeWebhookRoute(app, {
       webhookSecret: secret,
-      reconciler: {
-        reconcileProviderSession: jest.fn().mockRejectedValue(new Error('provider timeout')),
-      },
+      reconciler: { reconcileProviderSession },
       now: () => now,
     });
 
