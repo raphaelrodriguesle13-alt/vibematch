@@ -38,6 +38,12 @@ export type ProductionRuntime = {
   close(): Promise<void>;
 };
 
+const createRuntimePool = (connectionString: string): Pool =>
+  new Pool({
+    connectionString,
+    connectionTimeoutMillis: env.databaseConnectionTimeoutMs,
+  });
+
 const poolReady = async (pool: Pool): Promise<boolean> => {
   await pool.query('SELECT 1');
   return true;
@@ -46,10 +52,10 @@ const poolReady = async (pool: Pool): Promise<boolean> => {
 export const createProductionRuntime = (): ProductionRuntime => {
   validateProductionConfig();
 
-  const authPool = new Pool({ connectionString: env.authDatabaseUrl() });
-  const profilePool = new Pool({ connectionString: env.profileDatabaseUrl() });
-  const matchmakingPool = new Pool({ connectionString: env.matchmakingDatabaseUrl() });
-  const moderationPool = new Pool({ connectionString: env.moderationDatabaseUrl() });
+  const authPool = createRuntimePool(env.authDatabaseUrl());
+  const profilePool = createRuntimePool(env.profileDatabaseUrl());
+  const matchmakingPool = createRuntimePool(env.matchmakingDatabaseUrl());
+  const moderationPool = createRuntimePool(env.moderationDatabaseUrl());
 
   const authRepository = new AuthRepository(authPool);
   const sessionTokens = new JwtSessionProvider({
@@ -141,7 +147,10 @@ export const createProductionRuntime = (): ProductionRuntime => {
     return checks.every((check) => check.status === 'fulfilled' && check.value);
   };
 
-  installHttpObservability(app, { readiness: checkReady });
+  installHttpObservability(app, {
+    readiness: checkReady,
+    readinessTimeoutMs: env.readinessTimeoutMs,
+  });
 
   let closed = false;
   const close = async (): Promise<void> => {
