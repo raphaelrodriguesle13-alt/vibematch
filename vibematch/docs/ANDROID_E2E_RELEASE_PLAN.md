@@ -10,9 +10,9 @@ As evidências devem usar apenas aliases `A` e `B`, timestamps, versão/build, r
 
 ## Inventário do ambiente atual
 
-| Recurso             | Estado nesta sessão                                                                      | Consequência                                                                     |
-| ------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Branch `continuity` | Base cooperativa `5ecbf9691a474115e041a3e14666ab9180232a5f`; lote local inclui `9c322ab` | Código pode ser reproduzido após publicar o lote local, se o remoto não avançar. |
+| Recurso             | Estado nesta sessão                                                                   | Consequência                                                                                      |
+| ------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Branch `continuity` | Base cooperativa `855deab90e669a6c65cf0ba489243c37464da4bd`; HEAD publicado `e01866c` | Código e tooling E2E estão publicados; execução funcional ainda depende de device/provider reais. |
 
 | Android SDK 35/build tools | Disponível em `/home/ubuntu/android-sdk` | Builds locais são possíveis. |
 | `adb` | Disponível em `/home/ubuntu/android-sdk/platform-tools/adb`, mas não exposto no PATH | O preflight consegue usar o caminho absoluto; não havia dispositivo autorizado. |

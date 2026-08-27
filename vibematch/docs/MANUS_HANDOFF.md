@@ -17,6 +17,7 @@ O rebase obrigatório preservou os commits cooperativos publicados entre o HEAD 
 | Commit do preflight E2E na ancestralidade atual | `4710982` — `test(android): add sanitized e2e preflight`                                    |
 | Commit do runner de sessão E2E                  | `7b6da8b` — `test(android): add manual e2e session runner`                                  |
 | HEAD local após avanço Android/backend          | `6c93835` — `fix(http): narrow sanitized error status safely`                               |
+| HEAD final publicado desta etapa                | `e01866c` — `docs(android): document e2e runner and accessibility advance`                  |
 
 | Publicação permitida | Somente `origin/continuity`, sem force-push |
 
