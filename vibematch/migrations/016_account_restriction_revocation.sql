@@ -59,40 +59,40 @@ SECURITY DEFINER
 SET search_path = pg_catalog, public
 AS $$
 DECLARE
-  cancellation_reason TEXT;
-  session_end_reason TEXT;
-  revoked_at TIMESTAMPTZ;
+  v_cancellation_reason TEXT;
+  v_session_end_reason TEXT;
+  v_revoked_at TIMESTAMPTZ;
 BEGIN
   IF NEW.status = 'ACTIVE' THEN
     RETURN NEW;
   END IF;
 
-  revoked_at := clock_timestamp();
-  cancellation_reason := CASE
+  v_revoked_at := clock_timestamp();
+  v_cancellation_reason := CASE
     WHEN NEW.status = 'SUSPENDED' THEN 'USER_SUSPENDED'
     ELSE 'ACCOUNT_DELETION'
   END;
-  session_end_reason := cancellation_reason;
+  v_session_end_reason := v_cancellation_reason;
 
   UPDATE public.match_intents
      SET status = 'CANCELLED',
-         closed_at = COALESCE(closed_at, revoked_at)
+         closed_at = COALESCE(closed_at, v_revoked_at)
    WHERE status = 'SENT'
      AND (sender_id = NEW.id OR receiver_id = NEW.id);
 
   UPDATE public.consents
      SET status = 'CANCELLED',
-         cancellation_reason = cancellation_reason,
-         updated_at = revoked_at
+         cancellation_reason = v_cancellation_reason,
+         updated_at = v_revoked_at
    WHERE status IN ('PENDING', 'ACCEPTED_BOTH')
      AND (user_a_id = NEW.id OR user_b_id = NEW.id);
 
   UPDATE public.sessions AS s
      SET status = 'ENDED',
-         end_reason = session_end_reason,
+         end_reason = v_session_end_reason,
          revocation_pending = TRUE,
-         revoked_at = COALESCE(s.revoked_at, revoked_at),
-         ended_at = COALESCE(s.ended_at, revoked_at)
+         revoked_at = COALESCE(s.revoked_at, v_revoked_at),
+         ended_at = COALESCE(s.ended_at, v_revoked_at)
     FROM public.consents AS c
    WHERE s.consent_id = c.id
      AND (c.user_a_id = NEW.id OR c.user_b_id = NEW.id)
