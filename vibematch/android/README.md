@@ -63,6 +63,12 @@ O backend agora expõe `POST /api/billing/verify-purchase` e `GET /api/billing/e
 
 O Gradle rejeita build release sem `BILLING_PRODUCT_ID`, exige HTTPS na API e `wss://` no LiveKit. Nenhuma chave de serviço Google Play, segredo LiveKit ou token de compra deve ser colocado no APK, no `BuildConfig` ou no repositório.
 
+## Age Assurance hosted
+
+O perfil consulta `GET /api/age-assurance/status` e só o status `APPROVED` libera as etapas restritas. Quando o backend mantém o usuário em `NOT_STARTED`, o botão de verificação chama `POST /api/age-assurance/start`; o Android aceita somente uma resposta `PENDING` com `verification_url` HTTPS e abre esse endereço externo apenas após validar a URL. O app não aprova idade, não interpreta o resultado do provedor e não persiste a URL além do estado transitório da tela.
+
+Enquanto o gate estiver `PENDING`, o usuário pode atualizar o estado por `POST /api/age-assurance/refresh`. O retorno do navegador usa o ciclo ActivityResult e `ON_RESUME` como gatilhos de refresh server-side; não existe um app link/deep link de provedor inventado pelo cliente, porque o backend atual não publica esse contrato. `APPROVED`, `REJECTED`, `UNKNOWN`, `AGE_PROVIDER_UNAVAILABLE`, HTTP 401, 403, 404, 409, 429 e 5xx continuam fail-closed. Respostas tardias de uma sessão anterior são descartadas por geração de requisição e token autenticado.
+
 ## Fluxo do chat
 
 Após o login, a tela envia `POST /api/chat` com o header `Authorization: Bearer <session_jwt>`, a mensagem atual e o histórico limitado. A chave da OpenAI nunca é enviada para o Android; somente o backend conversa com o provedor.
@@ -129,6 +135,10 @@ As telas de Consent e da chamada oferecem `Bloquear ou denunciar` para o partici
 
 Após confirmação do bloqueio pelo backend, o callback Android encerra a sala RTC imediatamente. O Android não calcula severidade, não decide punições e não altera o estado de outra conta localmente. O backend valida identidade, participantes, sessão, categoria e encaminhamento operacional. HTTP 401 encerra a sessão, HTTP 429 é apresentado como erro recuperável e estados desconhecidos permanecem sem autorização local.
 
+## UX, lifecycle e acessibilidade
+
+Os estados vazios de MatchIntent, Consent e autorização de vídeo exibem explicação pública e ação de atualização/retry quando a operação pode ser repetida com segurança. Mensagens não expõem detalhes de provedores, tokens ou PII. Ao entrar em background (`ON_STOP`), a Activity encerra a sala RTC e descarta a credencial pendente; o retorno a uma chamada exige nova autorização e ação explícita. Os botões críticos permanecem nomeados por texto, com loading visível e sem liberar recurso por estado otimista local.
+
 ## Validação local
 
 Os gates Android usados nesta etapa são:
@@ -137,7 +147,7 @@ Os gates Android usados nesta etapa são:
 ./gradlew test :app:assembleDebug :app:lintDebug --no-daemon
 ```
 
-Os testes unitários cobrem a entrega transitória de token da Video Session, a ausência do token bruto no estado exposto, a exigência de credencial antes de conectar, consumo único, URL ausente, permissão negada e desconexão. A validação de uma chamada real depende de um backend com LiveKit configurado, credenciais server-side e duas sessões autenticadas; esses valores nunca devem ser colocados no APK ou no repositório.
+Os testes unitários cobrem a entrega transitória de token da Video Session, a ausência do token bruto no estado exposto, a exigência de credencial antes de conectar, consumo único, URL ausente, permissão negada, desconexão, Billing duplicado/stale e o fluxo hosted de Age Assurance. A validação de uma chamada real depende de um backend com LiveKit configurado, credenciais server-side e duas sessões autenticadas; esses valores nunca devem ser colocados no APK ou no repositório. A validação hosted real depende de Didit configurado, webhook autenticado e um dispositivo/navegador compatível; o retorno atual é tratado por ActivityResult/ON_RESUME e não por um deep link Android, pois não há contrato de app link publicado.
 
 ## Referências técnicas
 

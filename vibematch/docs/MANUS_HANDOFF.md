@@ -1,156 +1,136 @@
-# Handoff Manus → ChatGPT — VibeMatch
+# Handoff Manus → ChatGPT — VibeMatch Android
 
-Atualizado em **2026-08-26** após a integração Android Play Billing sobre o backend cooperativo de Billing/RTDN na branch exclusiva `continuity`.
+Atualizado em **2026-08-27** após a continuação exclusiva na branch `continuity`. Esta entrega manteve o backend como autoridade para Auth, Age Assurance, telefone, MatchIntent, Consent, Video Session, LiveKit, moderação, Block, Billing e entitlement.
 
-## Resumo da entrega
+## Escopo e estado do Git
 
-Esta etapa adiciona ao caminho Android já concluído de autorização de Video Session/RTC uma tela de Premium com Google Play Billing client-side. O usuário pode consultar o produto, iniciar compra ou restaurar, mas o app só exibe Premium depois da confirmação do entitlement pelo backend. O fluxo RTC anterior permanece controlado por token JIT e permissões runtime.
+O objetivo desta etapa foi aproximar o cliente Android de um AAB release-ready, reforçando o Play Billing server-authorized, o Age Assurance hosted, a UX de estados vazios e retry, o lifecycle do RTC e os gates de segurança de release. O rebase obrigatório preservou os commits cooperativos publicados entre o HEAD inicial e o trabalho local; não houve reset destrutivo, force-push, alteração da `main` ou alteração da lógica de produção backend.
 
-O fluxo autenticado permanece **Perfil → Age Assurance → Telefone → Chat → MatchIntent → Consent → Video Session → RTC**. O Android apenas solicita operações e renderiza estados retornados. Identidade, elegibilidade, telefone, idade, bloqueios, participantes, validade, `video_deadline`, revogação, room, identidade LiveKit, grants, TTL e autorização do token continuam sob responsabilidade do backend e do banco.
+| Item                                                | Valor                                                                                       |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Repositório                                         | `raphaelrodriguesle13-alt/vibematch`                                                        |
+| Branch exclusiva                                    | `continuity`                                                                                |
+| HEAD inicial desta continuação                      | `ad25840923e00663e83365b606bd5af8ec81942f` — `test: assert age assurance column privileges` |
+| HEAD cooperativo encontrado no rebase               | `e38c3ae579a22da9b1824eb605e5655f281f340f` — `test(age): reject malformed webhook JSON`     |
+| HEAD local imediatamente antes do commit documental | `057e199` — `style: align cooperative provider test formatting`                             |
+| Publicação permitida                                | Somente `origin/continuity`, sem force-push                                                 |
 
-> **Fonte de verdade:** o cliente Android não aprova localmente idade, telefone, matchmaking, consentimento, vídeo, entitlement, room ou punições. O backend LiveKit é o único lugar que conhece a chave e o segredo de assinatura.
+Durante o rebase, `origin/continuity` avançou do HEAD inicial para `e38c3ae`; o trabalho Android foi preservado por `stash`, `rebase origin/continuity` e `stash pop`. Os commits cooperativos incluíram correções de tipagem, formatação, testes e webhook de Age Assurance. O único ajuste backend desta etapa foi formatação de três testes cooperativos para satisfazer o gate Prettier; nenhum arquivo de produção backend foi alterado.
 
-## Estado do Git
+## Commits desta entrega
 
-| Item                              | Valor                                                            |
-| --------------------------------- | ---------------------------------------------------------------- |
-| Repositório                       | `raphaelrodriguesle13-alt/vibematch`                             |
-| Branch utilizada                  | `continuity`                                                     |
-| HEAD publicado antes do lote RTC  | `5cf646e` — `feat: add Android community safety controls`        |
-| HEAD da implementação Android RTC | `5f8c3a2` — `feat: add Android LiveKit RTC call flow`            |
-| HEAD da documentação inicial RTC  | `5fbd908` — `docs: document Android LiveKit integration`         |
-| HEAD do ajuste Jest/signer        | `72efdb3` — `test: run LiveKit signer under Jest ESM`            |
-| HEAD antes desta continuação RTC  | `c40f683` — `docs: refresh RTC handoff after rebase`             |
-| HEAD da continuação Android       | `5cdd254` — `fix: harden Android RTC lifecycle and revocation`   |
-| HEAD cooperativo antes do Billing | `30ec31b` — providers SMS/Age Assurance e runtime production     |
-| HEAD local do lote Billing        | `b87dced` — `feat: add server-authorized Android Play Billing`   |
-| HEAD do hardening de callbacks    | `2ddaffa` — `fix: ignore stale Play Billing callbacks`           |
-| HEAD dos ajustes de gates         | `9530af4` — `style: align cooperative provider tests with gates` |
+| Commit                      | Descrição                                                                                                                                               |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `913da41`                   | `fix(android): harden billing callback lifecycle`                                                                                                       |
+| `e20ff8f`                   | `feat(android): add hosted age assurance flow`                                                                                                          |
+| `59302db`                   | `build(android): reject local release endpoints`                                                                                                        |
+| `057e199`                   | `style: align cooperative provider test formatting`                                                                                                     |
+| Commit documental posterior | Atualiza este handoff, `android/README.md` e `docs/CHANGELOG.md`; o SHA final da branch deve ser confirmado com `git rev-parse HEAD` após a publicação. |
 
-| Publicação | Deve ser feita somente em `origin/continuity`, sem force-push e sem tocar na `main` |
+Os arquivos Android modificados foram `Billing.kt`, `BillingTest.kt`, `MainActivity.kt`, `ProfileApiClient.kt`, `ProfileModels.kt`, `ProfileViewModel.kt`, `ProfileApiClientTest.kt`, `ProfileViewModelTest.kt` e `android/app/build.gradle.kts`. A documentação alterada foi `android/README.md`, `docs/CHANGELOG.md` e este handoff. Os três testes backend formatados foram `tests/auth/twilio-verify.test.ts`, `tests/profile/age-webhook-reconciler.test.ts` e `tests/profile/didit.test.ts`.
 
-O `MANUS_HANDOFF.md` é o commit documental imediatamente posterior ao lote Android e aos ajustes mínimos de testes cooperativos. O SHA do commit final deste arquivo será confirmado com `git rev-parse HEAD` após a publicação; a mensagem de entrega registra esse valor sem ambiguidade.
+## Contratos Android implementados
 
-## Commits relevantes
+O fluxo autenticado continua sendo **Perfil → Age Assurance → Telefone → Chat → MatchIntent → Consent → Video Session → RTC**. O Android envia requisições autenticadas e renderiza respostas; não calcula nem persiste autorização crítica.
 
-| Commit    | Descrição                                            |
-| --------- | ---------------------------------------------------- |
-| `6f9b44f` | `feat: add LiveKit JIT token provider`               |
-| `719db57` | `test: verify LiveKit JIT token claims`              |
-| `3bc4183` | `docs: advance Manus Android RTC handoff`            |
-| `5cf646e` | `feat: add Android community safety controls`        |
-| `5f8c3a2` | `feat: add Android LiveKit RTC call flow`            |
-| `5fbd908` | `docs: document Android LiveKit integration`         |
-| `72efdb3` | `test: run LiveKit signer under Jest ESM`            |
-| `fff515e` | `style: format RTC handoff documentation`            |
-| `253fce3` | `feat: add LiveKit room revocation adapter`          |
-| `5d62cdb` | `feat: add video revocation reconciler`              |
-| `fd6ae65` | `feat: add LiveKit runtime configuration`            |
-| `939ecb2` | `docs: add LiveKit runtime URL`                      |
-| `0d8f3a7` | `test: cover LiveKit room revocation`                |
-| `3f29ccf` | `test: clean LiveKit room admin coverage`            |
-| `713ccff` | `test: cover video revocation reconciliation`        |
-| `5cdd254` | `fix: harden Android RTC lifecycle and revocation`   |
-| `f23f611` | `test: align LiveKit revocation test contracts`      |
-| `237925d` | `feat: add server-side billing service`              |
-| `e481bc5` | `feat: add billing HTTP routes`                      |
-| `566b731` | `feat: configure authenticated Google Play RTDN`     |
-| `c2f2de9` | `test: cover server-side billing entitlement`        |
-| `30ec31b` | `feat: add Didit age assurance provider`             |
-| `b87dced` | `feat: add server-authorized Android Play Billing`   |
-| `2ddaffa` | `fix: ignore stale Play Billing callbacks`           |
-| `9530af4` | `style: align cooperative provider tests with gates` |
+| Capacidade    | Contrato usado pelo Android                                                                         | Invariante preservada                                                                                    |
+| ------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Perfil        | `GET /api/interests`, `GET /api/profile`, `PUT /api/profile`                                        | Interesses, validação, bloqueio, suspensão e completude vêm do backend.                                  |
+| Age Assurance | `GET /api/age-assurance/status`, `POST /api/age-assurance/start`, `POST /api/age-assurance/refresh` | Somente `APPROVED` libera recursos restritos; `UNKNOWN`, erro e indisponibilidade permanecem bloqueados. |
+| Telefone      | `POST /auth/phone/start`, `POST /auth/phone/confirm`                                                | `phone_verified` só muda após resposta server-side positiva.                                             |
+| MatchIntent   | `GET /api/match-intents/incoming`, `POST /api/match-intents/:id/respond`                            | Identidade, elegibilidade, validade e decisão final são server-side.                                     |
+| Consent       | `POST /api/consents`, `POST /api/consents/:id/decision`                                             | Decisão mútua e `request_id` são controlados pelo backend.                                               |
+| Video Session | `POST /api/video/sessions`, `POST /api/video/sessions/:id/token`                                    | Corpo sem `room`/`identity`; sessão e token são revalidados e emitidos pelo backend.                     |
+| Moderação     | `POST /api/blocks`, `POST /api/reports`                                                             | Block confirmado encerra RTC local; severidade e punição não são decididas no Android.                   |
+| Billing       | `POST /api/billing/verify-purchase` com `{ purchase_token }`, `GET /api/billing/entitlement`        | Premium somente após `data.entitled=true` server-side; Google Play Developer API permanece no backend.   |
 
-O commit `5f8c3a2` contém dependência, configuração, Manifest, gateway, ViewModel, tela Compose, wiring de moderação e testes Android RTC. O commit `5cdd254` reforça o lifecycle com `detach`/`onRelease` de renderers, parada centralizada em logout/saída/troca de sessão, desconexão em `VIDEO_NOT_AUTHORIZED` e bloqueio de controles de mídia antes de `CONNECTED`. O commit `72efdb3` é uma correção mínima de infraestrutura de testes: Jest passou a carregar `jose` ESM em Node 22 e o teste do signer verifica HS256 com `node:crypto`. Nenhuma regra de autorização ou lógica de produção do backend foi enfraquecida.
+### Age Assurance hosted
 
-## Contratos HTTP integrados
+Quando o status server-side é `NOT_STARTED`, `ProfileViewModel` chama `POST /api/age-assurance/start`. O cliente aceita somente `PENDING` com `verification_url` em HTTPS e abre essa URL apenas depois da validação de esquema. O Android não marca aprovação, não interpreta decisão do provedor e não persiste a URL fora do estado transitório da tela.
 
-| Endpoint                              | Uso Android                    | Regra preservada                                                    |
-| ------------------------------------- | ------------------------------ | ------------------------------------------------------------------- |
-| `GET /api/interests`                  | Catálogo do onboarding/perfil  | Catálogo e validação server-side                                    |
-| `GET /api/profile`                    | Perfil existente ou onboarding | `404 PROFILE_NOT_FOUND` inicia onboarding; `401` encerra sessão     |
-| `PUT /api/profile`                    | Criar/editar perfil            | Validação final no backend                                          |
-| `GET /api/age-assurance/status`       | Gate etário                    | Somente `APPROVED` libera recursos restritos                        |
-| `POST /auth/phone/start`              | Início SMS                     | `verification_id` somente no estado da tela                         |
-| `POST /auth/phone/confirm`            | Confirmação SMS                | Dica local só muda após `{ ok: true, phone_verified: true }`        |
-| `GET /api/match-intents/incoming`     | Inbox de solicitações          | Backend controla identidade, elegibilidade e validade               |
-| `POST /api/match-intents/:id/respond` | Aceitar/recusar                | Envia somente `ACCEPTED` ou `DECLINED`                              |
-| `POST /api/consents`                  | Criar Consent                  | Envia somente `match_intent_id`                                     |
-| `POST /api/consents/:id/decision`     | Decidir Consent                | Envia decisão e `request_id` UUID novo                              |
-| `POST /api/video/sessions`            | Criar sessão autorizada        | Envia somente `consent_id`                                          |
-| `POST /api/video/sessions/:id/token`  | Emitir token JIT               | Corpo sem identity/room; backend revalida e assina                  |
-| `POST /api/blocks`                    | Bloquear participante          | Backend revoga relações; Android encerra RTC local após confirmação |
-| `POST /api/reports`                   | Denunciar participante         | Backend determina severidade e encaminhamento                       |
+Enquanto o status é `PENDING`, o usuário pode solicitar `POST /api/age-assurance/refresh`. O retorno do navegador é tratado por `ActivityResult` e pelo evento `ON_RESUME`, ambos acionando novo refresh no backend. Não foi inventado um app link/deep link Android, pois o contrato backend atual não publica uma URI de retorno; portanto, o cliente não deve ser descrito como tendo callback deep-link implementado. Respostas `APPROVED`, `REJECTED` e `UNKNOWN` vêm exclusivamente do servidor. Respostas tardias após reset ou troca de token são descartadas por geração de requisição e token autenticado.
 
-O Android trata `AGE_ASSURANCE_REQUIRED`, `PHONE_VERIFICATION_REQUIRED`, `VIDEO_NOT_AUTHORIZED`, `RATE_LIMITED`, HTTP 401, HTTP 429, indisponibilidade, respostas inválidas e estados desconhecidos sem liberar recursos localmente.
+### Billing server-authorized
 
-| `GET /api/billing/entitlement` | Restaurar entitlement já conhecido | `entitled` server-side; sem compra local não há concessão automática |
-| `POST /api/billing/verify-purchase` | Validar compra Google Play | Envia somente `purchase_token`; Google Play Developer API fica no backend |
+O Play Billing usa `com.android.billingclient:billing:9.1.0`, consulta de produto de assinatura, compra, restore, callbacks e acknowledgement. O fluxo é estritamente **Google Play → purchase token transitório → HTTPS backend → entitlement server-side → UI → acknowledgement**, e nenhum estado `PURCHASED`, SKU, preço ou callback isolado concede Premium.
 
-## Google Play Billing Android
+O hardening atual deduplica callbacks concorrentes e sequenciais no ciclo ativo por `purchaseToken`, ignora callbacks após `reset`, logout ou troca de sessão, impede `start` durante `WAITING_FOR_PURCHASE`, `RESTORING`, `VALIDATING` ou outras operações ativas, e descarta respostas de uma geração anterior. O token não aparece em `BillingUiState`, `SharedPreferences`, `DataStore`, `SavedStateHandle`, logs, analytics ou crash metadata. Se a validação falhar, o entitlement for revogado ou o acknowledgement falhar, a UI permanece sem Premium.
 
-O commit `b87dced` adiciona `com.android.billingclient:billing:9.1.0`, uma única conexão `BillingClient`, consulta de `ProductDetails`, compra de assinatura, listener de atualizações, consulta de compras ativas e acknowledge apenas depois da validação server-side. A tela Premium tem estados `CONNECTING`, `READY`, `PURCHASING`, `WAITING_FOR_PURCHASE`, `RESTORING`, `VALIDATING`, `SUCCESS`, `ERROR`, `SIGNED_OUT` e `NOT_CONFIGURED`, com mensagens públicas e retry. O commit `2ddaffa` ignora callbacks atrasados depois de reset/logout.
+A restauração consulta as compras ativas do Play e, quando não há compra local correspondente, consulta somente `GET /api/billing/entitlement`. Não há polling de RTDN no Android; RTDN permanece webhook autenticado do backend. Transporte Billing não HTTPS é bloqueado, e `BILLING_PRODUCT_ID` é obrigatório em release.
 
-O contrato usado pelo Android é `POST /api/billing/verify-purchase` com `{ "purchase_token": "..." }` e `GET /api/billing/entitlement`. O backend publicado por ChatGPT autentica JWT e sessão ativa, consulta o verificador Google server-side, mantém o entitlement e responde `data.entitled`, `data.plan`, `data.status` e `data.current_period_end`. O Android nunca decide a legitimidade da compra, não persiste o purchase token e não libera Premium com base apenas no callback Play, SKU ou preço. A restauração usa compras ativas do Play e, quando não há compra local, consulta apenas o entitlement já registrado pelo servidor.
+### RTC, dispositivo e lifecycle
 
-O endpoint de validação só é considerado utilizável quando `API_BASE_URL` é HTTPS, inclusive em debug; com API HTTP local os botões de compra/restauração permanecem bloqueados. `BILLING_PRODUCT_ID` é obrigatório para build release. O produto e o caminho podem ser informados por propriedades Gradle; nenhum segredo ou service account Google Play entra no `BuildConfig` ou APK. As notas verificadas estão em [`docs/GOOGLE_PLAY_BILLING_ANDROID_NOTES.md`](GOOGLE_PLAY_BILLING_ANDROID_NOTES.md) e o guia operacional em [`android/README.md`](../android/README.md).
+A credencial LiveKit continua sendo JIT, transitória e entregue por callback em memória. O Android não recebe chave ou segredo LiveKit, não monta `room`/`identity` no request e não persiste token. Câmera e microfone só são solicitados no clique explícito de entrada, depois de token fresco; publicação automática não ocorre. Controls de câmera/microfone só ficam habilitados em `CONNECTED`.
 
-## Implementação RTC Android
+`LiveKitRtcRoomGateway` encerra e libera room, tracks, eventos e renderers em saída, falha terminal, desconexão, logout, troca de sessão, Block confirmado, revogação de autorização e `ON_STOP` da Activity. `AndroidView` usa `onRelease` para detach/release. Ao retornar de background ou de uma permissão negada, uma nova autorização JIT e ação explícita são necessárias.
 
-A dependência é `io.livekit:livekit-android:2.28.1`, com JitPack no `dependencyResolutionManagement`. `LiveKitRtcRoomGateway` encapsula `LiveKit.create(applicationContext)`, `Room.connect(serverUrl, token)`, `disconnect/release`, inicialização de `SurfaceViewRenderer`, tracks local/remoto e eventos `Connected`, `Reconnecting`, `Reconnected`, `FailedToConnect`, `Disconnected`, participantes e tracks. O AndroidView usa `onRelease` para desanexar renderer; a sala, tracks e renderers são removidos em saída, falha terminal, logout, troca de sessão e bloqueio confirmado.
+A UX recebeu retries nos estados vazios de MatchIntent, Consent e criação de Video Session, mensagens públicas para erro/offline/provider indisponível e loading visível. Os retries repetem apenas chamadas server-side já previstas; nenhum deles contorna Age Assurance, telefone, Consent, Video, moderação ou entitlement.
 
-O `VideoSessionViewModel` entrega o token ao `RtcRoomViewModel` por callback transitório. O valor bruto não entra no estado Compose, em `SharedPreferences`, `DataStore`, `SavedStateHandle`, logs, analytics ou crash metadata. O indicador exposto é apenas booleano e o handoff é consumido uma vez; após erro, desconexão ou saída, a UI exige nova emissão JIT.
+## Gates executados
 
-A tela solicita `CAMERA` e `RECORD_AUDIO` somente no clique **Entrar na chamada**, depois da credencial JIT e antes de conectar. Se uma permissão for negada, não há `Room.connect`, câmera, microfone ou publicação de mídia. Depois de conectada, a chamada exibe renderers local/remoto, quantidade de participantes, controles explícitos de mute/câmera, encerramento e acesso a Bloquear/denunciar. A conexão não liga mídia automaticamente.
+Os gates foram executados no sandbox com Java 21 configurando toolchain Android 17, Android SDK 35 e sem credenciais reais de Google, Play, Didit, Twilio ou LiveKit.
 
-`LIVEKIT_URL` é um endpoint público vindo de BuildConfig. Em debug vazio é permitido para demonstrar erro visível e fail-closed; em release o Gradle exige `wss://`. Nenhum fallback de endpoint, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` ou segredo OpenAI foi adicionado ao Android.
+| Gate                                                                                    | Resultado                                                                                  |
+| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `npm run typecheck`                                                                     | Aprovado                                                                                   |
+| `npm run lint`                                                                          | Aprovado                                                                                   |
+| `npm run format:check`                                                                  | Aprovado                                                                                   |
+| `npm run test:unit`                                                                     | Aprovado: **25 suítes, 116 testes**                                                        |
+| `./gradlew :app:testDebugUnitTest`                                                      | Aprovado: **13 suítes, 76 testes**                                                         |
+| `./gradlew :app:compileDebugKotlin`                                                     | Aprovado                                                                                   |
+| `./gradlew :app:assembleDebug`                                                          | Aprovado                                                                                   |
+| `./gradlew :app:lintDebug`                                                              | Aprovado                                                                                   |
+| `./gradlew :app:bundleRelease` com API HTTPS, LiveKit WSS e produto público placeholder | Aprovado; AAB unsigned buildable                                                           |
+| Release com API HTTP                                                                    | Rejeitado: `Release API_BASE_URL must use HTTPS`                                           |
+| Release com API em `localhost`                                                          | Rejeitado: `Release API_BASE_URL must not use a local host`                                |
+| Release com LiveKit HTTP                                                                | Rejeitado: `Release LIVEKIT_URL must use wss://`                                           |
+| Release com LiveKit em `localhost`                                                      | Rejeitado: `Release LIVEKIT_URL must not use a local host`                                 |
+| Release sem `BILLING_PRODUCT_ID`                                                        | Rejeitado: `Release BILLING_PRODUCT_ID must be configured`                                 |
+| Release com caminho Billing relativo                                                    | Rejeitado: `Release BILLING_VALIDATION_PATH must be an absolute API path`                  |
+| `git diff --check`                                                                      | Aprovado antes da documentação; repetir após o commit documental                           |
+| Secret scan e scan de persistência Android                                              | Aprovado; nenhum segredo encontrado e nenhum sink de persistência/log para tokens críticos |
 
-## Moderação durante a chamada
+A implementação de segurança de release aceita placeholders públicos apenas para demonstrar o build. Isso não configura API real, produto real, endpoint LiveKit real ou credencial de assinatura.
 
-`ModerationViewModelFactory` recebe `onBlocked = rtcRoomViewModel::disconnect`. O callback só ocorre depois da confirmação positiva do backend, conforme os testes existentes. Ao abrir moderação durante uma chamada, o Android encerra a sala local imediatamente; a operação server-side continua responsável por revogar MatchIntent, Consent e Video Session do par. Report permanece acessível e encaminha o `session_id` atual quando disponível. Se uma tentativa de emissão retornar `VIDEO_NOT_AUTHORIZED`, `VideoSessionViewModel` também chama o callback de revogação, que encerra o RTC. No backend, o reconciliador termina a room LiveKit antes de marcar a sessão como revogada e mantém `revocation_pending=true` em falha para permitir retry. O Android não calcula severidade nem aplica punição.
+## Artefatos e hashes
 
-## Testes e builds
+Os artefatos foram regenerados no gate final antes do commit documental. O AAB é construível, mas não está assinado.
 
-Os resultados abaixo foram obtidos no sandbox, com código de aplicação publicado nos commits listados e sem credenciais reais:
+| Artefato             | Caminho                                                    | SHA-256                                                            |
+| -------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------ |
+| Debug APK            | `android/app/build/outputs/apk/debug/app-debug.apk`        | `36b43ad92ef40baa782163dc277fcf9852063fc74914dacf0c013e80d83eb4c9` |
+| Release AAB unsigned | `android/app/build/outputs/bundle/release/app-release.aab` | `9bbd2ccc94187ed898375aa070b47013506666fae78f05286814a4dbec044c14` |
 
-| Comando/checagem              | Resultado                       |
-| ----------------------------- | ------------------------------- |
-| `npm run typecheck`           | Aprovado                        |
-| `npm run lint`                | Aprovado                        |
-| `npm run format:check`        | Aprovado                        |
-| `npm run test:unit`           | Aprovado: 20 suítes e 93 testes |
-| `./gradlew testDebugUnitTest` | Aprovado: 13 suítes e 62 testes |
+## Classificação de readiness e validação externa
 
-| `./gradlew :app:compileDebugKotlin` | Aprovado |
-| `./gradlew :app:assembleDebug` | Aprovado |
-| `./gradlew :app:lintDebug` | Aprovado |
-| `./gradlew :app:bundleRelease` | Aprovado com HTTPS, `wss://` e `BILLING_PRODUCT_ID` |
-| Release com LiveKit `https://...` | Rejeitado: `Release LIVEKIT_URL must use wss://` |
-| Release sem `BILLING_PRODUCT_ID` | Rejeitado: `Release BILLING_PRODUCT_ID must be configured` |
-| Release com `LIVEKIT_URL=https://...` | Rejeitado conforme esperado: `Release LIVEKIT_URL must use wss://` |
-| Release com API HTTPS e `LIVEKIT_URL=wss://...` | Aprovado: `BUILD SUCCESSFUL` |
-| Varredura Android de segredos | Aprovada; nenhum padrão de chave/segredo encontrado |
-| `git diff --check` | Aprovado |
+| Área                             | Classificação                                 | Observação                                                                                                                          |
+| -------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Billing Android client flow      | **IMPLEMENTED + TESTED**                      | Contrato, entitlement server-side, restore sem compra local, deduplicação, stale callback e fail-closed cobertos por testes locais. |
+| Play sandbox/Play Console        | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | Não há produto, licença de teste, conta Play Console ou dispositivo neste ambiente; nenhuma compra real foi alegada.                |
+| Age Assurance hosted UX          | **IMPLEMENTED + TESTED**                      | Start/refresh, URL HTTPS, estados e respostas tardias têm cobertura de contrato/ViewModel.                                          |
+| Didit/provider Age Assurance E2E | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | Requer API key/workflow, webhook autenticado, navegador/dispositivo e decisão real; não foi executado.                              |
+| Auth/Google OIDC Android E2E     | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | O contrato e Credential Manager existem, mas não há Web client ID configurado nem validação física.                                 |
+| LiveKit/RTC duas partes          | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | Lifecycle, JIT e renderer cleanup têm testes locais; mídia, reconexão e revogação reais exigem duas contas e backend configurado.   |
+| Block/Report                     | **IMPLEMENTED + TESTED**                      | UI e contratos server-side estão conectados; a confirmação depende do backend e o E2E operacional não foi executado.                |
+| AAB                              | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | Build unsigned aprovado; assinatura, keystore, Play App Signing e Play Console ainda são externos.                                  |
+| Notificações Android             | **NOT IMPLEMENTED**                           | Nenhum contrato backend seguro de registro/entrega foi observado; não foi inventada autoridade local.                               |
+| Deep link Age Assurance          | **NOT IMPLEMENTED**                           | O retorno atual é ActivityResult/`ON_RESUME`; não há app link/deep link backend publicado.                                          |
+| Renovação de sessão              | **NOT IMPLEMENTED**                           | O backend não expõe contrato cliente de refresh; HTTP 401 encerra a sessão de forma fail-closed.                                    |
 
-O APK debug está em `android/app/build/outputs/apk/debug/app-debug.apk`.
+Os testes de banco continuam dependentes de `DATABASE_URL_OWNER` e demais URLs PostgreSQL. A migração de `EncryptedSharedPreferences`/`MasterKey` deprecados não foi forçada, pois preservar a sessão existente com uma migração segura e testada é preferível a uma troca cega antes da release. Também permanecem necessários observabilidade sanitizada, políticas operacionais de moderação, revisão de privacidade, assinatura e configuração de produção.
 
-| Artefato          | SHA-256                                                            |
-| ----------------- | ------------------------------------------------------------------ |
-| `app-debug.apk`   | `dd0cc6a94a2f73b5ac75250423e4b6ab1bc1ef53c7729d2deb65098581423f5a` |
-| `app-release.aab` | `55899e9db3e300ada91b98bb6ad24b976e464022323bb2ab770374526764ae34` |
+> **ANDROID RELEASE READINESS: 74%**
 
-A suíte PostgreSQL/migrations não foi executada neste sandbox por ausência de `DATABASE_URL_OWNER` e das demais URLs de banco de teste. Os testes DB de telefone, revogação, rate limiting, privilégios, Billing e imutabilidade devem ser repetidos no CI ou em ambiente local com PostgreSQL configurado. Isso é uma limitação ambiental, não uma falha dos gates unitários executados.
+O percentual é deliberadamente conservador. O cliente, os contratos, os gates locais, os estados fail-closed e o AAB unsigned estão substancialmente implementados, mas a release não pode ser declarada pronta sem assinatura, Play sandbox, dispositivo real, duas contas para RTC, Google OIDC real, Didit/Twilio/LiveKit configurados, ambiente PostgreSQL e validação de produção do backend cooperativo.
 
-## Riscos e validação pendente
+## Próximo passo recomendado ao ChatGPT
 
-A validação ponta a ponta ainda depende de backend LiveKit configurado, `LIVEKIT_API_URL` server-side, URL pública `wss://`, Web client ID Google real, produto/credenciais Google Play, provedor SMS, dispositivo/emulador e pelo menos duas contas autenticadas. É necessário confirmar mídia local/remota, expiração de token, revogação durante chamada, bloqueio durante chamada, reconexão transitória, compra/restore e falha de autorização em ambiente real.
+O próximo passo deve ser executar uma validação externa controlada com produto de assinatura no Play Console, conta licenciada, backend Billing/RTDN em HTTPS e duas contas Android autenticadas. Registrar compra, restore, entitlement ativo/revogado, acknowledgement, logout/troca de conta e expiração sem registrar purchase token, token LiveKit ou PII. Em paralelo, executar Age Assurance hosted real com Didit/webhook autenticado e RTC LiveKit de duas partes, confirmando que Block, revogação, saída e background terminam a sala.
 
-Renovação de sessão, observabilidade, persistência de conversas, moderação operacional, produto/licença no Play Console, assinatura do AAB e execução comprovada de migrations Up/Down/Up permanecem pendentes antes da release. Avisos de depreciação de `EncryptedSharedPreferences`/`MasterKey` também devem ser revisados; a migração não foi forçada nesta etapa para evitar regressão de sessão. O cliente não deve ganhar autoridade local para contornar esses gates.
+## Referências técnicas
 
-## Próximo passo para o ChatGPT
-
-Depois de publicar este handoff somente em `continuity`, o ChatGPT deve validar o Billing com produto Google Play real/teste, duas contas e backend production, confirmar `verify-purchase`/RTDN/entitlement e executar o E2E conjunto de compra, restauração, expiração, revogação e RTC. Registrar apenas logs sanitizados, sem purchase token, token LiveKit ou PII.
-
-## Invariantes preservados
-
-Nenhuma chave OpenAI, chave LiveKit ou segredo foi incluído no Android ou no repositório. `OPENAI_API_KEY` e o segredo LiveKit permanecem exclusivamente no backend. O único branch utilizado foi `continuity`; não houve merge ou push na `main`, force-push, reset destrutivo ou relaxamento de autorização. O Android mantém HTTPS obrigatório em release, `wss://` obrigatório para LiveKit em release, armazenamento seguro de sessão, token RTC transitório e comportamento fail-closed para qualquer estado restrito desconhecido ou não aprovado.
+[1]: https://developer.android.com/google/play/billing/integrate 'Google Play Billing integration'
+[2]: https://developers.google.com/chromeos/app-development/publish/play-billing-backend 'Google Play Billing backend validation'
+[3]: https://docs.livekit.io/transport/sdk-platforms/android/ 'LiveKit Android quickstart'
+[4]: https://docs.livekit.io/intro/basics/connect/ 'LiveKit connecting to a room'
+[5]: https://github.com/livekit/client-sdk-android 'LiveKit Android SDK'

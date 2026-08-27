@@ -39,6 +39,11 @@
 - Validação client-side por `POST /api/billing/verify-purchase` com somente `purchase_token` e restauração por `GET /api/billing/entitlement`; Premium só aparece após `entitled=true` server-side.
 - Purchase token mantido transitório, sem persistência ou exposição em estado Compose, logs, analytics ou crash metadata; acknowledgment somente após confirmação do backend.
 - Endpoint Billing bloqueado em transporte não HTTPS, `BILLING_PRODUCT_ID` obrigatório em release, versionamento Android `0.2.0` e comando de preparação para AAB.
+- Fluxo Android hosted de Age Assurance com `POST /api/age-assurance/start`, `POST /api/age-assurance/refresh` e URL de verificação aceita somente em HTTPS; o backend continua sendo a única autoridade do status.
+- Retorno do navegador tratado por ActivityResult e `ON_RESUME` com refresh server-side; não foi inventado app link/deep link porque o backend atual não publica esse contrato.
+- Proteção do ProfileViewModel contra respostas tardias após reset/troca de sessão e cobertura de estados `PENDING`, `APPROVED`, `REJECTED`, `UNKNOWN` e indisponibilidade do provider sem desbloqueio local.
+- Deduplicação de purchase callbacks por token transitório, proteção de geração contra callbacks stale e cobertura de cancelamento, timeout, entitlement revogado, troca de conta e acknowledgement falho.
+- Retrys acessíveis para estados vazios de MatchIntent, Consent e Video, além de desconexão RTC no `ON_STOP` da Activity e descarte de credencial JIT pendente.
 
 ### Limitações conhecidas
 
@@ -48,6 +53,7 @@
 - Os testes locais exercitam contratos, estados e gates, mas não substituem a validação de mídia com duas contas em um ambiente LiveKit real.
 - Compra e restauração reais dependem de produto configurado no Google Play Console, credenciais de produção/teste, backend Billing/RTDN configurado e conta licenciada; a assinatura server-side não é simulada pelo Android.
 - O AAB de release ainda depende de configuração de assinatura do aplicativo e dos gates externos do Play Console.
+- Age Assurance hosted real depende de Didit, webhook autenticado, URL de verificação HTTPS e dispositivo/navegador; os testes locais não provam provider E2E nem aprovação real.
 - Testes de banco continuam dependentes das variáveis PostgreSQL do ambiente de CI ou de execução local.
 
 ## [0.1.0] — Etapa 0 + Etapa 1 (implementação de schema e fundação)
