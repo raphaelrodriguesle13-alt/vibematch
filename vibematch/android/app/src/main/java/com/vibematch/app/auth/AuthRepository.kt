@@ -21,6 +21,7 @@ interface AuthGateway {
     suspend fun loginWithGoogle(googleIdToken: String): AuthSessionBundle
     suspend fun refreshSession(refreshToken: String): AuthSessionBundle
     suspend fun logout(sessionJwt: String)
+    suspend fun logoutWithRefresh(refreshToken: String) {}
 }
 
 data class AuthSession(
@@ -255,6 +256,24 @@ class AuthApiClient(
         response.use {
             if (!it.isSuccessful && it.code != 401) {
                 throw AuthApiException(it.code, "Logout failed")
+            }
+        }
+    }
+
+    override suspend fun logoutWithRefresh(refreshToken: String) {
+        val body = buildRefreshRequestBody(json, refreshToken)
+            .toRequestBody("application/json; charset=utf-8".toMediaType())
+        val request = Request.Builder()
+            .url("$baseUrl/auth/logout/refresh")
+            .header("Accept", "application/json")
+            .post(body)
+            .build()
+        val response = withContext(Dispatchers.IO) {
+            httpClient.newCall(request).execute()
+        }
+        response.use {
+            if (!it.isSuccessful) {
+                throw AuthApiException(it.code, "Logout revocation was not confirmed")
             }
         }
     }
