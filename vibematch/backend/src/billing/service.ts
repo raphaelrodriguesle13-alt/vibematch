@@ -19,6 +19,12 @@ export interface GooglePlaySubscriptionVerifier {
   verifySubscription(purchaseToken: string): Promise<VerifiedPlaySubscription>;
 }
 
+export type AppliedRtdnResult = {
+  duplicate: boolean;
+  entitlement: SubscriptionEntitlement | null;
+  accountActive: boolean;
+};
+
 export interface BillingRepositoryPort {
   isUserActive(userId: string): Promise<boolean>;
   upsertVerifiedSubscription(input: {
@@ -31,12 +37,17 @@ export interface BillingRepositoryPort {
   }): Promise<SubscriptionEntitlement | null>;
   findLatestEntitlementForUser(userId: string): Promise<SubscriptionEntitlement | null>;
   findUserIdByPurchaseToken(purchaseToken: string): Promise<string | null>;
-  recordBillingEvent(input: {
+  applyVerifiedRtdn(input: {
+    userId: string;
     notificationId: string;
     purchaseToken: string;
     notificationType: string;
     eventTime: Date;
-  }): Promise<boolean>;
+    plan: string;
+    status: BillingStatus;
+    currentPeriodEnd: Date;
+    now: Date;
+  }): Promise<AppliedRtdnResult>;
 }
 
 export type BillingErrorCode =
@@ -91,14 +102,15 @@ export class BillingService {
       throw new BillingError('ACCOUNT_UNAVAILABLE', 'Account is not eligible for billing');
     }
 
+    const normalizedToken = purchaseToken.trim();
     let verified: VerifiedPlaySubscription;
     try {
-      verified = await this.verifier.verifySubscription(purchaseToken.trim());
+      verified = await this.verifier.verifySubscription(normalizedToken);
     } catch {
       throw new BillingError('PLAY_VERIFICATION_FAILED', 'Google Play verification failed');
     }
 
-    if (verified.purchaseToken !== purchaseToken.trim()) {
+    if (verified.purchaseToken !== normalizedToken) {
       throw new BillingError('PLAY_VERIFICATION_FAILED', 'Verified token did not match request');
     }
 
@@ -136,49 +148,50 @@ export class BillingService {
       throw new BillingError('INVALID_BILLING_REQUEST', 'RTDN payload is invalid');
     }
 
-    const userId = await this.repository.findUserIdByPurchaseToken(input.purchaseToken.trim());
+    const purchaseToken = input.purchaseToken.trim();
+    const userId = await this.repository.findUserIdByPurchaseToken(purchaseToken);
     if (!userId) {
       return { duplicate: false, entitlement: null };
     }
 
     let verified: VerifiedPlaySubscription;
     try {
-      verified = await this.verifier.verifySubscription(input.purchaseToken.trim());
+      verified = await this.verifier.verifySubscription(purchaseToken);
     } catch {
       throw new BillingError('PLAY_VERIFICATION_FAILED', 'Google Play verification failed');
     }
 
-    const inserted = await this.repository.recordBillingEvent({
-      notificationId: input.notificationId.trim(),
-      purchaseToken: input.purchaseToken.trim(),
-      notificationType: input.notificationType.trim(),
-      eventTime: input.eventTime,
-    });
-    if (!inserted) {
-      return { duplicate: true, entitlement: null };
+    if (verified.purchaseToken !== purchaseToken) {
+      throw new BillingError('PLAY_VERIFICATION_FAILED', 'Verified token did not match RTDN token');
     }
 
     const now = this.now();
-    const stored = await this.repository.upsertVerifiedSubscription({
+    const applied = await this.repository.applyVerifiedRtdn({
       userId,
-      purchaseToken: verified.purchaseToken,
+      notificationId: input.notificationId.trim(),
+      purchaseToken,
+      notificationType: input.notificationType.trim(),
+      eventTime: input.eventTime,
       plan: verified.productId,
       status: verified.status,
       currentPeriodEnd: verified.currentPeriodEnd,
       now,
     });
-    if (!stored) {
+
+    if (applied.duplicate) {
+      return { duplicate: true, entitlement: null };
+    }
+    if (!applied.entitlement) {
       throw new BillingError('PURCHASE_NOT_OWNED', 'Purchase ownership changed unexpectedly');
     }
 
-    // RTDN must keep Google Play accounting synchronized even for a restricted account,
-    // but account restriction always dominates the effective premium authorization.
-    const accountActive = await this.repository.isUserActive(userId);
     return {
       duplicate: false,
       entitlement: {
-        ...stored,
-        entitled: accountActive && isEntitled(stored.status, stored.currentPeriodEnd, now),
+        ...applied.entitlement,
+        entitled:
+          applied.accountActive &&
+          isEntitled(applied.entitlement.status, applied.entitlement.currentPeriodEnd, now),
       },
     };
   }
