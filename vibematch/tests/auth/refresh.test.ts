@@ -1,6 +1,10 @@
 import { createHash } from 'node:crypto';
 import type { SessionTokenClaims, SessionTokenProvider } from '../../backend/src/shared/providers';
-import type { AuthSession, AuthUser, RefreshRotationResult } from '../../backend/src/auth/repository';
+import type {
+  AuthSession,
+  AuthUser,
+  RefreshRotationResult,
+} from '../../backend/src/auth/repository';
 import { AuthService, type AuthRepositoryPort } from '../../backend/src/auth/service';
 
 const sha256 = (value: string): string => createHash('sha256').update(value).digest('hex');
@@ -17,7 +21,8 @@ class RefreshRepository implements AuthRepositoryPort {
     refreshExpiresAt: new Date('2026-09-26T11:00:00.000Z'),
     reused: false,
   };
-  rotateParams: Parameters<NonNullable<AuthRepositoryPort['rotateRefreshSession']>>[0] | null = null;
+  rotateParams: Parameters<NonNullable<AuthRepositoryPort['rotateRefreshSession']>>[0] | null =
+    null;
   revoked: { userId: string; sessionId: string } | null = null;
 
   upsertGoogleUser(): Promise<AuthUser> {
@@ -102,7 +107,9 @@ describe('Auth refresh rotation', () => {
     const { repository, tokens, service } = subject();
     repository.rotation = null;
 
-    await expect(service.refresh(oldToken)).rejects.toMatchObject({ code: 'INVALID_REFRESH_TOKEN' });
+    await expect(service.refresh(oldToken)).rejects.toMatchObject({
+      code: 'INVALID_REFRESH_TOKEN',
+    });
     expect(tokens.claims).toBeNull();
   });
 
@@ -110,7 +117,9 @@ describe('Auth refresh rotation', () => {
     const { repository, tokens, service } = subject();
     repository.rotation = { ...repository.rotation!, reused: true };
 
-    await expect(service.refresh(oldToken)).rejects.toMatchObject({ code: 'INVALID_REFRESH_TOKEN' });
+    await expect(service.refresh(oldToken)).rejects.toMatchObject({
+      code: 'INVALID_REFRESH_TOKEN',
+    });
     expect(tokens.claims).toBeNull();
   });
 
@@ -118,7 +127,9 @@ describe('Auth refresh rotation', () => {
     const { repository, tokens, service } = subject();
     tokens.fail = true;
 
-    await expect(service.refresh(oldToken)).rejects.toMatchObject({ code: 'SESSION_ISSUANCE_FAILED' });
+    await expect(service.refresh(oldToken)).rejects.toMatchObject({
+      code: 'SESSION_ISSUANCE_FAILED',
+    });
     expect(repository.revoked).toEqual({ userId: 'user-1', sessionId: 'session-1' });
   });
 });
