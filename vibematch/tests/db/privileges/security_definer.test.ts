@@ -53,6 +53,18 @@ describe('Direct invocation of administrative SECURITY DEFINER functions is deni
       expect(err!.code).toBe(PERMISSION_DENIED);
     },
   );
+
+  test.each(roles)(
+    '%s CANNOT directly call revoke_restricted_state_on_account_restriction()',
+    async (role) => {
+      const err = await expectDbError(
+        rolePools[role],
+        'SELECT revoke_restricted_state_on_account_restriction()',
+      );
+      expect(err).not.toBeNull();
+      expect(err!.code).toBe(PERMISSION_DENIED);
+    },
+  );
 });
 
 describe('PUBLIC has no EXECUTE on protected database functions', () => {
@@ -70,6 +82,9 @@ describe('PUBLIC has no EXECUTE on protected database functions', () => {
       'enforce_report_session_membership',
       'enforce_moderation_case_escalation',
       'revoke_auth_sessions_on_account_restriction',
+      'enforce_match_intent_active_users',
+      'enforce_consent_active_users',
+      'revoke_restricted_state_on_account_restriction',
     ];
     const r = await ownerPool.query<FunctionAclRow>(
       `SELECT p.proname,
