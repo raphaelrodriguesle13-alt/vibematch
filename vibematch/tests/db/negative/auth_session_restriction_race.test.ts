@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { PoolClient, QueryResult, QueryResultRow } from 'pg';
 import { closeAll, ownerPool } from '../../helpers/db';
 
@@ -12,11 +13,11 @@ const first = <T extends QueryResultRow>(result: QueryResult<T>): T => {
   return row;
 };
 
-const rollbackAndRelease = async (client: PoolClient): Promise<void> => {
+const rollbackQuietly = async (client: PoolClient): Promise<void> => {
   try {
     await client.query('ROLLBACK');
-  } finally {
-    client.release();
+  } catch {
+    // Best-effort cleanup after a committed/aborted transaction.
   }
 };
 
@@ -25,7 +26,7 @@ const createActiveUser = async (): Promise<string> => {
     `INSERT INTO users (google_subject_id)
      VALUES ($1)
      RETURNING id`,
-    [`auth-race-${crypto.randomUUID()}`],
+    [`auth-race-${randomUUID()}`],
   );
   return first(result).id;
 };
@@ -60,12 +61,11 @@ describe('Auth session/account restriction concurrency', () => {
       await expect(insertPromise).rejects.toThrow(/account must be ACTIVE/);
       await sessionClient.query('ROLLBACK');
     } finally {
-      if (!restrictClient.released) {
-        await rollbackAndRelease(restrictClient);
-      }
-      if (!sessionClient.released) {
-        await rollbackAndRelease(sessionClient);
-      }
+      await rollbackQuietly(restrictClient);
+      await rollbackQuietly(sessionClient);
+      restrictClient.release();
+      sessionClient.release();
+      await ownerPool.query('DELETE FROM users WHERE id = $1', [userId]);
     }
   });
 
@@ -107,12 +107,10 @@ describe('Auth session/account restriction concurrency', () => {
       );
       expect(first(state).revoked_at).toBeInstanceOf(Date);
     } finally {
-      if (!sessionClient.released) {
-        await rollbackAndRelease(sessionClient);
-      }
-      if (!restrictClient.released) {
-        await rollbackAndRelease(restrictClient);
-      }
+      await rollbackQuietly(sessionClient);
+      await rollbackQuietly(restrictClient);
+      sessionClient.release();
+      restrictClient.release();
       if (sessionId) {
         await ownerPool.query('DELETE FROM auth_sessions WHERE id = $1', [sessionId]);
       }
