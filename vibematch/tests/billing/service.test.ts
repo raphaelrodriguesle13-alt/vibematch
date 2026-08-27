@@ -161,6 +161,39 @@ describe('BillingService', () => {
     expect(verifier.verifySubscription).toHaveBeenCalledTimes(2);
   });
 
+  it('keeps RTDN accounting synchronized but never grants premium to a restricted account', async () => {
+    const repository = new FakeBillingRepository();
+    repository.ownerByToken.set('restricted-purchase', userId);
+    repository.active = false;
+    const service = new BillingService(
+      repository,
+      {
+        verifySubscription: () =>
+          Promise.resolve({
+            purchaseToken: 'restricted-purchase',
+            productId: 'premium_monthly',
+            status: 'ACTIVE',
+            currentPeriodEnd: new Date('2026-09-26T00:00:00.000Z'),
+          }),
+      },
+      () => new Date('2026-08-26T00:00:00.000Z'),
+    );
+
+    const result = await service.processRtdn({
+      notificationId: 'restricted-notification',
+      purchaseToken: 'restricted-purchase',
+      notificationType: 'SUBSCRIPTION_RECOVERED',
+      eventTime: new Date('2026-08-26T00:00:00.000Z'),
+    });
+
+    expect(repository.stored).toMatchObject({ status: 'ACTIVE' });
+    expect(result.entitlement).toMatchObject({
+      userId,
+      status: 'ACTIVE',
+      entitled: false,
+    });
+  });
+
   it('fails closed when Google Play verification is unavailable', async () => {
     const repository = new FakeBillingRepository();
     const service = new BillingService(repository, {
