@@ -142,7 +142,12 @@ export class AuthRepository {
           [params.presentedHash],
         );
         const row = result.rows[0];
-        if (!row || row.revoked_at || !row.refresh_expires_at || row.refresh_expires_at <= params.now) {
+        if (
+          !row ||
+          row.revoked_at ||
+          !row.refresh_expires_at ||
+          row.refresh_expires_at <= params.now
+        ) {
           await client.query('ROLLBACK');
           return null;
         }
