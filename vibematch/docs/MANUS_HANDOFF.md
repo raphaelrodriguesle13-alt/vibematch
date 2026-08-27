@@ -7,53 +7,55 @@ Atualizado em **2026-08-27** após a continuação exclusiva na branch `continui
 O objetivo desta etapa foi concluir a integração Android do logout server-authorized com refresh token, sem enfraquecer o Play Billing server-authorized, o Age Assurance hosted, a UX de estados vazios e retry, o lifecycle do RTC, a navegação compacta/acessível, o runner reproduzível para sessão E2E e a renovação de sessão server-authorized. Os gates de segurança de release permaneceram fail-closed.
 O rebase obrigatório preservou os commits cooperativos publicados entre o HEAD inicial e o trabalho local; não houve reset destrutivo, force-push, alteração da `main` ou alteração da lógica de produção backend.
 
-| Item                                            | Valor                                                                                       |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Repositório                                     | `raphaelrodriguesle13-alt/vibematch`                                                        |
-| Branch exclusiva                                | `continuity`                                                                                |
-| HEAD inicial histórico da continuidade          | `ad25840923e00663e83365b606bd5af8ec81942f` — `test: assert age assurance column privileges` |
-| HEAD inicial desta tarefa                       | `015d4b640a67718cbec51feaa8808b9c1e6c7773` — `test(android): add keystore refresh runner`   |
-| HEAD cooperativo final encontrado no rebase     | `9e665ec` — `test(db): align restricted session invariants with active revocation`          |
-| Commit do plano E2E na ancestralidade atual     | `6558d04` — `docs(android): add real e2e release plan`                                      |
-| Commit do preflight E2E na ancestralidade atual | `4710982` — `test(android): add sanitized e2e preflight`                                    |
-| Commit do runner de sessão E2E                  | `7b6da8b` — `test(android): add manual e2e session runner`                                  |
-| HEAD local após avanço Android/backend          | `6c93835` — `fix(http): narrow sanitized error status safely`                               |
-| HEAD final da etapa anterior                    | `e01866c` — `docs(android): document e2e runner and accessibility advance`                  |
-| HEAD cooperativo base desta tarefa              | `38d6373` — `test(auth): require refresh credential on Google login`                        |
-| HEAD inicial da fase de revogação por refresh   | `9e665ec` — `test(db): align restricted session invariants with active revocation`          |
-| Commit Android desta fase 1                     | `517d55f` — `feat(android): harden refresh-token logout lifecycle`                          |
-| Commit Android desta fase 2                     | `4dedca6` — `fix(android): revoke expired sessions with refresh snapshot`                   |
-| HEAD de código antes do handoff final           | `4dedca6` — `fix(android): revoke expired sessions with refresh snapshot`                   |
+| Item                                        | Valor                                                                                       |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Repositório                                 | `raphaelrodriguesle13-alt/vibematch`                                                        |
+| Branch exclusiva                            | `continuity`                                                                                |
+| HEAD inicial histórico da continuidade      | `ad25840923e00663e83365b606bd5af8ec81942f` — `test: assert age assurance column privileges` |
+| HEAD inicial desta tarefa                   | `015d4b640a67718cbec51feaa8808b9c1e6c7773` — `test(android): add keystore refresh runner`   |
+| HEAD cooperativo final encontrado no rebase | `67a7a53` — `test(auth): harden concurrency test cleanup`                                   |
+
+| Commit do plano E2E na ancestralidade atual | `6558d04` — `docs(android): add real e2e release plan` |
+| Commit do preflight E2E na ancestralidade atual | `4710982` — `test(android): add sanitized e2e preflight` |
+| Commit do runner de sessão E2E | `7b6da8b` — `test(android): add manual e2e session runner` |
+| HEAD local após avanço Android/backend | `6c93835` — `fix(http): narrow sanitized error status safely` |
+| HEAD final da etapa anterior | `e01866c` — `docs(android): document e2e runner and accessibility advance` |
+| HEAD cooperativo base desta tarefa | `38d6373` — `test(auth): require refresh credential on Google login` |
+| HEAD inicial da fase de revogação por refresh | `9e665ec` — `test(db): align restricted session invariants with active revocation` |
+| Commit Android desta fase 1 | `97d1e43a` — `feat(android): harden refresh-token logout lifecycle` |
+| Commit Android desta fase 2 | `f3bdda4e` — `fix(android): revoke expired sessions with refresh snapshot` |
+| HEAD de código antes do handoff final | `f3bdda4e` — `fix(android): revoke expired sessions with refresh snapshot` |
 
 | Publicação permitida | Somente `origin/continuity`, sem force-push |
 
-Durante os rebases, `origin/continuity` avançou do HEAD inicial desta tarefa `015d4b6` até `9e665ec`, incluindo hardening cooperativo de JWT, rotação de `kid`, validação fail-closed de configuração de produção, observabilidade segura, readiness por privilégios mínimos, limites de conexão, smoke pós-deploy, documentação de timeouts/DB, refresh rotativo e revogação idempotente por refresh.
+Durante os rebases, `origin/continuity` avançou do HEAD inicial desta tarefa `015d4b6` até `67a7a53`, incluindo hardening cooperativo de JWT, rotação de `kid`, validação fail-closed de configuração de produção, observabilidade segura, readiness por privilégios mínimos, limites de conexão, smoke pós-deploy, documentação de timeouts/DB, refresh rotativo, revogação idempotente por refresh, bloqueio de entitlement para contas restritas, testes de Billing sob restrição, corrida suspensão/login fail-closed e limpeza de testes concorrentes.
 O trabalho Android e a matriz E2E foram preservados por `stash`, `rebase origin/continuity` e `stash pop`. A lógica de produção backend não foi reescrita nesta etapa; o único diff backend local adicional foi formatação e uma fixture de teste compatível com `exactOptionalPropertyTypes`.
 
 ## Commits desta entrega
 
-| Commit    | Descrição                                                      |
-| --------- | -------------------------------------------------------------- |
-| `913da41` | `fix(android): harden billing callback lifecycle`              |
-| `e20ff8f` | `feat(android): add hosted age assurance flow`                 |
-| `59302db` | `build(android): reject local release endpoints`               |
-| `057e199` | `style: align cooperative provider test formatting`            |
-| `4710982` | `test(android): add sanitized e2e preflight`                   |
-| `6558d04` | `docs(android): add real e2e release plan`                     |
-| `68a1c3f` | `test(runtime): use ephemeral jwt smoke keys`                  |
-| `7b6da8b` | `test(android): add manual e2e session runner`                 |
-| `34b3531` | `fix(android): make chat navigation compact and accessible`    |
-| `6c93835` | `fix(http): narrow sanitized error status safely`              |
-| `38d6373` | `test(auth): require refresh credential on Google login`       |
-| `97f64ce` | `feat(android): add server-authorized session refresh`         |
-| `a7157da` | `test(auth): align refresh contract fixture with strict types` |
-| `0a79e12` | `docs(android): document server-authorized session refresh`    |
-| `015d4b6` | `test(android): add keystore refresh runner`                   |
-| `c2ff52b` | `ci(android): compile instrumented test artifact`              |
-| `517d55f` | `feat(android): harden refresh-token logout lifecycle`         |
-| `4dedca6` | `fix(android): revoke expired sessions with refresh snapshot`  |
+| Commit     | Descrição                                                      |
+| ---------- | -------------------------------------------------------------- |
+| `913da41`  | `fix(android): harden billing callback lifecycle`              |
+| `e20ff8f`  | `feat(android): add hosted age assurance flow`                 |
+| `59302db`  | `build(android): reject local release endpoints`               |
+| `057e199`  | `style: align cooperative provider test formatting`            |
+| `4710982`  | `test(android): add sanitized e2e preflight`                   |
+| `6558d04`  | `docs(android): add real e2e release plan`                     |
+| `68a1c3f`  | `test(runtime): use ephemeral jwt smoke keys`                  |
+| `7b6da8b`  | `test(android): add manual e2e session runner`                 |
+| `34b3531`  | `fix(android): make chat navigation compact and accessible`    |
+| `6c93835`  | `fix(http): narrow sanitized error status safely`              |
+| `38d6373`  | `test(auth): require refresh credential on Google login`       |
+| `97f64ce`  | `feat(android): add server-authorized session refresh`         |
+| `a7157da`  | `test(auth): align refresh contract fixture with strict types` |
+| `0a79e12`  | `docs(android): document server-authorized session refresh`    |
+| `015d4b6`  | `test(android): add keystore refresh runner`                   |
+| `c2ff52b`  | `ci(android): compile instrumented test artifact`              |
+| `97d1e43a` | `feat(android): harden refresh-token logout lifecycle`         |
+| `f3bdda4e` | `fix(android): revoke expired sessions with refresh snapshot`  |
 
-| Commit documental desta fase | Será confirmado após o commit final de documentação e publicação em `origin/continuity`. |
+| HEAD final de código desta fase | `f3bdda4e` — `fix(android): revoke expired sessions with refresh snapshot` |
+| Commit documental base desta fase | `e95d05fe` — `docs(android): document refresh-token logout handoff` |
 
 Os arquivos Android modificados foram `Billing.kt`, `BillingTest.kt`, `MainActivity.kt`, `ProfileApiClient.kt`, `ProfileModels.kt`, `ProfileViewModel.kt`, `ProfileApiClientTest.kt`, `ProfileViewModelTest.kt`, `auth/AuthRepository.kt`, `auth/AuthViewModel.kt`, `auth/SessionRefresh.kt`, `AuthRepositoryTest.kt`, `AuthViewModelTest.kt`, `SessionRefreshTest.kt`, `androidTest/SecureSessionStoreInstrumentedTest.kt` e `android/app/build.gradle.kts`.
 A documentação alterada nesta fase foi `android/README.md`, `docs/CHANGELOG.md`, `docs/ANDROID_AUTH_REFRESH_NOTES.md`, `docs/ANDROID_E2E_RELEASE_PLAN.md` e este handoff. O backend cooperativo publicou o contrato de revogação por refresh antes da alteração Android; não foi necessário reescrever sua lógica de produção.
