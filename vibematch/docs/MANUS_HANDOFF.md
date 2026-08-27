@@ -55,7 +55,7 @@ O trabalho Android e a matriz E2E foram preservados por `stash`, `rebase origin/
 | `f3bdda4e` | `fix(android): revoke expired sessions with refresh snapshot`  |
 
 | HEAD final de código desta fase | `f3bdda4e` — `fix(android): revoke expired sessions with refresh snapshot` |
-| Commit documental base desta fase | `e95d05fe` — `docs(android): document refresh-token logout handoff` |
+| Commit documental final desta fase | `6054a87` — `docs(android): record adb e2e blocker` |
 
 Os arquivos Android modificados foram `Billing.kt`, `BillingTest.kt`, `MainActivity.kt`, `ProfileApiClient.kt`, `ProfileModels.kt`, `ProfileViewModel.kt`, `ProfileApiClientTest.kt`, `ProfileViewModelTest.kt`, `auth/AuthRepository.kt`, `auth/AuthViewModel.kt`, `auth/SessionRefresh.kt`, `AuthRepositoryTest.kt`, `AuthViewModelTest.kt`, `SessionRefreshTest.kt`, `androidTest/SecureSessionStoreInstrumentedTest.kt` e `android/app/build.gradle.kts`.
 A documentação alterada nesta fase foi `android/README.md`, `docs/CHANGELOG.md`, `docs/ANDROID_AUTH_REFRESH_NOTES.md`, `docs/ANDROID_E2E_RELEASE_PLAN.md` e este handoff. O backend cooperativo publicou o contrato de revogação por refresh antes da alteração Android; não foi necessário reescrever sua lógica de produção.
