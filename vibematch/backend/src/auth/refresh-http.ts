@@ -7,10 +7,7 @@ export type RefreshHttpDependencies = {
   authService: Pick<AuthService, 'refresh'>;
 };
 
-export const registerRefreshRoute = (
-  app: FastifyInstance,
-  deps: RefreshHttpDependencies,
-): void => {
+export const registerRefreshRoute = (app: FastifyInstance, deps: RefreshHttpDependencies): void => {
   app.post<{ Body: RefreshBody }>('/auth/refresh', async (request, reply) => {
     const refreshToken = request.body?.refresh_token;
     if (typeof refreshToken !== 'string' || refreshToken.trim() === '') {

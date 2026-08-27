@@ -169,9 +169,12 @@ describe('Auth HTTP API', () => {
   test('POST /auth/google fails closed if refresh metadata is missing', async () => {
     const { app, authService } = createSubject();
     authService.loginResult = {
-      ...authService.loginResult,
-      refreshToken: undefined,
-      refreshExpiresAt: undefined,
+      sessionJwt: authService.loginResult.sessionJwt,
+      userId: authService.loginResult.userId,
+      isNewUser: authService.loginResult.isNewUser,
+      phoneVerified: authService.loginResult.phoneVerified,
+      sessionId: authService.loginResult.sessionId,
+      expiresAt: authService.loginResult.expiresAt,
     };
 
     const response = await app.inject({
