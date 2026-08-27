@@ -49,6 +49,7 @@ export const env = {
   googleOidcAudience: () => required('GOOGLE_OIDC_AUDIENCE'),
   jwtPrivateKeyPem: () => required('JWT_PRIVATE_KEY_PEM').replace(/\\n/g, '\n'),
   jwtPublicKeyPem: () => required('JWT_PUBLIC_KEY_PEM').replace(/\\n/g, '\n'),
+  jwtKeyId: () => required('JWT_KEY_ID'),
   jwtIssuer: () => required('JWT_ISSUER'),
   jwtAudience: () => required('JWT_AUDIENCE'),
 
