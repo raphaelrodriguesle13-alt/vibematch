@@ -28,7 +28,10 @@ export const redactSensitive = (value: unknown): unknown => {
   return redacted;
 };
 
-const writeStructured = (stream: NodeJS.WriteStream, entry: Readonly<Record<string, unknown>>): void => {
+const writeStructured = (
+  stream: NodeJS.WriteStream,
+  entry: Readonly<Record<string, unknown>>,
+): void => {
   stream.write(`${JSON.stringify(redactSensitive(entry))}\n`);
 };
 
