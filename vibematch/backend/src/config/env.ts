@@ -74,6 +74,8 @@ export const env = {
   authSessionTtlSeconds: intFromEnv('AUTH_SESSION_TTL_SECONDS', 15 * 60),
   consentVideoDeadlineSeconds: intFromEnv('CONSENT_VIDEO_DEADLINE_SECONDS', 3600),
   consentDecisionExpirySeconds: intFromEnv('CONSENT_DECISION_EXPIRY_SECONDS', 86400),
+  databaseConnectionTimeoutMs: intFromEnv('DATABASE_CONNECTION_TIMEOUT_MS', 3_000),
+  readinessTimeoutMs: intFromEnv('READINESS_TIMEOUT_MS', 2_000),
 
   googleOidcAudience: () => required('GOOGLE_OIDC_AUDIENCE'),
   jwtPrivateKeyPem: () => required('JWT_PRIVATE_KEY_PEM').replace(/\\n/g, '\n'),
