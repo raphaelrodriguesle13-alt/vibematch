@@ -18,6 +18,7 @@ const SENSITIVE_KEY =
   /authorization|cookie|token|jwt|password|secret|private.?key|api.?key|auth.?token|phone|otp|verification.?code|sms.?code|code.?verifier/i;
 const REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
 const DEFAULT_READINESS_TIMEOUT_MS = 2_000;
+const CREDENTIAL_RESPONSE_PATHS = new Set(['/auth/google', '/auth/refresh']);
 
 export const redactSensitive = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(redactSensitive);
@@ -100,6 +101,14 @@ export const installHttpObservability = (
       method: request.method,
       path: safePath(request),
     });
+  });
+
+  app.addHook('onSend', async (request, reply, payload) => {
+    if (CREDENTIAL_RESPONSE_PATHS.has(safePath(request))) {
+      void reply.header('cache-control', 'no-store');
+      void reply.header('pragma', 'no-cache');
+    }
+    return payload;
   });
 
   app.addHook('onResponse', async (request, reply) => {
