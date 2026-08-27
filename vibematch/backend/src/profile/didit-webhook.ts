@@ -30,12 +30,7 @@ export const verifyDiditWebhookV2 = (
   secret: string,
   now: Date = new Date(),
 ): boolean => {
-  if (
-    !signature?.trim() ||
-    !timestamp?.trim() ||
-    !secret.trim() ||
-    !/^\d+$/.test(timestamp)
-  ) {
+  if (!signature?.trim() || !timestamp?.trim() || !secret.trim() || !/^\d+$/.test(timestamp)) {
     return false;
   }
   const incoming = Number.parseInt(timestamp, 10);
