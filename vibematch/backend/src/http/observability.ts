@@ -14,7 +14,7 @@ export interface HttpObservabilityOptions {
 }
 
 const SENSITIVE_KEY =
-  /authorization|cookie|token|jwt|password|secret|private.?key|api.?key|auth.?token|phone|code/i;
+  /authorization|cookie|token|jwt|password|secret|private.?key|api.?key|auth.?token|phone|otp|verification.?code|sms.?code|code.?verifier/i;
 const REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
 
 export const redactSensitive = (value: unknown): unknown => {
