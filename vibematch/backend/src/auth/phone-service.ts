@@ -74,7 +74,10 @@ export class PhoneVerificationService {
       throw new PhoneVerificationError('INVALID_PHONE', 'Phone must use E.164 format');
     }
     if (!(await this.repository.isUserActive(userId))) {
-      throw new PhoneVerificationError('VERIFICATION_NOT_AVAILABLE', 'Phone verification unavailable');
+      throw new PhoneVerificationError(
+        'VERIFICATION_NOT_AVAILABLE',
+        'Phone verification unavailable',
+      );
     }
 
     let providerResult: Awaited<ReturnType<SmsVerificationProvider['start']>>;
@@ -91,7 +94,10 @@ export class PhoneVerificationService {
       expiresAt: providerResult.expiresAt,
     });
     if (!verification) {
-      throw new PhoneVerificationError('VERIFICATION_NOT_AVAILABLE', 'Phone verification unavailable');
+      throw new PhoneVerificationError(
+        'VERIFICATION_NOT_AVAILABLE',
+        'Phone verification unavailable',
+      );
     }
 
     return { verificationId: verification.id, expiresAt: verification.expiresAt };
@@ -106,7 +112,10 @@ export class PhoneVerificationService {
       throw new PhoneVerificationError('INVALID_CODE', 'Verification id and code are required');
     }
     if (!(await this.repository.isUserActive(userId))) {
-      throw new PhoneVerificationError('VERIFICATION_NOT_AVAILABLE', 'Phone verification unavailable');
+      throw new PhoneVerificationError(
+        'VERIFICATION_NOT_AVAILABLE',
+        'Phone verification unavailable',
+      );
     }
 
     const verification = await this.repository.findPendingPhoneVerification(
