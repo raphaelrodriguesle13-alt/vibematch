@@ -23,7 +23,7 @@ const createUser = async (): Promise<string> => {
   return first(result).id;
 };
 
-describe('Billing RTDN atomicity', () => {
+describe('Billing persistence safety', () => {
   test('ownership failure rolls back the billing event so a retry is not poisoned', async () => {
     const ownerId = await createUser();
     const otherUserId = await createUser();
@@ -83,6 +83,51 @@ describe('Billing RTDN atomicity', () => {
       await ownerPool.query('DELETE FROM billing_events WHERE notification_id = $1', [notificationId]);
       await ownerPool.query('DELETE FROM subscriptions WHERE play_purchase_token = $1', [purchaseToken]);
       await ownerPool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [[ownerId, otherUserId]]);
+    }
+  });
+
+  test('account restriction wins a concurrent client purchase verification', async () => {
+    const userId = await createUser();
+    const purchaseToken = `purchase-race-${randomUUID()}`;
+    const restrictClient = await ownerPool.connect();
+    const repository = new BillingRepository(ownerPool);
+    let committed = false;
+
+    try {
+      await restrictClient.query('BEGIN');
+      await restrictClient.query("UPDATE users SET status = 'SUSPENDED' WHERE id = $1", [userId]);
+
+      let settled = false;
+      const purchasePromise = repository
+        .upsertVerifiedSubscription({
+          userId,
+          purchaseToken,
+          plan: 'premium_monthly',
+          status: 'ACTIVE',
+          currentPeriodEnd: new Date('2026-09-27T00:00:00.000Z'),
+          now: new Date('2026-08-27T00:00:00.000Z'),
+        })
+        .finally(() => {
+          settled = true;
+        });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(settled).toBe(false);
+
+      await restrictClient.query('COMMIT');
+      committed = true;
+      await expect(purchasePromise).resolves.toBeNull();
+
+      const subscriptions = await ownerPool.query<{ count: string }>(
+        'SELECT count(*)::text AS count FROM subscriptions WHERE play_purchase_token = $1',
+        [purchaseToken],
+      );
+      expect(subscriptions.rows[0]?.count).toBe('0');
+    } finally {
+      if (!committed) await restrictClient.query('ROLLBACK').catch(() => undefined);
+      restrictClient.release();
+      await ownerPool.query('DELETE FROM subscriptions WHERE play_purchase_token = $1', [purchaseToken]);
+      await ownerPool.query('DELETE FROM users WHERE id = $1', [userId]);
     }
   });
 });
