@@ -4,33 +4,39 @@ Atualizado em **2026-08-27** após a continuação exclusiva na branch `continui
 
 ## Escopo e estado do Git
 
-O objetivo desta etapa foi aproximar o cliente Android de um AAB release-ready, reforçando o Play Billing server-authorized, o Age Assurance hosted, a UX de estados vazios e retry, o lifecycle do RTC e os gates de segurança de release. O rebase obrigatório preservou os commits cooperativos publicados entre o HEAD inicial e o trabalho local; não houve reset destrutivo, force-push, alteração da `main` ou alteração da lógica de produção backend.
+O objetivo desta etapa foi aproximar o cliente Android de um AAB release-ready, reforçando o Play Billing server-authorized, o Age Assurance hosted, a UX de estados vazios e retry, o lifecycle do RTC, a navegação compacta/acessível e um runner reproduzível para sessão E2E. Os gates de segurança de release permaneceram fail-closed.
+O rebase obrigatório preservou os commits cooperativos publicados entre o HEAD inicial e o trabalho local; não houve reset destrutivo, force-push, alteração da `main` ou alteração da lógica de produção backend.
 
-| Item                                         | Valor                                                                                                                |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Repositório                                  | `raphaelrodriguesle13-alt/vibematch`                                                                                 |
-| Branch exclusiva                             | `continuity`                                                                                                         |
-| HEAD inicial desta continuação               | `ad25840923e00663e83365b606bd5af8ec81942f` — `test: assert age assurance column privileges`                          |
-| HEAD cooperativo final encontrado no rebase  | `5ecbf9691a474115e041a3e14666ab9180232a5f` — `test(runtime): prove readiness through least-privilege database roles` |
-| Commit do plano E2E na ancestralidade atual  | `6558d04` — `docs(android): add real e2e release plan`                                                               |
-| Commit do runner E2E na ancestralidade atual | `4710982` — `test(android): add sanitized e2e preflight`                                                             |
-| HEAD local após smoke/gates cooperativos     | `9c322ab` — `test(runtime): use ephemeral jwt smoke keys`                                                            |
+| Item                                            | Valor                                                                                       |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Repositório                                     | `raphaelrodriguesle13-alt/vibematch`                                                        |
+| Branch exclusiva                                | `continuity`                                                                                |
+| HEAD inicial desta continuação                  | `ad25840923e00663e83365b606bd5af8ec81942f` — `test: assert age assurance column privileges` |
+| HEAD cooperativo final encontrado no rebase     | `855deab` — `docs(runtime): document readiness and db timeouts`                             |
+| Commit do plano E2E na ancestralidade atual     | `6558d04` — `docs(android): add real e2e release plan`                                      |
+| Commit do preflight E2E na ancestralidade atual | `4710982` — `test(android): add sanitized e2e preflight`                                    |
+| Commit do runner de sessão E2E                  | `7b6da8b` — `test(android): add manual e2e session runner`                                  |
+| HEAD local após avanço Android/backend          | `6c93835` — `fix(http): narrow sanitized error status safely`                               |
 
 | Publicação permitida | Somente `origin/continuity`, sem force-push |
 
-Durante os rebases, `origin/continuity` avançou do HEAD inicial até `5ecbf96`, incluindo hardening cooperativo de JWT, rotação de `kid`, validação fail-closed de configuração de produção, observabilidade segura e readiness por privilégios mínimos. O trabalho Android e a matriz E2E foram preservados por `stash`, `rebase origin/continuity` e `stash pop`. Nenhum arquivo de produção backend foi alterado pela frente Android nesta etapa.
+Durante os rebases, `origin/continuity` avançou do HEAD inicial até `855deab`, incluindo hardening cooperativo de JWT, rotação de `kid`, validação fail-closed de configuração de produção, observabilidade segura, readiness por privilégios mínimos, limites de conexão, smoke pós-deploy e documentação de timeouts/DB.
+O trabalho Android e a matriz E2E foram preservados por `stash`, `rebase origin/continuity` e `stash pop`. Nenhum arquivo de produção backend foi alterado pela frente Android nesta etapa.
 
 ## Commits desta entrega
 
-| Commit    | Descrição                                           |
-| --------- | --------------------------------------------------- |
-| `913da41` | `fix(android): harden billing callback lifecycle`   |
-| `e20ff8f` | `feat(android): add hosted age assurance flow`      |
-| `59302db` | `build(android): reject local release endpoints`    |
-| `057e199` | `style: align cooperative provider test formatting` |
-| `4710982` | `test(android): add sanitized e2e preflight`        |
-| `338d9ea` | `docs(android): add real e2e release plan`          |
-| `9c322ab` | `test(runtime): use ephemeral jwt smoke keys`       |
+| Commit    | Descrição                                                   |
+| --------- | ----------------------------------------------------------- |
+| `913da41` | `fix(android): harden billing callback lifecycle`           |
+| `e20ff8f` | `feat(android): add hosted age assurance flow`              |
+| `59302db` | `build(android): reject local release endpoints`            |
+| `057e199` | `style: align cooperative provider test formatting`         |
+| `4710982` | `test(android): add sanitized e2e preflight`                |
+| `6558d04` | `docs(android): add real e2e release plan`                  |
+| `68a1c3f` | `test(runtime): use ephemeral jwt smoke keys`               |
+| `7b6da8b` | `test(android): add manual e2e session runner`              |
+| `34b3531` | `fix(android): make chat navigation compact and accessible` |
+| `6c93835` | `fix(http): narrow sanitized error status safely`           |
 
 | Commit documental posterior | Atualiza este handoff com o inventário final; o SHA da branch deve ser confirmado com `git rev-parse HEAD` após a publicação. |
 
@@ -77,28 +83,30 @@ A UX recebeu retries nos estados vazios de MatchIntent, Consent e criação de V
 
 Os gates foram executados no sandbox com Java 21 configurando toolchain Android 17, Android SDK 35 e sem credenciais reais de Google, Play, Didit, Twilio ou LiveKit.
 
-| Gate                                                                                    | Resultado                                                                                  |
-| --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `npm run typecheck`                                                                     | Aprovado                                                                                   |
-| `npm run lint`                                                                          | Aprovado                                                                                   |
-| `npm run format:check`                                                                  | Aprovado                                                                                   |
-| `npm run test:unit`                                                                     | Aprovado: **28 suítes, 138 testes**                                                        |
-| `NODE_OPTIONS=--experimental-vm-modules npx jest tests/http tests/runtime --runInBand`  | Aprovado: **2 suítes, 5 testes**                                                           |
-| `./gradlew :app:testDebugUnitTest`                                                      | Aprovado: **13 suítes, 76 testes**                                                         |
-| `./gradlew :app:compileDebugKotlin`                                                     | Aprovado                                                                                   |
-| `./gradlew :app:assembleDebug`                                                          | Aprovado                                                                                   |
-| `./gradlew :app:lintDebug`                                                              | Aprovado                                                                                   |
-| `./gradlew :app:bundleRelease` com API HTTPS, LiveKit WSS e produto público placeholder | Aprovado; AAB unsigned buildable                                                           |
-| Release com API HTTP                                                                    | Rejeitado: `Release API_BASE_URL must use HTTPS`                                           |
-| Release com API em `localhost`                                                          | Rejeitado: `Release API_BASE_URL must not use a local host`                                |
-| Release com LiveKit HTTP                                                                | Rejeitado: `Release LIVEKIT_URL must use wss://`                                           |
-| Release com LiveKit em `localhost`                                                      | Rejeitado: `Release LIVEKIT_URL must not use a local host`                                 |
-| Release sem `BILLING_PRODUCT_ID`                                                        | Rejeitado: `Release BILLING_PRODUCT_ID must be configured`                                 |
-| Release com caminho Billing relativo                                                    | Rejeitado: `Release BILLING_VALIDATION_PATH must be an absolute API path`                  |
-| `git diff --check`                                                                      | Aprovado no estado fonte e repetido após as atualizações documentais                       |
-| Secret scan e scan de persistência Android                                              | Aprovado; nenhum segredo encontrado e nenhum sink de persistência/log para tokens críticos |
-| `tools/android-e2e-preflight.sh`                                                        | Executado; `BLOCKED / no_authorized_device` sem coletar tokens ou PII                      |
-| AVD Google Play API 35 headless                                                         | Provisionado, mas boot falhou após 300 s sem `/dev/kvm`; não é evidência de E2E            |
+| Gate                                                                                   | Resultado                           |
+| -------------------------------------------------------------------------------------- | ----------------------------------- |
+| `npm run typecheck`                                                                    | Aprovado                            |
+| `npm run lint`                                                                         | Aprovado                            |
+| `npm run format:check`                                                                 | Aprovado                            |
+| `npm run test:unit`                                                                    | Aprovado: **30 suítes, 145 testes** |
+| `NODE_OPTIONS=--experimental-vm-modules npx jest tests/http tests/runtime --runInBand` | Aprovado: **2 suítes, 7 testes**    |
+
+| `./gradlew :app:testDebugUnitTest` | Aprovado: **13 suítes, 76 testes** |
+| `./gradlew :app:compileDebugKotlin` | Aprovado |
+| `./gradlew :app:assembleDebug` | Aprovado |
+| `./gradlew :app:lintDebug` | Aprovado |
+| `./gradlew :app:bundleRelease` com API HTTPS, LiveKit WSS e produto público placeholder | Aprovado; AAB unsigned buildable |
+| Release com API HTTP | Rejeitado: `Release API_BASE_URL must use HTTPS` |
+| Release com API em `localhost` | Rejeitado: `Release API_BASE_URL must not use a local host` |
+| Release com LiveKit HTTP | Rejeitado: `Release LIVEKIT_URL must use wss://` |
+| Release com LiveKit em `localhost` | Rejeitado: `Release LIVEKIT_URL must not use a local host` |
+| Release sem `BILLING_PRODUCT_ID` | Rejeitado: `Release BILLING_PRODUCT_ID must be configured` |
+| Release com caminho Billing relativo | Rejeitado: `Release BILLING_VALIDATION_PATH must be an absolute API path` |
+| `git diff --check` | Aprovado no estado fonte e repetido após as atualizações documentais |
+| Secret scan e scan de persistência Android | Aprovado; nenhum segredo encontrado e nenhum sink de persistência/log para tokens críticos |
+| `tools/android-e2e-preflight.sh` | Executado; `BLOCKED / no_authorized_device` sem coletar tokens ou PII |
+| `tools/android-e2e-session.sh` | Executado sem APK e com APK; `BLOCKED / APK_PATH_required` e `expected_exactly_one_authorized_device` |
+| AVD Google Play API 35 headless | Provisionado, mas boot falhou após 300 s sem `/dev/kvm`; não é evidência de E2E |
 
 A implementação de segurança de release aceita placeholders públicos apenas para demonstrar o build. Isso não configura API real, produto real, endpoint LiveKit real ou credencial de assinatura.
 
@@ -108,8 +116,8 @@ Os artefatos foram regenerados no gate final antes do commit documental. O AAB �
 
 | Artefato             | Caminho                                                    | SHA-256                                                            |
 | -------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------ |
-| Debug APK            | `android/app/build/outputs/apk/debug/app-debug.apk`        | `36b43ad92ef40baa782163dc277fcf9852063fc74914dacf0c013e80d83eb4c9` |
-| Release AAB unsigned | `android/app/build/outputs/bundle/release/app-release.aab` | `9bbd2ccc94187ed898375aa070b47013506666fae78f05286814a4dbec044c14` |
+| Debug APK            | `android/app/build/outputs/apk/debug/app-debug.apk`        | `9435cfcbc62bf9f6e788098db4b8c2f22a223d629e20b1989bbf2bc28348e23e` |
+| Release AAB unsigned | `android/app/build/outputs/bundle/release/app-release.aab` | `99ae053bdf226cde8c5d552de9c041d29a182caa5104c1ab027b519189b0febc` |
 
 ## Classificação de readiness e validação externa
 
@@ -127,7 +135,8 @@ Os artefatos foram regenerados no gate final antes do commit documental. O AAB �
 | Deep link Age Assurance          | **NOT IMPLEMENTED**                           | O retorno atual é ActivityResult/`ON_RESUME`; não há app link/deep link backend publicado.                                          |
 | Renovação de sessão              | **NOT IMPLEMENTED**                           | O backend não expõe contrato cliente de refresh; HTTP 401 encerra a sessão de forma fail-closed.                                    |
 
-O preflight reproduzível está em `tools/android-e2e-preflight.sh`; ele aceita um APK por `APK_PATH`, usa `ADB_BIN`/`ANDROID_SDK_ROOT` sem coletar credenciais e retorna `BLOCKED` quando não há dispositivo autorizado. O smoke de composição de produção gera chaves RSA efêmeras em memória, evitando que placeholders inválidos sejam tratados como credenciais reais.
+O preflight reproduzível está em `tools/android-e2e-preflight.sh`; ele aceita um APK por `APK_PATH`, usa `ADB_BIN`/`ANDROID_SDK_ROOT` sem coletar credenciais e retorna `BLOCKED` quando não há dispositivo autorizado. O runner complementar `tools/android-e2e-session.sh` exige exatamente um device, confirma Play Services/Play Store, instala um APK, inicia o package e imprime apenas metadados sanitizados; sem device, retorna `BLOCKED` antes de qualquer fluxo.
+O smoke de composição de produção gera chaves RSA efêmeras em memória, evitando que placeholders inválidos sejam tratados como credenciais reais.
 O AVD Google Play API 35 foi criado, mas a máquina não expõe `/dev/kvm` e o boot headless não concluiu. Os testes de banco continuam dependentes de `DATABASE_URL_OWNER` e demais URLs PostgreSQL. A migração de `EncryptedSharedPreferences`/`MasterKey` deprecados não foi forçada, pois preservar a sessão existente com uma migração segura e testada é preferível a uma troca cega antes da release. Também permanecem necessários observabilidade sanitizada, políticas operacionais de moderação, revisão de privacidade, assinatura e configuração de produção.
 
 > **ANDROID RELEASE READINESS: 74%**
@@ -136,7 +145,8 @@ O percentual é deliberadamente conservador. O cliente, os contratos, os gates l
 
 ## Próximo passo recomendado ao ChatGPT
 
-O próximo passo é conectar um dispositivo Android com Google Play ou um device lab que exponha ADB, além de publicar um AAB assinado em Play Internal Testing. O último gate cooperativo também confirmou o hardening de JWT/configuração de produção no backend; essa parte foi preservada sem reescrita Android.
+O próximo passo é conectar um dispositivo Android com Google Play ou um device lab que exponha ADB, além de publicar um AAB assinado em Play Internal Testing. O runner de sessão agora automatiza o preflight e o lançamento do APK, mas deliberadamente não executa login, OTP, Billing ou RTC sem um dispositivo autorizado.
+O último gate cooperativo também confirmou o hardening de JWT/configuração de produção no backend; essa parte foi preservada sem reescrita Android.
 Com o ambiente disponível, executar a matriz em `docs/ANDROID_E2E_RELEASE_PLAN.md`: Google login real, Age Assurance/Didit, telefone/Twilio, MatchIntent, Consent, RTC LiveKit de duas partes, Block/revogação e Billing/restore/revogação. Registrar apenas estados públicos e confirmações server-side, sem purchase token, token LiveKit, OTP ou PII.
 
 ## Referências técnicas

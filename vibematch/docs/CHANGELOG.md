@@ -45,6 +45,8 @@
 - Deduplicação de purchase callbacks por token transitório, proteção de geração contra callbacks stale e cobertura de cancelamento, timeout, entitlement revogado, troca de conta e acknowledgement falho.
 - Retrys acessíveis para estados vazios de MatchIntent, Consent e Video, além de desconexão RTC no `ON_STOP` da Activity e descarte de credencial JIT pendente.
 - Preflight E2E sanitizado em `tools/android-e2e-preflight.sh`, com detecção de ADB/device e instalação opcional de APK sem coletar credenciais, tokens ou PII.
+- Runner manual `tools/android-e2e-session.sh` para verificar Play Services/Play Store, instalar APK, iniciar a sessão e emitir somente metadados sanitizados.
+- Cabeçalho do Chat com menu acessível para evitar overflow em telas estreitas, mantendo Perfil, Premium, Solicitações e Sair disponíveis sem alterar a autoridade server-side.
 
 ### Limitações conhecidas
 

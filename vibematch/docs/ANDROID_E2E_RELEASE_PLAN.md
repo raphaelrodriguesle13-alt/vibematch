@@ -18,7 +18,7 @@ As evidências devem usar apenas aliases `A` e `B`, timestamps, versão/build, r
 | `adb` | Disponível em `/home/ubuntu/android-sdk/platform-tools/adb`, mas não exposto no PATH | O preflight consegue usar o caminho absoluto; não havia dispositivo autorizado. |
 | Android Emulator/AVD | Emulator e imagem `google_apis_playstore;x86_64` provisionados; AVD criado | O boot headless falhou após 300 s e o processo encerrou; `/dev/kvm` não está disponível. |
 
-| Harness E2E no repositório | Não foram encontrados Espresso, UIAutomator, Maestro, Appium, Detox ou `androidTest` | O preflight sanitizado está em `tools/android-e2e-preflight.sh`; a execução funcional ainda requer dispositivo real/Play internal track ou harness externo autorizado. |
+| Harness E2E no repositório | Não foram encontrados Espresso, UIAutomator, Maestro, Appium, Detox ou `androidTest` | `tools/android-e2e-preflight.sh` e `tools/android-e2e-session.sh` cobrem preflight/lançamento sanitizado; a execução funcional ainda requer dispositivo real/Play internal track ou harness externo autorizado. |
 
 | Google Web client ID real | Não disponível nesta sessão | Login Google e vínculo de certificado/package não podem ser provados. |
 | Contas Google de teste A/B | Não disponíveis | MatchIntent, Consent, RTC de duas partes e Billing por conta não podem ser provados. |
@@ -29,7 +29,7 @@ As evidências devem usar apenas aliases `A` e `B`, timestamps, versão/build, r
 | Assinatura AAB | Sem upload key/keystore | O AAB local permanece unsigned; upload ao Play é bloqueado. |
 
 O Android SDK sozinho não substitui um dispositivo com Google Play e conta tester. O AVD Google Play foi tentado em modo headless, mas não chegou a `sys.boot_completed=1` sem KVM; portanto não é evidência de device E2E. A documentação oficial recomenda license testers e Play Billing Lab para testar compras sem cobrança e cenários de pagamento [1].
-Para o App Bundle, a publicação exige assinatura/upload key e configuração de Play App Signing [3] [4].
+Para o App Bundle, a publicação exige assinatura/upload key e configuração de Play App Signing [3] [4]. A navegação do Chat usa menu acessível para manter Perfil, Premium e Solicitações utilizáveis em telas estreitas, sem alterar os contratos server-side.
 
 ## Casos E2E
 

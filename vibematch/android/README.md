@@ -139,6 +139,20 @@ Após confirmação do bloqueio pelo backend, o callback Android encerra a sala 
 
 Os estados vazios de MatchIntent, Consent e autorização de vídeo exibem explicação pública e ação de atualização/retry quando a operação pode ser repetida com segurança. Mensagens não expõem detalhes de provedores, tokens ou PII. Ao entrar em background (`ON_STOP`), a Activity encerra a sala RTC e descarta a credencial pendente; o retorno a uma chamada exige nova autorização e ação explícita. Os botões críticos permanecem nomeados por texto, com loading visível e sem liberar recurso por estado otimista local.
 
+O cabeçalho do Chat usa um menu acessível de opções secundárias para evitar overflow em telas estreitas; Perfil, Premium e Solicitações continuam disponíveis por itens nomeados, enquanto Sair permanece visível. A mudança é apenas de navegação local e não altera nenhum contrato de autorização.
+
+## Runner de sessão E2E
+
+`../tools/android-e2e-preflight.sh` verifica ADB, dispositivo autorizado e pacote instalado sem coletar credenciais. Para preparar uma sessão manual em um APK debug já construído, use:
+
+```bash
+ADB_BIN=/caminho/para/adb \\
+APK_PATH=app/build/outputs/apk/debug/app-debug.apk \\
+../tools/android-e2e-session.sh
+```
+
+O runner exige exatamente um dispositivo autorizado, confirma a presença de Google Mobile Services e Play Store, instala o APK, inicia o pacote e imprime somente modelo, API, package e SHA-256. `CLEAR_APP_DATA=1` pode ser usado conscientemente antes de um cenário novo; o padrão não apaga dados. Ele não realiza login, não lê OTP, não imprime logs e não registra tokens. A execução funcional deve seguir `docs/ANDROID_E2E_RELEASE_PLAN.md` com contas e ambiente reais. Um AAB não é instalado diretamente por esse script: para Billing real, o release assinado deve ser publicado em Play Internal Testing.
+
 ## Validação local
 
 Os gates Android usados nesta etapa são:
