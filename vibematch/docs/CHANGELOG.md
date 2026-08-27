@@ -44,6 +44,7 @@
 - Proteção do ProfileViewModel contra respostas tardias após reset/troca de sessão e cobertura de estados `PENDING`, `APPROVED`, `REJECTED`, `UNKNOWN` e indisponibilidade do provider sem desbloqueio local.
 - Deduplicação de purchase callbacks por token transitório, proteção de geração contra callbacks stale e cobertura de cancelamento, timeout, entitlement revogado, troca de conta e acknowledgement falho.
 - Retrys acessíveis para estados vazios de MatchIntent, Consent e Video, além de desconexão RTC no `ON_STOP` da Activity e descarte de credencial JIT pendente.
+- Preflight E2E sanitizado em `tools/android-e2e-preflight.sh`, com detecção de ADB/device e instalação opcional de APK sem coletar credenciais, tokens ou PII.
 
 ### Limitações conhecidas
 

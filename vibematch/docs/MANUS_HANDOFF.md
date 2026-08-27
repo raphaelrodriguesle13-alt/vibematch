@@ -6,26 +6,28 @@ Atualizado em **2026-08-27** após a continuação exclusiva na branch `continui
 
 O objetivo desta etapa foi aproximar o cliente Android de um AAB release-ready, reforçando o Play Billing server-authorized, o Age Assurance hosted, a UX de estados vazios e retry, o lifecycle do RTC e os gates de segurança de release. O rebase obrigatório preservou os commits cooperativos publicados entre o HEAD inicial e o trabalho local; não houve reset destrutivo, force-push, alteração da `main` ou alteração da lógica de produção backend.
 
-| Item                                                | Valor                                                                                       |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Repositório                                         | `raphaelrodriguesle13-alt/vibematch`                                                        |
-| Branch exclusiva                                    | `continuity`                                                                                |
-| HEAD inicial desta continuação                      | `ad25840923e00663e83365b606bd5af8ec81942f` — `test: assert age assurance column privileges` |
-| HEAD cooperativo encontrado no rebase               | `e38c3ae579a22da9b1824eb605e5655f281f340f` — `test(age): reject malformed webhook JSON`     |
-| HEAD local imediatamente antes do commit documental | `057e199` — `style: align cooperative provider test formatting`                             |
-| Publicação permitida                                | Somente `origin/continuity`, sem force-push                                                 |
+| Item                                  | Valor                                                                                                |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Repositório                           | `raphaelrodriguesle13-alt/vibematch`                                                                 |
+| Branch exclusiva                      | `continuity`                                                                                         |
+| HEAD inicial desta continuação        | `ad25840923e00663e83365b606bd5af8ec81942f` — `test: assert age assurance column privileges`          |
+| HEAD cooperativo encontrado no rebase | `a2a39998488de7283c5b8541e0676180916ec025` — `style(config): apply production validation formatting` |
+| HEAD local do plano/runner E2E        | `4710982` — `test(android): add sanitized e2e preflight`                                             |
+| Publicação permitida                  | Somente `origin/continuity`, sem force-push                                                          |
 
-Durante o rebase, `origin/continuity` avançou do HEAD inicial para `e38c3ae`; o trabalho Android foi preservado por `stash`, `rebase origin/continuity` e `stash pop`. Os commits cooperativos incluíram correções de tipagem, formatação, testes e webhook de Age Assurance. O único ajuste backend desta etapa foi formatação de três testes cooperativos para satisfazer o gate Prettier; nenhum arquivo de produção backend foi alterado.
+Durante os rebases, `origin/continuity` avançou do HEAD inicial até `a2a3999`, incluindo hardening cooperativo de JWT, rotação de `kid` e validação fail-closed de configuração de produção. O trabalho Android e a matriz E2E foram preservados por `stash`, `rebase origin/continuity` e `stash pop`. Nenhum arquivo de produção backend foi alterado nesta etapa.
 
 ## Commits desta entrega
 
-| Commit                      | Descrição                                                                                                                                               |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `913da41`                   | `fix(android): harden billing callback lifecycle`                                                                                                       |
-| `e20ff8f`                   | `feat(android): add hosted age assurance flow`                                                                                                          |
-| `59302db`                   | `build(android): reject local release endpoints`                                                                                                        |
-| `057e199`                   | `style: align cooperative provider test formatting`                                                                                                     |
-| Commit documental posterior | Atualiza este handoff, `android/README.md` e `docs/CHANGELOG.md`; o SHA final da branch deve ser confirmado com `git rev-parse HEAD` após a publicação. |
+| Commit                      | Descrição                                                                                                                     |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `913da41`                   | `fix(android): harden billing callback lifecycle`                                                                             |
+| `e20ff8f`                   | `feat(android): add hosted age assurance flow`                                                                                |
+| `59302db`                   | `build(android): reject local release endpoints`                                                                              |
+| `057e199`                   | `style: align cooperative provider test formatting`                                                                           |
+| `4710982`                   | `test(android): add sanitized e2e preflight`                                                                                  |
+| `338d9ea`                   | `docs(android): add real e2e release plan`                                                                                    |
+| Commit documental posterior | Atualiza este handoff com o inventário final; o SHA da branch deve ser confirmado com `git rev-parse HEAD` após a publicação. |
 
 Os arquivos Android modificados foram `Billing.kt`, `BillingTest.kt`, `MainActivity.kt`, `ProfileApiClient.kt`, `ProfileModels.kt`, `ProfileViewModel.kt`, `ProfileApiClientTest.kt`, `ProfileViewModelTest.kt` e `android/app/build.gradle.kts`. A documentação alterada foi `android/README.md`, `docs/CHANGELOG.md` e este handoff. Os três testes backend formatados foram `tests/auth/twilio-verify.test.ts`, `tests/profile/age-webhook-reconciler.test.ts` e `tests/profile/didit.test.ts`.
 
@@ -89,6 +91,8 @@ Os gates foram executados no sandbox com Java 21 configurando toolchain Android 
 | Release com caminho Billing relativo                                                    | Rejeitado: `Release BILLING_VALIDATION_PATH must be an absolute API path`                  |
 | `git diff --check`                                                                      | Aprovado antes da documentação; repetir após o commit documental                           |
 | Secret scan e scan de persistência Android                                              | Aprovado; nenhum segredo encontrado e nenhum sink de persistência/log para tokens críticos |
+| `tools/android-e2e-preflight.sh`                                                        | Executado; `BLOCKED / no_authorized_device` sem coletar tokens ou PII                      |
+| AVD Google Play API 35 headless                                                         | Provisionado, mas boot falhou após 300 s sem `/dev/kvm`; não é evidência de E2E            |
 
 A implementação de segurança de release aceita placeholders públicos apenas para demonstrar o build. Isso não configura API real, produto real, endpoint LiveKit real ou credencial de assinatura.
 
@@ -117,7 +121,7 @@ Os artefatos foram regenerados no gate final antes do commit documental. O AAB �
 | Deep link Age Assurance          | **NOT IMPLEMENTED**                           | O retorno atual é ActivityResult/`ON_RESUME`; não há app link/deep link backend publicado.                                          |
 | Renovação de sessão              | **NOT IMPLEMENTED**                           | O backend não expõe contrato cliente de refresh; HTTP 401 encerra a sessão de forma fail-closed.                                    |
 
-Os testes de banco continuam dependentes de `DATABASE_URL_OWNER` e demais URLs PostgreSQL. A migração de `EncryptedSharedPreferences`/`MasterKey` deprecados não foi forçada, pois preservar a sessão existente com uma migração segura e testada é preferível a uma troca cega antes da release. Também permanecem necessários observabilidade sanitizada, políticas operacionais de moderação, revisão de privacidade, assinatura e configuração de produção.
+O preflight reproduzível está em `tools/android-e2e-preflight.sh`; ele aceita um APK por `APK_PATH`, usa `ADB_BIN`/`ANDROID_SDK_ROOT` sem coletar credenciais e retorna `BLOCKED` quando não há dispositivo autorizado. O AVD Google Play API 35 foi criado, mas a máquina não expõe `/dev/kvm` e o boot headless não concluiu. Os testes de banco continuam dependentes de `DATABASE_URL_OWNER` e demais URLs PostgreSQL. A migração de `EncryptedSharedPreferences`/`MasterKey` deprecados não foi forçada, pois preservar a sessão existente com uma migração segura e testada é preferível a uma troca cega antes da release. Também permanecem necessários observabilidade sanitizada, políticas operacionais de moderação, revisão de privacidade, assinatura e configuração de produção.
 
 > **ANDROID RELEASE READINESS: 74%**
 
@@ -125,7 +129,7 @@ O percentual é deliberadamente conservador. O cliente, os contratos, os gates l
 
 ## Próximo passo recomendado ao ChatGPT
 
-O próximo passo deve ser executar uma validação externa controlada com produto de assinatura no Play Console, conta licenciada, backend Billing/RTDN em HTTPS e duas contas Android autenticadas. Registrar compra, restore, entitlement ativo/revogado, acknowledgement, logout/troca de conta e expiração sem registrar purchase token, token LiveKit ou PII. Em paralelo, executar Age Assurance hosted real com Didit/webhook autenticado e RTC LiveKit de duas partes, confirmando que Block, revogação, saída e background terminam a sala.
+O próximo passo é conectar um dispositivo Android com Google Play ou um device lab que exponha ADB, além de publicar um AAB assinado em Play Internal Testing. Com o ambiente disponível, executar a matriz em `docs/ANDROID_E2E_RELEASE_PLAN.md`: Google login real, Age Assurance/Didit, telefone/Twilio, MatchIntent, Consent, RTC LiveKit de duas partes, Block/revogação e Billing/restore/revogação. Registrar apenas estados públicos e confirmações server-side, sem purchase token, token LiveKit, OTP ou PII.
 
 ## Referências técnicas
 

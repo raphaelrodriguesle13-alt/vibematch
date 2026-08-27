@@ -1,6 +1,6 @@
 # Plano E2E Android/release — VibeMatch
 
-Atualizado em **2026-08-27** após auditoria da branch `continuity` em `8319335f1244e20b43c7d61fdb236e72bc412a9d`.
+Atualizado em **2026-08-27** após auditoria da branch `continuity` e provisionamento local de tooling Android.
 
 ## Objetivo e regra de evidência
 
@@ -10,22 +10,25 @@ As evidências devem usar apenas aliases `A` e `B`, timestamps, versão/build, r
 
 ## Inventário do ambiente atual
 
-| Recurso                    | Estado nesta sessão                                                                  | Consequência                                                                                       |
-| -------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| Branch `continuity`        | Disponível e limpa; HEAD local/remoto `8319335f1244e20b43c7d61fdb236e72bc412a9d`     | Código pode ser reproduzido sem rebase adicional se o remoto não avançar.                          |
-| Android SDK 35/build tools | Disponível em `/home/ubuntu/android-sdk`                                             | Builds locais são possíveis.                                                                       |
-| `adb`                      | Não disponível no PATH                                                               | Nenhuma instalação, captura ou teste de dispositivo pôde ser executado.                            |
-| Android Emulator/AVD       | Não disponível no PATH e nenhum AVD listado                                          | Não há dispositivo virtual local para E2E.                                                         |
-| Harness E2E no repositório | Não foram encontrados Espresso, UIAutomator, Maestro, Appium, Detox ou `androidTest` | A execução deverá usar dispositivo real/Play internal track ou um harness externo autorizado.      |
-| Google Web client ID real  | Não disponível nesta sessão                                                          | Login Google e vínculo de certificado/package não podem ser provados.                              |
-| Contas Google de teste A/B | Não disponíveis                                                                      | MatchIntent, Consent, RTC de duas partes e Billing por conta não podem ser provados.               |
-| Didit/Age Assurance real   | Sem API key/workflow/webhook real                                                    | Hosted Age Assurance só pode ser classificado como contrato/teste local até receber ambiente real. |
-| Twilio/telefone real       | Sem provedor e números de teste                                                      | SMS/OTP real não pode ser provado.                                                                 |
-| LiveKit real               | Sem URL/credenciais server-side e dois dispositivos                                  | Mídia, reconexão e revogação RTC não podem ser provadas.                                           |
-| Play Console/Play Billing  | Sem produto, licença, track, conta tester e Play Billing Lab                         | Compra, restore, renovação e revogação no sandbox não podem ser executados.                        |
-| Assinatura AAB             | Sem upload key/keystore                                                              | O AAB local permanece unsigned; upload ao Play é bloqueado.                                        |
+| Recurso                    | Estado nesta sessão                                                                      | Consequência                                                                             |
+| -------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Branch `continuity`        | Base cooperativa `a2a39998488de7283c5b8541e0676180916ec025`; lote local inclui `4710982` | Código pode ser reproduzido após publicar o lote local, se o remoto não avançar.         |
+| Android SDK 35/build tools | Disponível em `/home/ubuntu/android-sdk`                                                 | Builds locais são possíveis.                                                             |
+| `adb`                      | Disponível em `/home/ubuntu/android-sdk/platform-tools/adb`, mas não exposto no PATH     | O preflight consegue usar o caminho absoluto; não havia dispositivo autorizado.          |
+| Android Emulator/AVD       | Emulator e imagem `google_apis_playstore;x86_64` provisionados; AVD criado               | O boot headless falhou após 300 s e o processo encerrou; `/dev/kvm` não está disponível. |
 
-O Android SDK sozinho não substitui um dispositivo com Google Play e conta tester. A documentação oficial recomenda license testers e Play Billing Lab para testar compras sem cobrança e cenários de pagamento [1]. Para o App Bundle, a publicação exige assinatura/upload key e configuração de Play App Signing [3] [4].
+| Harness E2E no repositório | Não foram encontrados Espresso, UIAutomator, Maestro, Appium, Detox ou `androidTest` | O preflight sanitizado está em `tools/android-e2e-preflight.sh`; a execução funcional ainda requer dispositivo real/Play internal track ou harness externo autorizado. |
+
+| Google Web client ID real | Não disponível nesta sessão | Login Google e vínculo de certificado/package não podem ser provados. |
+| Contas Google de teste A/B | Não disponíveis | MatchIntent, Consent, RTC de duas partes e Billing por conta não podem ser provados. |
+| Didit/Age Assurance real | Sem API key/workflow/webhook real | Hosted Age Assurance só pode ser classificado como contrato/teste local até receber ambiente real. |
+| Twilio/telefone real | Sem provedor e números de teste | SMS/OTP real não pode ser provado. |
+| LiveKit real | Sem URL/credenciais server-side e dois dispositivos | Mídia, reconexão e revogação RTC não podem ser provadas. |
+| Play Console/Play Billing | Sem produto, licença, track, conta tester e Play Billing Lab | Compra, restore, renovação e revogação no sandbox não podem ser executados. |
+| Assinatura AAB | Sem upload key/keystore | O AAB local permanece unsigned; upload ao Play é bloqueado. |
+
+O Android SDK sozinho não substitui um dispositivo com Google Play e conta tester. O AVD Google Play foi tentado em modo headless, mas não chegou a `sys.boot_completed=1` sem KVM; portanto não é evidência de device E2E. A documentação oficial recomenda license testers e Play Billing Lab para testar compras sem cobrança e cenários de pagamento [1].
+Para o App Bundle, a publicação exige assinatura/upload key e configuração de Play App Signing [3] [4].
 
 ## Casos E2E
 
