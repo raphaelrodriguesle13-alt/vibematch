@@ -106,6 +106,32 @@ describe('HTTP observability', () => {
     await app.close();
   });
 
+  test('sanitizes unexpected 5xx responses and logs no error message', async () => {
+    const app = fastify({ logger: false });
+    const logs = makeSink();
+    app.get('/explode', async () => {
+      throw new Error('database password=do-not-leak');
+    });
+    installHttpObservability(app, { logger: logs.sink, requestId: () => 'failure-req' });
+
+    const response = await app.inject({ method: 'GET', url: '/explode' });
+
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ error: 'INTERNAL_ERROR' });
+    expect(response.headers['x-request-id']).toBe('failure-req');
+    expect(response.body).not.toContain('do-not-leak');
+    expect(JSON.stringify(logs)).not.toContain('do-not-leak');
+    expect(logs.error).toContainEqual({
+      event: 'http.request.failed',
+      request_id: 'failure-req',
+      method: 'GET',
+      path: '/explode',
+      status_code: 500,
+      error_name: 'Error',
+    });
+    await app.close();
+  });
+
   test('readiness fails closed without exposing dependency details', async () => {
     const app = fastify({ logger: false });
     const logs = makeSink();
@@ -118,6 +144,24 @@ describe('HTTP observability', () => {
     expect(live.json()).toEqual({ ok: true });
     expect(ready.statusCode).toBe(503);
     expect(ready.json()).toEqual({ ok: false });
+    await app.close();
+  });
+
+  test('readiness times out fail-closed instead of hanging indefinitely', async () => {
+    const app = fastify({ logger: false });
+    const logs = makeSink();
+    installHttpObservability(app, {
+      logger: logs.sink,
+      readiness: () => new Promise<boolean>(() => undefined),
+      readinessTimeoutMs: 10,
+    });
+
+    const startedAt = Date.now();
+    const ready = await app.inject({ method: 'GET', url: '/health/ready' });
+
+    expect(ready.statusCode).toBe(503);
+    expect(ready.json()).toEqual({ ok: false });
+    expect(Date.now() - startedAt).toBeLessThan(1_000);
     await app.close();
   });
 });
