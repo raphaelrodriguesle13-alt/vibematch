@@ -83,7 +83,7 @@ describe('age assurance HTTP', () => {
   it('rejects missing authentication before calling the provider', async () => {
     const app = fastify();
     const start: AgeAssuranceHttpDependencies['service']['start'] = jest.fn(async () => ({
-      status: 'PENDING',
+      status: 'PENDING' as const,
       verificationUrl: 'https://verify.didit.me/session/example',
     }));
     registerAgeAssuranceRoutes(app, {
