@@ -19,12 +19,12 @@ describe('age assurance HTTP', () => {
       refresh: jest.fn(),
     };
     registerAgeAssuranceRoutes(app, {
-      service: service as never,
+      service,
       sessionTokenVerifier: { verify: jest.fn().mockResolvedValue(claims) },
       activeSessionStore: {
         findActiveSession: jest.fn().mockResolvedValue({ id: claims.sessionId }),
         touchSession: jest.fn().mockResolvedValue(undefined),
-      } as never,
+      },
     });
 
     const response = await app.inject({
@@ -53,12 +53,12 @@ describe('age assurance HTTP', () => {
           .mockRejectedValue(
             new AgeAssuranceError('AGE_PROVIDER_UNAVAILABLE', 'provider unavailable'),
           ),
-      } as never,
+      },
       sessionTokenVerifier: { verify: jest.fn().mockResolvedValue(claims) },
       activeSessionStore: {
         findActiveSession: jest.fn().mockResolvedValue({ id: claims.sessionId }),
         touchSession: jest.fn().mockResolvedValue(undefined),
-      } as never,
+      },
     });
 
     const response = await app.inject({
@@ -76,12 +76,12 @@ describe('age assurance HTTP', () => {
     const app = fastify();
     const start = jest.fn();
     registerAgeAssuranceRoutes(app, {
-      service: { start, refresh: jest.fn() } as never,
+      service: { start, refresh: jest.fn() },
       sessionTokenVerifier: { verify: jest.fn() },
       activeSessionStore: {
         findActiveSession: jest.fn(),
         touchSession: jest.fn(),
-      } as never,
+      },
     });
 
     const response = await app.inject({ method: 'POST', url: '/api/age-assurance/start' });
