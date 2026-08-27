@@ -17,7 +17,7 @@
     "migrate": "node-pg-migrate up -m migrations --migrations-schema public",
     "migrate:down": "node-pg-migrate down -m migrations --migrations-schema public",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
-    "test:unit": "NODE_OPTIONS=--experimental-vm-modules jest tests/auth tests/chat tests/profile tests/matchmaking tests/consent tests/video tests/moderation tests/billing tests/restricted --runInBand",
+    "test:unit": "NODE_OPTIONS=--experimental-vm-modules jest tests/auth tests/chat tests/profile tests/matchmaking tests/consent tests/video tests/moderation tests/billing tests/restricted tests/http tests/runtime --runInBand",
     "test:db": "jest tests/db --runInBand",
     "verify": "npm run typecheck && npm run lint && npm run migrate && npm run test",
     "release:gate": "bash scripts/release-gate.sh"
