@@ -32,6 +32,7 @@ export interface AuthRepositoryPort {
     accessExpiresAt: Date;
     now: Date;
   }): Promise<RefreshRotationResult | null>;
+  revokeSessionByRefreshHash?(refreshHash: string, revokedAt: Date): Promise<void>;
   revokeSession(userId: string, sessionId: string, revokedAt: Date): Promise<boolean>;
 }
 
@@ -196,6 +197,16 @@ export class AuthService {
       await this.repository.revokeSession(rotation.session.userId, rotation.session.id, this.now());
       throw new AuthError('SESSION_ISSUANCE_FAILED', 'Could not rotate API session');
     }
+  }
+
+  async logoutWithRefresh(presentedToken: string): Promise<{ ok: true }> {
+    if (presentedToken.trim() !== '' && this.repository.revokeSessionByRefreshHash) {
+      await this.repository.revokeSessionByRefreshHash(
+        hashRefreshToken(presentedToken),
+        this.now(),
+      );
+    }
+    return { ok: true };
   }
 
   async logout(userId: string, sessionId: string): Promise<{ ok: true }> {
