@@ -8,11 +8,17 @@ Produção resolve segredos via GCP Secret Manager (`SECRET_BACKEND=gcp-secret-m
 - `NODE_ENV`: `development`, `test` ou `production`.
 - `DATABASE_URL`: conexão de owner usada por migrations.
 - `DATABASE_URL_OWNER`: owner em testes que exigem privilégios de migração.
+- `DATABASE_URL_AUTH`: runtime `svc_auth`.
+- `DATABASE_URL_PROFILE`: runtime `svc_profile`.
 - `DATABASE_URL_MATCHMAKING`: runtime `svc_matchmaking`.
 - `DATABASE_URL_VIDEO`: runtime `svc_video` e composição do serviço de vídeo.
 - `DATABASE_URL_MODERATION`: runtime `svc_moderation`.
 - `DATABASE_URL_BILLING`: runtime `svc_billing`.
+- `DATABASE_CONNECTION_TIMEOUT_MS`: limite para abrir uma conexão de runtime. Default `3000` ms.
+- `READINESS_TIMEOUT_MS`: deadline total do probe `/health/ready`. Default `2000` ms.
 - `SVC_*_PASSWORD`: bootstrap local dos papéis de runtime.
+
+O processo de produção nunca deve receber `DATABASE_URL`/`DATABASE_URL_OWNER`; essas credenciais pertencem exclusivamente a migrations/administração. Readiness testa apenas os seis papéis `svc_*` e falha fechado (`503`) quando uma dependência não responde dentro do deadline.
 
 ## Configuração de domínio
 
@@ -37,3 +43,7 @@ Produção resolve segredos via GCP Secret Manager (`SECRET_BACKEND=gcp-secret-m
 - `OPENAI_MODEL`: modelo usado pelo chat. Opcional.
 - `OPENAI_TIMEOUT_MS`: timeout da chamada ao provedor. Opcional.
 - `PORT`: porta HTTP do backend. Opcional.
+
+## Smoke pós-deploy
+
+Após implantar o backend, execute `BASE_URL=https://api.exemplo npm run release:smoke` ou dispare o workflow `Post Deploy Smoke`. O gate exige HTTPS fora de localhost e valida `/health/live`, `/health/ready`, HTTP 200, `{ "ok": true }` e um `x-request-id` válido.
