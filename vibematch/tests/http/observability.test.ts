@@ -23,10 +23,12 @@ const makeSink = (): {
 };
 
 describe('HTTP observability', () => {
-  test('redacts sensitive values recursively without mutating safe fields', () => {
+  test('redacts sensitive values recursively without hiding operational status codes', () => {
     expect(
       redactSensitive({
         authorization: 'Bearer secret',
+        status_code: 200,
+        verification_code: '123456',
         nested: {
           phone_e164: '+5511999999999',
           apiKey: 'provider-secret',
@@ -36,6 +38,8 @@ describe('HTTP observability', () => {
       }),
     ).toEqual({
       authorization: '[REDACTED]',
+      status_code: 200,
+      verification_code: '[REDACTED]',
       nested: {
         phone_e164: '[REDACTED]',
         apiKey: '[REDACTED]',
@@ -49,7 +53,6 @@ describe('HTTP observability', () => {
     const app = fastify({ logger: false });
     const logs = makeSink();
     let clock = 1000;
-    app.get('/existing?ignored=true', () => ({ ok: true }));
     app.get('/existing', () => ({ ok: true }));
 
     installHttpObservability(app, {
