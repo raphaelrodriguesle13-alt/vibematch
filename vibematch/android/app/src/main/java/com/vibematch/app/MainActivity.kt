@@ -34,10 +34,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -675,6 +678,7 @@ private fun ChatHeader(
     onOpenBilling: () -> Unit,
     onOpenMatchIntents: () -> Unit,
 ) {
+    var menuExpanded by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -708,14 +712,43 @@ private fun ChatHeader(
                 color = Color(0xFF72717D),
             )
         }
-        TextButton(onClick = onOpenProfile, enabled = !isSigningOut) {
-            Text("Perfil", color = VibePurple)
-        }
-        TextButton(onClick = onOpenBilling, enabled = !isSigningOut) {
-            Text("Premium", color = VibePurple)
-        }
-        TextButton(onClick = onOpenMatchIntents, enabled = !isSigningOut) {
-            Text("Solicitações", color = VibePurple)
+        Box {
+            IconButton(
+                onClick = { menuExpanded = true },
+                enabled = !isSigningOut,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "Mais opções",
+                    tint = VibePurple,
+                )
+            }
+            DropdownMenu(
+                expanded = menuExpanded,
+                onDismissRequest = { menuExpanded = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Perfil") },
+                    onClick = {
+                        menuExpanded = false
+                        onOpenProfile()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text("Premium") },
+                    onClick = {
+                        menuExpanded = false
+                        onOpenBilling()
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text("Solicitações") },
+                    onClick = {
+                        menuExpanded = false
+                        onOpenMatchIntents()
+                    },
+                )
+            }
         }
         TextButton(onClick = onLogout, enabled = !isSigningOut) {
             Text("Sair", color = VibePurple)
