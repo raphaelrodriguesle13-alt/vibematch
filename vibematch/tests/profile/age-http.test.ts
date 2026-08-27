@@ -1,6 +1,10 @@
 import { jest } from '@jest/globals';
 import fastify from 'fastify';
-import { registerAgeAssuranceRoutes } from '../../backend/src/profile/age-http';
+import type { AuthSession } from '../../backend/src/auth/repository';
+import {
+  registerAgeAssuranceRoutes,
+  type AgeAssuranceHttpDependencies,
+} from '../../backend/src/profile/age-http';
 import { AgeAssuranceError } from '../../backend/src/profile/age-assurance';
 
 const claims = {
@@ -9,24 +13,35 @@ const claims = {
   phoneVerified: true,
 };
 
+const activeSession: AuthSession = {
+  id: claims.sessionId,
+  userId: claims.userId,
+  expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+  revokedAt: null,
+};
+
+const authDeps = (): Pick<
+  AgeAssuranceHttpDependencies,
+  'sessionTokenVerifier' | 'activeSessionStore'
+> => ({
+  sessionTokenVerifier: { verify: async () => claims },
+  activeSessionStore: {
+    findActiveSession: async () => activeSession,
+    touchSession: async () => undefined,
+  },
+});
+
 describe('age assurance HTTP', () => {
   it('returns only the hosted verification URL from the server-side provider flow', async () => {
     const app = fastify();
-    const service = {
-      start: jest.fn().mockResolvedValue({
-        status: 'PENDING',
+    const service: AgeAssuranceHttpDependencies['service'] = {
+      start: jest.fn(async () => ({
+        status: 'PENDING' as const,
         verificationUrl: 'https://verify.didit.me/session/example',
-      }),
-      refresh: jest.fn(),
+      })),
+      refresh: jest.fn(async () => 'PENDING' as const),
     };
-    registerAgeAssuranceRoutes(app, {
-      service,
-      sessionTokenVerifier: { verify: jest.fn().mockResolvedValue(claims) },
-      activeSessionStore: {
-        findActiveSession: jest.fn().mockResolvedValue({ id: claims.sessionId }),
-        touchSession: jest.fn().mockResolvedValue(undefined),
-      },
-    });
+    registerAgeAssuranceRoutes(app, { service, ...authDeps() });
 
     const response = await app.inject({
       method: 'POST',
@@ -46,21 +61,13 @@ describe('age assurance HTTP', () => {
 
   it('fails closed when the provider cannot reconcile a decision', async () => {
     const app = fastify();
-    registerAgeAssuranceRoutes(app, {
-      service: {
-        start: jest.fn(),
-        refresh: jest
-          .fn()
-          .mockRejectedValue(
-            new AgeAssuranceError('AGE_PROVIDER_UNAVAILABLE', 'provider unavailable'),
-          ),
-      },
-      sessionTokenVerifier: { verify: jest.fn().mockResolvedValue(claims) },
-      activeSessionStore: {
-        findActiveSession: jest.fn().mockResolvedValue({ id: claims.sessionId }),
-        touchSession: jest.fn().mockResolvedValue(undefined),
-      },
-    });
+    const service: AgeAssuranceHttpDependencies['service'] = {
+      start: jest.fn(async () => ({ status: 'PENDING' as const, verificationUrl: '' })),
+      refresh: jest.fn(async () => {
+        throw new AgeAssuranceError('AGE_PROVIDER_UNAVAILABLE', 'provider unavailable');
+      }),
+    };
+    registerAgeAssuranceRoutes(app, { service, ...authDeps() });
 
     const response = await app.inject({
       method: 'POST',
@@ -75,13 +82,16 @@ describe('age assurance HTTP', () => {
 
   it('rejects missing authentication before calling the provider', async () => {
     const app = fastify();
-    const start = jest.fn();
+    const start: AgeAssuranceHttpDependencies['service']['start'] = jest.fn(async () => ({
+      status: 'PENDING',
+      verificationUrl: 'https://verify.didit.me/session/example',
+    }));
     registerAgeAssuranceRoutes(app, {
-      service: { start, refresh: jest.fn() },
-      sessionTokenVerifier: { verify: jest.fn() },
+      service: { start, refresh: async () => 'PENDING' },
+      sessionTokenVerifier: { verify: async () => claims },
       activeSessionStore: {
-        findActiveSession: jest.fn(),
-        touchSession: jest.fn(),
+        findActiveSession: async () => activeSession,
+        touchSession: async () => undefined,
       },
     });
 
