@@ -272,21 +272,39 @@ export class AuthRepository {
     return result.rows[0]?.phone_verified === true;
   }
 
+  async isUserActive(userId: string): Promise<boolean> {
+    const result = await this.pool.query<IdRow>(
+      `SELECT id
+       FROM users
+       WHERE id = $1 AND status = 'ACTIVE'`,
+      [userId],
+    );
+    return (result.rowCount ?? 0) === 1;
+  }
+
   async createPhoneVerification(params: {
     userId: string;
     providerVerificationId: string;
     phoneHash: string;
     expiresAt: Date;
-  }): Promise<PhoneVerification> {
+  }): Promise<PhoneVerification | null> {
     const result = await this.pool.query<PhoneVerificationRow>(
-      `INSERT INTO phone_verifications
+      `WITH eligible_user AS (
+         SELECT id
+         FROM users
+         WHERE id = $1 AND status = 'ACTIVE'
+         FOR SHARE
+       )
+       INSERT INTO phone_verifications
          (user_id, provider_verification_id, phone_hash, expires_at)
-       VALUES ($1, $2, $3, $4)
+       SELECT id, $2, $3, $4
+       FROM eligible_user
        RETURNING id, user_id, provider_verification_id, phone_hash,
                  expires_at, consumed_at, attempts`,
       [params.userId, params.providerVerificationId, params.phoneHash, params.expiresAt],
     );
-    return this.mapPhoneVerification(first(result));
+    const row = result.rows[0];
+    return row ? this.mapPhoneVerification(row) : null;
   }
 
   async findPendingPhoneVerification(
@@ -295,13 +313,15 @@ export class AuthRepository {
     now: Date,
   ): Promise<PhoneVerification | null> {
     const result = await this.pool.query<PhoneVerificationRow>(
-      `SELECT id, user_id, provider_verification_id, phone_hash,
-              expires_at, consumed_at, attempts
-       FROM phone_verifications
-       WHERE id = $1
-         AND user_id = $2
-         AND consumed_at IS NULL
-         AND expires_at > $3`,
+      `SELECT p.id, p.user_id, p.provider_verification_id, p.phone_hash,
+              p.expires_at, p.consumed_at, p.attempts
+       FROM phone_verifications p
+       JOIN users u ON u.id = p.user_id
+       WHERE p.id = $1
+         AND p.user_id = $2
+         AND p.consumed_at IS NULL
+         AND p.expires_at > $3
+         AND u.status = 'ACTIVE'`,
       [verificationId, userId, now],
     );
     const row = result.rows[0];
@@ -310,9 +330,14 @@ export class AuthRepository {
 
   async incrementPhoneVerificationAttempts(userId: string, verificationId: string): Promise<void> {
     await this.pool.query(
-      `UPDATE phone_verifications
-       SET attempts = attempts + 1
-       WHERE id = $1 AND user_id = $2 AND consumed_at IS NULL`,
+      `UPDATE phone_verifications AS p
+       SET attempts = p.attempts + 1
+       FROM users AS u
+       WHERE p.id = $1
+         AND p.user_id = $2
+         AND p.consumed_at IS NULL
+         AND u.id = p.user_id
+         AND u.status = 'ACTIVE'`,
       [verificationId, userId],
     );
   }
@@ -325,6 +350,18 @@ export class AuthRepository {
     return this.withClient(async (client) => {
       await client.query('BEGIN');
       try {
+        const activeUser = await client.query<IdRow>(
+          `SELECT id
+           FROM users
+           WHERE id = $1 AND status = 'ACTIVE'
+           FOR UPDATE`,
+          [userId],
+        );
+        if ((activeUser.rowCount ?? 0) === 0) {
+          await client.query('ROLLBACK');
+          return false;
+        }
+
         const consumed = await client.query<IdRow>(
           `UPDATE phone_verifications
            SET consumed_at = $3, attempts = attempts + 1
@@ -340,7 +377,18 @@ export class AuthRepository {
           return false;
         }
 
-        await client.query(`UPDATE users SET phone_verified = TRUE WHERE id = $1`, [userId]);
+        const verified = await client.query<IdRow>(
+          `UPDATE users
+           SET phone_verified = TRUE
+           WHERE id = $1 AND status = 'ACTIVE'
+           RETURNING id`,
+          [userId],
+        );
+        if ((verified.rowCount ?? 0) === 0) {
+          await client.query('ROLLBACK');
+          return false;
+        }
+
         await client.query('COMMIT');
         return true;
       } catch (error) {
