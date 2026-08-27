@@ -4,7 +4,7 @@ Atualizado em **2026-08-27** após a continuação exclusiva na branch `continui
 
 ## Escopo e estado do Git
 
-O objetivo desta etapa foi aproximar o cliente Android de um AAB release-ready, reforçando o Play Billing server-authorized, o Age Assurance hosted, a UX de estados vazios e retry, o lifecycle do RTC, a navegação compacta/acessível e um runner reproduzível para sessão E2E. Os gates de segurança de release permaneceram fail-closed.
+O objetivo desta etapa foi aproximar o cliente Android de um AAB release-ready, reforçando o Play Billing server-authorized, o Age Assurance hosted, a UX de estados vazios e retry, o lifecycle do RTC, a navegação compacta/acessível, o runner reproduzível para sessão E2E e a renovação de sessão server-authorized. Os gates de segurança de release permaneceram fail-closed.
 O rebase obrigatório preservou os commits cooperativos publicados entre o HEAD inicial e o trabalho local; não houve reset destrutivo, force-push, alteração da `main` ou alteração da lógica de produção backend.
 
 | Item                                            | Valor                                                                                       |
@@ -17,52 +17,65 @@ O rebase obrigatório preservou os commits cooperativos publicados entre o HEAD 
 | Commit do preflight E2E na ancestralidade atual | `4710982` — `test(android): add sanitized e2e preflight`                                    |
 | Commit do runner de sessão E2E                  | `7b6da8b` — `test(android): add manual e2e session runner`                                  |
 | HEAD local após avanço Android/backend          | `6c93835` — `fix(http): narrow sanitized error status safely`                               |
-| HEAD final publicado desta etapa                | `e01866c` — `docs(android): document e2e runner and accessibility advance`                  |
+| HEAD final da etapa anterior                    | `e01866c` — `docs(android): document e2e runner and accessibility advance`                  |
+| HEAD cooperativo base desta tarefa              | `38d6373` — `test(auth): require refresh credential on Google login`                        |
 
 | Publicação permitida | Somente `origin/continuity`, sem force-push |
 
-Durante os rebases, `origin/continuity` avançou do HEAD inicial até `855deab`, incluindo hardening cooperativo de JWT, rotação de `kid`, validação fail-closed de configuração de produção, observabilidade segura, readiness por privilégios mínimos, limites de conexão, smoke pós-deploy e documentação de timeouts/DB.
-O trabalho Android e a matriz E2E foram preservados por `stash`, `rebase origin/continuity` e `stash pop`. Nenhum arquivo de produção backend foi alterado pela frente Android nesta etapa.
+Durante os rebases, `origin/continuity` avançou do HEAD inicial até `38d6373`, incluindo hardening cooperativo de JWT, rotação de `kid`, validação fail-closed de configuração de produção, observabilidade segura, readiness por privilégios mínimos, limites de conexão, smoke pós-deploy, documentação de timeouts/DB e o contrato server-side de refresh rotativo.
+O trabalho Android e a matriz E2E foram preservados por `stash`, `rebase origin/continuity` e `stash pop`. A lógica de produção backend não foi reescrita nesta etapa; o único diff backend local adicional foi formatação e uma fixture de teste compatível com `exactOptionalPropertyTypes`.
 
 ## Commits desta entrega
 
-| Commit    | Descrição                                                   |
-| --------- | ----------------------------------------------------------- |
-| `913da41` | `fix(android): harden billing callback lifecycle`           |
-| `e20ff8f` | `feat(android): add hosted age assurance flow`              |
-| `59302db` | `build(android): reject local release endpoints`            |
-| `057e199` | `style: align cooperative provider test formatting`         |
-| `4710982` | `test(android): add sanitized e2e preflight`                |
-| `6558d04` | `docs(android): add real e2e release plan`                  |
-| `68a1c3f` | `test(runtime): use ephemeral jwt smoke keys`               |
-| `7b6da8b` | `test(android): add manual e2e session runner`              |
-| `34b3531` | `fix(android): make chat navigation compact and accessible` |
-| `6c93835` | `fix(http): narrow sanitized error status safely`           |
+| Commit    | Descrição                                                      |
+| --------- | -------------------------------------------------------------- |
+| `913da41` | `fix(android): harden billing callback lifecycle`              |
+| `e20ff8f` | `feat(android): add hosted age assurance flow`                 |
+| `59302db` | `build(android): reject local release endpoints`               |
+| `057e199` | `style: align cooperative provider test formatting`            |
+| `4710982` | `test(android): add sanitized e2e preflight`                   |
+| `6558d04` | `docs(android): add real e2e release plan`                     |
+| `68a1c3f` | `test(runtime): use ephemeral jwt smoke keys`                  |
+| `7b6da8b` | `test(android): add manual e2e session runner`                 |
+| `34b3531` | `fix(android): make chat navigation compact and accessible`    |
+| `6c93835` | `fix(http): narrow sanitized error status safely`              |
+| `38d6373` | `test(auth): require refresh credential on Google login`       |
+| `97f64ce` | `feat(android): add server-authorized session refresh`         |
+| `a7157da` | `test(auth): align refresh contract fixture with strict types` |
 
-| Commit documental posterior | Atualiza este handoff com o inventário final; o SHA da branch deve ser confirmado com `git rev-parse HEAD` após a publicação. |
+| Commit documental posterior | O SHA final deve ser confirmado com `git rev-parse HEAD` após a publicação deste handoff. |
 
-Os arquivos Android modificados foram `Billing.kt`, `BillingTest.kt`, `MainActivity.kt`, `ProfileApiClient.kt`, `ProfileModels.kt`, `ProfileViewModel.kt`, `ProfileApiClientTest.kt`, `ProfileViewModelTest.kt` e `android/app/build.gradle.kts`. A documentação alterada foi `android/README.md`, `docs/CHANGELOG.md` e este handoff. Os três testes backend formatados foram `tests/auth/twilio-verify.test.ts`, `tests/profile/age-webhook-reconciler.test.ts` e `tests/profile/didit.test.ts`.
+Os arquivos Android modificados foram `Billing.kt`, `BillingTest.kt`, `MainActivity.kt`, `ProfileApiClient.kt`, `ProfileModels.kt`, `ProfileViewModel.kt`, `ProfileApiClientTest.kt`, `ProfileViewModelTest.kt`, `auth/AuthRepository.kt`, `auth/AuthViewModel.kt`, `auth/SessionRefresh.kt`, `AuthRepositoryTest.kt`, `AuthViewModelTest.kt`, `SessionRefreshTest.kt` e `android/app/build.gradle.kts`. A documentação alterada foi `android/README.md`, `docs/CHANGELOG.md`, `docs/ANDROID_AUTH_REFRESH_NOTES.md` e este handoff. O backend já continha o contrato de refresh publicado; nesta etapa não foi necessário alterar sua lógica de produção.
 
 ## Contratos Android implementados
 
 O fluxo autenticado continua sendo **Perfil → Age Assurance → Telefone → Chat → MatchIntent → Consent → Video Session → RTC**. O Android envia requisições autenticadas e renderiza respostas; não calcula nem persiste autorização crítica.
 
-| Capacidade    | Contrato usado pelo Android                                                                         | Invariante preservada                                                                                    |
-| ------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Perfil        | `GET /api/interests`, `GET /api/profile`, `PUT /api/profile`                                        | Interesses, validação, bloqueio, suspensão e completude vêm do backend.                                  |
-| Age Assurance | `GET /api/age-assurance/status`, `POST /api/age-assurance/start`, `POST /api/age-assurance/refresh` | Somente `APPROVED` libera recursos restritos; `UNKNOWN`, erro e indisponibilidade permanecem bloqueados. |
-| Telefone      | `POST /auth/phone/start`, `POST /auth/phone/confirm`                                                | `phone_verified` só muda após resposta server-side positiva.                                             |
-| MatchIntent   | `GET /api/match-intents/incoming`, `POST /api/match-intents/:id/respond`                            | Identidade, elegibilidade, validade e decisão final são server-side.                                     |
-| Consent       | `POST /api/consents`, `POST /api/consents/:id/decision`                                             | Decisão mútua e `request_id` são controlados pelo backend.                                               |
-| Video Session | `POST /api/video/sessions`, `POST /api/video/sessions/:id/token`                                    | Corpo sem `room`/`identity`; sessão e token são revalidados e emitidos pelo backend.                     |
-| Moderação     | `POST /api/blocks`, `POST /api/reports`                                                             | Block confirmado encerra RTC local; severidade e punição não são decididas no Android.                   |
-| Billing       | `POST /api/billing/verify-purchase` com `{ purchase_token }`, `GET /api/billing/entitlement`        | Premium somente após `data.entitled=true` server-side; Google Play Developer API permanece no backend.   |
+| Capacidade    | Contrato usado pelo Android                                                                         | Invariante preservada                                                                                                          |
+| ------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Auth refresh  | `POST /auth/google` e `POST /auth/refresh` com rotação server-side                                  | Access JWT e refresh token são emitidos, rotacionados e revogados pelo backend; Android só transporta e armazena com proteção. |
+| Perfil        | `GET /api/interests`, `GET /api/profile`, `PUT /api/profile`                                        | Interesses, validação, bloqueio, suspensão e completude vêm do backend.                                                        |
+| Age Assurance | `GET /api/age-assurance/status`, `POST /api/age-assurance/start`, `POST /api/age-assurance/refresh` | Somente `APPROVED` libera recursos restritos; `UNKNOWN`, erro e indisponibilidade permanecem bloqueados.                       |
+| Telefone      | `POST /auth/phone/start`, `POST /auth/phone/confirm`                                                | `phone_verified` só muda após resposta server-side positiva.                                                                   |
+| MatchIntent   | `GET /api/match-intents/incoming`, `POST /api/match-intents/:id/respond`                            | Identidade, elegibilidade, validade e decisão final são server-side.                                                           |
+| Consent       | `POST /api/consents`, `POST /api/consents/:id/decision`                                             | Decisão mútua e `request_id` são controlados pelo backend.                                                                     |
+| Video Session | `POST /api/video/sessions`, `POST /api/video/sessions/:id/token`                                    | Corpo sem `room`/`identity`; sessão e token são revalidados e emitidos pelo backend.                                           |
+| Moderação     | `POST /api/blocks`, `POST /api/reports`                                                             | Block confirmado encerra RTC local; severidade e punição não são decididas no Android.                                         |
+| Billing       | `POST /api/billing/verify-purchase` com `{ purchase_token }`, `GET /api/billing/entitlement`        | Premium somente após `data.entitled=true` server-side; Google Play Developer API permanece no backend.                         |
 
 ### Age Assurance hosted
 
 Quando o status server-side é `NOT_STARTED`, `ProfileViewModel` chama `POST /api/age-assurance/start`. O cliente aceita somente `PENDING` com `verification_url` em HTTPS e abre essa URL apenas depois da validação de esquema. O Android não marca aprovação, não interpreta decisão do provedor e não persiste a URL fora do estado transitório da tela.
 
 Enquanto o status é `PENDING`, o usuário pode solicitar `POST /api/age-assurance/refresh`. O retorno do navegador é tratado por `ActivityResult` e pelo evento `ON_RESUME`, ambos acionando novo refresh no backend. Não foi inventado um app link/deep link Android, pois o contrato backend atual não publica uma URI de retorno; portanto, o cliente não deve ser descrito como tendo callback deep-link implementado. Respostas `APPROVED`, `REJECTED` e `UNKNOWN` vêm exclusivamente do servidor. Respostas tardias após reset ou troca de token são descartadas por geração de requisição e token autenticado.
+
+### Auth refresh server-authorized
+
+O login Google agora exige que o backend entregue `session_jwt`, `refresh_token`, `expires_at` e `refresh_expires_at`; a ausência do par de refresh falha com `SESSION_ISSUANCE_FAILED`. O Android guarda o par por `SecureSessionStore`, usando `EncryptedSharedPreferences` protegido por `MasterKey` do Android Keystore, sem colocar o refresh token no `AuthUiState`, Compose, SavedState, logs ou analytics.
+
+Todos os ApiClients autenticados compartilham um `OkHttpClient` com `SessionAuthenticator`; o `AuthApiClient` usa cliente separado e não aplica o Authenticator ao endpoint de refresh. Em HTTP 401, o `SessionRefreshCoordinator` faz uma única rotação single-flight por access token stale, valida usuário, tokens novos e expirações futuras, grava o par de forma atômica e permite no máximo uma repetição da requisição original. Respostas 401 posteriores não iniciam nova rotação.
+
+Falha, expiração, reutilização, incoerência, logout ou troca de conta limpa as credenciais e aciona logout fail-closed. Respostas tardias não podem ressuscitar uma sessão anterior nem usar o token de uma conta diferente. A cobertura local inclui concorrência, duplicata sequencial, 401, resposta incompleta, troca de conta, logout durante refresh e retry único; o E2E real ainda requer device lab e backend configurado.
 
 ### Billing server-authorized
 
@@ -92,8 +105,10 @@ Os gates foram executados no sandbox com Java 21 configurando toolchain Android 
 | `npm run test:unit`                                                                    | Aprovado: **30 suítes, 145 testes** |
 | `NODE_OPTIONS=--experimental-vm-modules npx jest tests/http tests/runtime --runInBand` | Aprovado: **2 suítes, 7 testes**    |
 
-| `./gradlew :app:testDebugUnitTest` | Aprovado: **13 suítes, 76 testes** |
+| `./gradlew :app:testDebugUnitTest` | Aprovado: **14 suítes, 87 testes** |
 | `./gradlew :app:compileDebugKotlin` | Aprovado |
+| `./gradlew :app:compileDebugAndroidTestKotlin` | Aprovado |
+| `./gradlew :app:assembleDebugAndroidTest` | Aprovado |
 | `./gradlew :app:assembleDebug` | Aprovado |
 | `./gradlew :app:lintDebug` | Aprovado |
 | `./gradlew :app:bundleRelease` com API HTTPS, LiveKit WSS e produto público placeholder | Aprovado; AAB unsigned buildable |
@@ -107,6 +122,7 @@ Os gates foram executados no sandbox com Java 21 configurando toolchain Android 
 | Secret scan e scan de persistência Android | Aprovado; nenhum segredo encontrado e nenhum sink de persistência/log para tokens críticos |
 | `tools/android-e2e-preflight.sh` | Executado; `BLOCKED / no_authorized_device` sem coletar tokens ou PII |
 | `tools/android-e2e-session.sh` | Executado sem APK e com APK; `BLOCKED / APK_PATH_required` e `expected_exactly_one_authorized_device` |
+| `tools/android-e2e-auth-refresh.sh` | APK debug + APK instrumentado construídos; `BLOCKED / expected_exactly_one_authorized_device`, sem coletar tokens/PII |
 | AVD Google Play API 35 headless | Provisionado, mas boot falhou após 300 s sem `/dev/kvm`; não é evidência de E2E |
 
 A implementação de segurança de release aceita placeholders públicos apenas para demonstrar o build. Isso não configura API real, produto real, endpoint LiveKit real ou credencial de assinatura.
@@ -128,15 +144,17 @@ Os artefatos foram regenerados no gate final antes do commit documental. O AAB �
 | Play sandbox/Play Console        | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | Não há produto, licença de teste, conta Play Console ou dispositivo neste ambiente; nenhuma compra real foi alegada.                |
 | Age Assurance hosted UX          | **IMPLEMENTED + TESTED**                      | Start/refresh, URL HTTPS, estados e respostas tardias têm cobertura de contrato/ViewModel.                                          |
 | Didit/provider Age Assurance E2E | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | Requer API key/workflow, webhook autenticado, navegador/dispositivo e decisão real; não foi executado.                              |
-| Auth/Google OIDC Android E2E     | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | O contrato e Credential Manager existem, mas não há Web client ID configurado nem validação física.                                 |
+| Auth/Google OIDC Android client  | **IMPLEMENTED + TESTED**                      | Login/refresh server-side, encrypted storage, single-flight, retry único e fail-closed têm cobertura local.                         |
+| Auth/Google OIDC Android E2E     | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | Credential Manager, Web client ID real e dispositivo/Google Play ainda são necessários para expiração/rotação real.                 |
 | LiveKit/RTC duas partes          | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | Lifecycle, JIT e renderer cleanup têm testes locais; mídia, reconexão e revogação reais exigem duas contas e backend configurado.   |
 | Block/Report                     | **IMPLEMENTED + TESTED**                      | UI e contratos server-side estão conectados; a confirmação depende do backend e o E2E operacional não foi executado.                |
 | AAB                              | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | Build unsigned aprovado; assinatura, keystore, Play App Signing e Play Console ainda são externos.                                  |
 | Notificações Android             | **NOT IMPLEMENTED**                           | Nenhum contrato backend seguro de registro/entrega foi observado; não foi inventada autoridade local.                               |
 | Deep link Age Assurance          | **NOT IMPLEMENTED**                           | O retorno atual é ActivityResult/`ON_RESUME`; não há app link/deep link backend publicado.                                          |
-| Renovação de sessão              | **NOT IMPLEMENTED**                           | O backend não expõe contrato cliente de refresh; HTTP 401 encerra a sessão de forma fail-closed.                                    |
+| Renovação de sessão              | **IMPLEMENTED + TESTED**                      | Contrato `/auth/refresh`, encrypted storage, single-flight, retry único, stale protection e logout fail-closed cobertos localmente. |
+| Keystore instrumentado           | **IMPLEMENTED, NEEDS REAL DEVICE**            | `SecureSessionStoreInstrumentedTest` compila e o runner está pronto; execução não ocorreu por ausência de device autorizado.        |
 
-O preflight reproduzível está em `tools/android-e2e-preflight.sh`; ele aceita um APK por `APK_PATH`, usa `ADB_BIN`/`ANDROID_SDK_ROOT` sem coletar credenciais e retorna `BLOCKED` quando não há dispositivo autorizado. O runner complementar `tools/android-e2e-session.sh` exige exatamente um device, confirma Play Services/Play Store, instala um APK, inicia o package e imprime apenas metadados sanitizados; sem device, retorna `BLOCKED` antes de qualquer fluxo.
+O preflight reproduzível está em `tools/android-e2e-preflight.sh`; ele aceita um APK por `APK_PATH`, usa `ADB_BIN`/`ANDROID_SDK_ROOT` sem coletar credenciais e retorna `BLOCKED` quando não há dispositivo autorizado. O runner complementar `tools/android-e2e-session.sh` exige exatamente um device, confirma Play Services/Play Store, instala um APK, inicia o package e imprime apenas metadados sanitizados; sem device, retorna `BLOCKED` antes de qualquer fluxo. As notas do contrato de refresh estão em `docs/ANDROID_AUTH_REFRESH_NOTES.md`.
 O smoke de composição de produção gera chaves RSA efêmeras em memória, evitando que placeholders inválidos sejam tratados como credenciais reais.
 O AVD Google Play API 35 foi criado, mas a máquina não expõe `/dev/kvm` e o boot headless não concluiu. Os testes de banco continuam dependentes de `DATABASE_URL_OWNER` e demais URLs PostgreSQL. A migração de `EncryptedSharedPreferences`/`MasterKey` deprecados não foi forçada, pois preservar a sessão existente com uma migração segura e testada é preferível a uma troca cega antes da release. Também permanecem necessários observabilidade sanitizada, políticas operacionais de moderação, revisão de privacidade, assinatura e configuração de produção.
 
@@ -146,7 +164,7 @@ O percentual é deliberadamente conservador. O cliente, os contratos, os gates l
 
 ## Próximo passo recomendado ao ChatGPT
 
-O próximo passo é conectar um dispositivo Android com Google Play ou um device lab que exponha ADB, além de publicar um AAB assinado em Play Internal Testing. O runner de sessão agora automatiza o preflight e o lançamento do APK, mas deliberadamente não executa login, OTP, Billing ou RTC sem um dispositivo autorizado.
+O próximo passo é conectar um dispositivo Android com Google Play ou um device lab que exponha ADB, além de publicar um AAB assinado em Play Internal Testing. Com o contrato de refresh agora disponível, o runner deve cobrir expiração curta, rotação, reutilização do refresh antigo, revogação, reinício e troca de conta. Ele deliberadamente não executa login, OTP, Billing ou RTC sem um dispositivo autorizado.
 O último gate cooperativo também confirmou o hardening de JWT/configuração de produção no backend; essa parte foi preservada sem reescrita Android.
 Com o ambiente disponível, executar a matriz em `docs/ANDROID_E2E_RELEASE_PLAN.md`: Google login real, Age Assurance/Didit, telefone/Twilio, MatchIntent, Consent, RTC LiveKit de duas partes, Block/revogação e Billing/restore/revogação. Registrar apenas estados públicos e confirmações server-side, sem purchase token, token LiveKit, OTP ou PII.
 

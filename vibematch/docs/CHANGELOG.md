@@ -9,8 +9,10 @@
 - Primeiro módulo Android em Kotlin + Jetpack Compose, com tela de conversa, ViewModel e cliente OkHttp.
 - Configuração `API_BASE_URL` para apontar o emulador para o backend local.
 - Login Google via Credential Manager usando o Web client ID como audience do backend.
-- Troca do Google ID token por JWT de sessão emitido pelo backend.
-- Armazenamento da sessão com AndroidX Security Crypto e limpeza coordenada no logout.
+- Troca do Google ID token por credenciais de sessão emitidas pelo backend, incluindo access JWT e refresh token rotativo.
+- Armazenamento do par de sessão/refresh com AndroidX Security Crypto e limpeza coordenada no logout.
+- Contrato Android de `POST /auth/refresh` com payload mínimo `refresh_token`, refresh single-flight, uma única repetição após 401 e logout fail-closed em rotação inválida, expirada ou reutilizada.
+- Proteção contra resposta stale durante logout/troca de conta e cobertura de reinício, rotação, revogação, concorrência e retry único.
 - Testes unitários do serviço, do adaptador e do contrato HTTP do chat.
 - Testes Android do AuthViewModel e da serialização do request Google.
 - Cliente Android autenticado para `GET /api/profile`, `GET /api/interests` e `PUT /api/profile`.
@@ -46,6 +48,7 @@
 - Retrys acessíveis para estados vazios de MatchIntent, Consent e Video, além de desconexão RTC no `ON_STOP` da Activity e descarte de credencial JIT pendente.
 - Preflight E2E sanitizado em `tools/android-e2e-preflight.sh`, com detecção de ADB/device e instalação opcional de APK sem coletar credenciais, tokens ou PII.
 - Runner manual `tools/android-e2e-session.sh` para verificar Play Services/Play Store, instalar APK, iniciar a sessão e emitir somente metadados sanitizados.
+- `SecureSessionStoreInstrumentedTest` e `tools/android-e2e-auth-refresh.sh` para provar o armazenamento protegido e a substituição condicional em device, sem coletar credenciais; sem device, o runner permanece `BLOCKED`.
 - Cabeçalho do Chat com menu acessível para evitar overflow em telas estreitas, mantendo Perfil, Premium, Solicitações e Sair disponíveis sem alterar a autoridade server-side.
 
 ### Limitações conhecidas

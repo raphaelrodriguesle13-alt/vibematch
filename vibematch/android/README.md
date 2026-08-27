@@ -32,9 +32,13 @@ Em debug, `LIVEKIT_URL` pode permanecer vazio para que a tela falhe de forma vis
 
 ## Estado de autenticação
 
-O cliente usa Credential Manager para obter um Google ID token e o envia ao endpoint `/auth/google`. O valor de `GOOGLE_SERVER_CLIENT_ID` é um identificador público de OAuth, não um segredo; ele deve ser o mesmo audience aceito pelo `GoogleOidcProvider` do backend. O ID token do Google é descartado depois da troca por um JWT curto de sessão emitido pelo backend.
+O cliente usa Credential Manager para obter um Google ID token e o envia ao endpoint `/auth/google`. O valor de `GOOGLE_SERVER_CLIENT_ID` é um identificador público de OAuth, não um segredo; ele deve ser o mesmo audience aceito pelo `GoogleOidcProvider` do backend. O ID token do Google é descartado depois da troca por credenciais de sessão emitidas pelo backend.
 
-O JWT de sessão é guardado em `EncryptedSharedPreferences`, protegido por uma `MasterKey` do Android Keystore. O logout revoga a sessão no backend, limpa o estado de credencial Google, encerra qualquer sala RTC e remove o conteúdo local.
+O endpoint `/auth/google` retorna `session_jwt`, `expires_at`, `refresh_token` e `refresh_expires_at`, todos emitidos pelo backend. O JWT de acesso e o refresh token são guardados juntos em `EncryptedSharedPreferences`, protegido por uma `MasterKey` do Android Keystore; o refresh token fica somente na abstração `SessionStore` e não entra em `AuthUiState`, Compose, SavedState ou logs.
+
+Quando uma chamada autenticada recebe HTTP 401, o `SessionAuthenticator` usa `POST /auth/refresh` com `{ "refresh_token": "..." }` em um cliente HTTP separado, sem reaproveitar o próprio Authenticator. O coordenador mantém uma única operação de refresh por token stale (**single-flight**), aceita somente o par rotacionado pelo backend com expirações futuras e repete a requisição original no máximo uma vez. Callback 401 de outra conta não pode tomar emprestado o token atual; somente uma rotação observada pelo próprio coordenador pode ser reutilizada por uma duplicata sequencial.
+
+Se a rotação falhar, for inválida/reutilizada, incoerente ou ocorrer durante logout/troca de conta, o cliente limpa as credenciais locais e aciona logout fail-closed. O logout revoga a sessão no backend quando possível, limpa o estado de credencial Google, encerra qualquer sala RTC e remove o conteúdo local. O Android nunca decide validade, rotação, revogação ou identidade: essas decisões permanecem no backend.
 
 ## Premium e Google Play Billing
 
@@ -153,15 +157,26 @@ APK_PATH=app/build/outputs/apk/debug/app-debug.apk \\
 
 O runner exige exatamente um dispositivo autorizado, confirma a presença de Google Mobile Services e Play Store, instala o APK, inicia o pacote e imprime somente modelo, API, package e SHA-256. `CLEAR_APP_DATA=1` pode ser usado conscientemente antes de um cenário novo; o padrão não apaga dados. Ele não realiza login, não lê OTP, não imprime logs e não registra tokens. A execução funcional deve seguir `docs/ANDROID_E2E_RELEASE_PLAN.md` com contas e ambiente reais. Um AAB não é instalado diretamente por esse script: para Billing real, o release assinado deve ser publicado em Play Internal Testing.
 
+Para provar o armazenamento Keystore em um device autorizado, compile também o APK instrumentado e use:
+
+```bash
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon
+APK_PATH=app/build/outputs/apk/debug/app-debug.apk \\
+TEST_APK_PATH=app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk \\
+../tools/android-e2e-auth-refresh.sh
+```
+
+Esse runner instala os dois APKs e executa apenas `SecureSessionStoreInstrumentedTest`, cobrindo save/read do par, access expirado com refresh válido, refresh expirado e substituição condicional. Ele retorna `BLOCKED` sem device, `FAIL` em falha de instrumentação e `PASS` somente quando o teste do Keystore termina no dispositivo; não executa login, OTP, provider, Billing ou RTC.
+
 ## Validação local
 
-Os gates Android usados nesta etapa são:
+Os gates Android usados nesta etapa incluem o contrato de login/refresh, deduplicação single-flight, retry único após 401, resposta stale, expiração/revogação, troca de conta, corrida com logout, além dos fluxos Billing, Age Assurance e RTC:
 
 ```bash
 ./gradlew test :app:assembleDebug :app:lintDebug --no-daemon
 ```
 
-Os testes unitários cobrem a entrega transitória de token da Video Session, a ausência do token bruto no estado exposto, a exigência de credencial antes de conectar, consumo único, URL ausente, permissão negada, desconexão, Billing duplicado/stale e o fluxo hosted de Age Assurance. A validação de uma chamada real depende de um backend com LiveKit configurado, credenciais server-side e duas sessões autenticadas; esses valores nunca devem ser colocados no APK ou no repositório. A validação hosted real depende de Didit configurado, webhook autenticado e um dispositivo/navegador compatível; o retorno atual é tratado por ActivityResult/ON_RESUME e não por um deep link Android, pois não há contrato de app link publicado.
+Os testes unitários cobrem login/refresh server-side, payload mínimo, rotação e resposta incompleta, single-flight concorrente/sequencial, token stale de outra conta, logout durante refresh, retry único após 401, entrega transitória de token da Video Session, ausência do token bruto no estado exposto, exigência de credencial antes de conectar, consumo único, URL ausente, permissão negada, desconexão, Billing duplicado/stale e o fluxo hosted de Age Assurance. `SecureSessionStoreInstrumentedTest` cobre a implementação real Android do armazenamento protegido quando houver device. A validação de uma chamada real depende de um backend com LiveKit configurado, credenciais server-side e duas sessões autenticadas; esses valores nunca devem ser colocados no APK ou no repositório. A validação hosted real depende de Didit configurado, webhook autenticado e um dispositivo/navegador compatível; o retorno atual é tratado por ActivityResult/ON_RESUME e não por um deep link Android, pois não há contrato de app link publicado.
 
 ## Referências técnicas
 
