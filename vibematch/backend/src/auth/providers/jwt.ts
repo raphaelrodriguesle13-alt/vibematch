@@ -1,4 +1,11 @@
-import { importPKCS8, importSPKI, jwtVerify, SignJWT, type CryptoKey } from 'jose';
+import {
+  decodeProtectedHeader,
+  importPKCS8,
+  importSPKI,
+  jwtVerify,
+  SignJWT,
+  type CryptoKey,
+} from 'jose';
 import type {
   SessionTokenClaims,
   SessionTokenProvider,
@@ -9,6 +16,7 @@ export interface JwtSessionProviderOptions {
   privateKeyPem: string;
   publicKeyPem: string;
   keyId: string;
+  verificationPublicKeys?: Readonly<Record<string, string>>;
   issuer: string;
   audience: string;
   now?: () => Date;
@@ -16,7 +24,7 @@ export interface JwtSessionProviderOptions {
 
 export class JwtSessionProvider implements SessionTokenProvider, SessionTokenVerifier {
   private privateKeyPromise: Promise<CryptoKey> | null = null;
-  private publicKeyPromise: Promise<CryptoKey> | null = null;
+  private readonly publicKeys = new Map<string, Promise<CryptoKey>>();
   private readonly now: () => Date;
 
   constructor(private readonly options: JwtSessionProviderOptions) {
@@ -27,7 +35,19 @@ export class JwtSessionProvider implements SessionTokenProvider, SessionTokenVer
     if (options.issuer.trim() === '' || options.audience.trim() === '') {
       throw new Error('JWT issuer and audience are required');
     }
+
     this.now = options.now ?? (() => new Date());
+    this.publicKeys.set(options.keyId, importSPKI(options.publicKeyPem, 'RS256'));
+
+    for (const [keyId, publicKeyPem] of Object.entries(options.verificationPublicKeys ?? {})) {
+      if (keyId.trim() === '' || publicKeyPem.trim() === '') {
+        throw new Error('JWT verification key ids and public keys must be non-empty');
+      }
+      if (keyId === options.keyId) {
+        throw new Error('JWT active key id must not be repeated in verification keyring');
+      }
+      this.publicKeys.set(keyId, importSPKI(publicKeyPem, 'RS256'));
+    }
   }
 
   async issue(claims: SessionTokenClaims, expiresAt: Date): Promise<string> {
@@ -47,13 +67,21 @@ export class JwtSessionProvider implements SessionTokenProvider, SessionTokenVer
   }
 
   async verify(token: string): Promise<SessionTokenClaims> {
-    const { payload, protectedHeader } = await jwtVerify(token, await this.publicKey(), {
+    const header = decodeProtectedHeader(token);
+    if (typeof header.kid !== 'string' || header.kid.trim() === '') {
+      throw new Error('Session JWT is missing key id');
+    }
+
+    const publicKey = this.publicKeys.get(header.kid);
+    if (!publicKey) throw new Error('Unknown JWT key id');
+
+    const { payload } = await jwtVerify(token, await publicKey, {
       algorithms: ['RS256'],
       issuer: this.options.issuer,
       audience: this.options.audience,
+      currentDate: this.now(),
     });
 
-    if (protectedHeader.kid !== this.options.keyId) throw new Error('Unknown JWT key id');
     if (!payload.sub || !payload.jti || typeof payload.phone_verified !== 'boolean') {
       throw new Error('Session JWT is missing required claims');
     }
@@ -68,10 +96,5 @@ export class JwtSessionProvider implements SessionTokenProvider, SessionTokenVer
   private privateKey(): Promise<CryptoKey> {
     this.privateKeyPromise ??= importPKCS8(this.options.privateKeyPem, 'RS256');
     return this.privateKeyPromise;
-  }
-
-  private publicKey(): Promise<CryptoKey> {
-    this.publicKeyPromise ??= importSPKI(this.options.publicKeyPem, 'RS256');
-    return this.publicKeyPromise;
   }
 }
