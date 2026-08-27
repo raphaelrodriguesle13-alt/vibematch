@@ -12,6 +12,7 @@ const result = <T extends object>(rows: T[]): QueryResult<T> =>
 const providerFor = (decision: 'PENDING' | 'APPROVED' | 'REJECTED'): AgeAssuranceProvider => ({
   start: async () => ({ sessionRef: 'provider-session', verificationUrl: 'https://verify.example' }),
   getResult: jest.fn(async () => ({ decision, providerTransactionId: 'provider-session' })),
+  verifyWebhookSignature: () => true,
 });
 
 const poolFor = (
