@@ -113,13 +113,14 @@ describe('svc_profile — correção 2 (novo papel, escopo próprio)', () => {
   });
 });
 
-describe('svc_moderation — correção 3 (sem UPDATE irrestrito em users/consents)', () => {
-  test('svc_moderation CAN update users.status (suspend — its legitimate power)', async () => {
+describe('svc_moderation — decisions are the only account-restriction write path', () => {
+  test('svc_moderation CANNOT directly update users.status', async () => {
     const err = await expectDbError(
       rolePools.svc_moderation,
       `UPDATE users SET status = 'SUSPENDED' WHERE id = gen_random_uuid()`,
     );
-    expect(err === null || err.code !== PERMISSION_DENIED).toBe(true);
+    expect(err).not.toBeNull();
+    expect(err!.code).toBe(PERMISSION_DENIED);
   });
 
   test('svc_moderation CANNOT update users.google_subject_id', async () => {
@@ -131,13 +132,24 @@ describe('svc_moderation — correção 3 (sem UPDATE irrestrito em users/consen
     expect(err!.code).toBe(PERMISSION_DENIED);
   });
 
-  test('svc_moderation CAN cancel a Consent (status + cancellation_reason only)', async () => {
+  test('svc_moderation CANNOT directly cancel a Consent', async () => {
     const err = await expectDbError(
       rolePools.svc_moderation,
       `UPDATE consents SET status='CANCELLED', cancellation_reason='MODERATION'
        WHERE id = gen_random_uuid()`,
     );
-    expect(err === null || err.code !== PERMISSION_DENIED).toBe(true);
+    expect(err).not.toBeNull();
+    expect(err!.code).toBe(PERMISSION_DENIED);
+  });
+
+  test('svc_moderation CANNOT directly end video sessions', async () => {
+    const err = await expectDbError(
+      rolePools.svc_moderation,
+      `UPDATE sessions SET status='ENDED', end_reason='MODERATION'
+       WHERE id = gen_random_uuid()`,
+    );
+    expect(err).not.toBeNull();
+    expect(err!.code).toBe(PERMISSION_DENIED);
   });
 
   test('svc_moderation CANNOT change consents.user_a_id', async () => {
