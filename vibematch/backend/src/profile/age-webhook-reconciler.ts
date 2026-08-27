@@ -2,7 +2,10 @@ import type { Pool } from 'pg';
 import type { AgeAssuranceProvider } from '../shared/providers';
 
 export type AgeWebhookReconcileResult =
-  | { outcome: 'APPLIED' | 'DUPLICATE_OR_STALE'; status: 'PENDING' | 'APPROVED' | 'REJECTED' }
+  | {
+      outcome: 'APPLIED' | 'DUPLICATE_OR_STALE';
+      status: 'PENDING' | 'APPROVED' | 'REJECTED';
+    }
   | { outcome: 'SESSION_NOT_FOUND' };
 
 export class AgeWebhookReconciler {
