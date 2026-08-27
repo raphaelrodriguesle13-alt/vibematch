@@ -52,7 +52,7 @@ class FakeBillingRepository implements BillingRepositoryPort {
     return Promise.resolve(this.ownerByToken.get(purchaseToken) ?? null);
   }
 
-  async applyVerifiedRtdn(input: {
+  applyVerifiedRtdn(input: {
     userId: string;
     notificationId: string;
     purchaseToken: string;
@@ -64,12 +64,16 @@ class FakeBillingRepository implements BillingRepositoryPort {
     now: Date;
   }): Promise<AppliedRtdnResult> {
     if (this.events.has(input.notificationId)) {
-      return { duplicate: true, entitlement: null, accountActive: false };
+      return Promise.resolve({ duplicate: true, entitlement: null, accountActive: false });
     }
 
     const existingOwner = this.ownerByToken.get(input.purchaseToken);
     if (existingOwner && existingOwner !== input.userId) {
-      return { duplicate: false, entitlement: null, accountActive: this.active };
+      return Promise.resolve({
+        duplicate: false,
+        entitlement: null,
+        accountActive: this.active,
+      });
     }
 
     const next: SubscriptionEntitlement = {
@@ -82,7 +86,7 @@ class FakeBillingRepository implements BillingRepositoryPort {
     this.events.add(input.notificationId);
     this.ownerByToken.set(input.purchaseToken, input.userId);
     this.stored = next;
-    return { duplicate: false, entitlement: next, accountActive: this.active };
+    return Promise.resolve({ duplicate: false, entitlement: next, accountActive: this.active });
   }
 }
 
