@@ -91,6 +91,29 @@ describe('Didit V3 webhook security', () => {
     await app.close();
   });
 
+  it('rejects malformed JSON before reconciliation', async () => {
+    const app = fastify();
+    const reconcileProviderSession: Reconcile = jest.fn(() =>
+      Promise.resolve({ outcome: 'SESSION_NOT_FOUND' as const }),
+    );
+    registerAgeWebhookRoute(app, {
+      webhookSecret: secret,
+      reconciler: { reconcileProviderSession },
+      now: () => now,
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/age-assurance/webhook',
+      headers: { 'content-type': 'application/json' },
+      payload: '{',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(reconcileProviderSession).not.toHaveBeenCalled();
+    await app.close();
+  });
+
   it('requests provider retry when the session is not persisted yet', async () => {
     const app = fastify();
     const reconcileProviderSession: Reconcile = jest.fn(() =>
