@@ -1,6 +1,8 @@
 package com.vibematch.app
 
 import com.vibematch.app.profile.AgeAssuranceStatus
+import com.vibematch.app.profile.ProfileApiClient
+import com.vibematch.app.profile.ProfileApiException
 import com.vibematch.app.profile.ProfileDraft
 import com.vibematch.app.profile.buildProfileUpdateRequestBody
 import com.vibematch.app.profile.parseAgeAssuranceStatus
@@ -8,6 +10,11 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -22,6 +29,59 @@ class ProfileApiClientTest {
         assertEquals(AgeAssuranceStatus.APPROVED, parseAgeAssuranceStatus("APPROVED"))
         assertEquals(AgeAssuranceStatus.REJECTED, parseAgeAssuranceStatus("REJECTED"))
         assertEquals(AgeAssuranceStatus.UNKNOWN, parseAgeAssuranceStatus("FUTURE_STATUS"))
+    }
+
+    @Test
+    fun `starts hosted age assurance with secure backend URL and auth`() = kotlinx.coroutines.test.runTest {
+        val requests = mutableListOf<okhttp3.Request>()
+        val client = ProfileApiClient(
+            baseUrl = "https://api.example",
+            httpClient = fakeHttpClient(
+                requests = requests,
+                body = "{\"data\":{\"status\":\"PENDING\",\"verification_url\":\"https://verify.example/session\"}}",
+            ),
+        )
+
+        val result = client.startAgeAssurance("session-jwt")
+
+        assertEquals(AgeAssuranceStatus.PENDING, result.status)
+        assertEquals("https://verify.example/session", result.verificationUrl)
+        assertEquals("POST", requests.single().method)
+        assertEquals("/api/age-assurance/start", requests.single().url.encodedPath)
+        assertEquals("Bearer session-jwt", requests.single().header("Authorization"))
+    }
+
+    @Test
+    fun `rejects insecure hosted verification URL`() = kotlinx.coroutines.test.runTest {
+        val client = ProfileApiClient(
+            baseUrl = "https://api.example",
+            httpClient = fakeHttpClient(
+                requests = mutableListOf(),
+                body = "{\"data\":{\"status\":\"PENDING\",\"verification_url\":\"http://verify.example/session\"}}",
+            ),
+        )
+
+        var error: ProfileApiException? = null
+        try {
+            client.startAgeAssurance("session-jwt")
+        } catch (caught: ProfileApiException) {
+            error = caught
+        }
+
+        assertEquals("INVALID_RESPONSE", error?.errorCode)
+    }
+
+    @Test
+    fun `refresh reads approval only from backend`() = kotlinx.coroutines.test.runTest {
+        val client = ProfileApiClient(
+            baseUrl = "https://api.example",
+            httpClient = fakeHttpClient(
+                requests = mutableListOf(),
+                body = "{\"data\":{\"status\":\"APPROVED\"}}",
+            ),
+        )
+
+        assertEquals(AgeAssuranceStatus.APPROVED, client.refreshAgeAssurance("session-jwt"))
     }
 
     @Test
@@ -49,4 +109,21 @@ class ProfileApiClientTest {
         assertEquals("BR-SP", root.getValue("region").jsonPrimitive.content)
         assertEquals(2, root.getValue("interest_ids").jsonArray.size)
     }
+
+    private fun fakeHttpClient(
+        requests: MutableList<okhttp3.Request>,
+        body: String,
+        statusCode: Int = 200,
+    ): OkHttpClient = OkHttpClient.Builder()
+        .addInterceptor { chain ->
+            requests += chain.request()
+            Response.Builder()
+                .request(chain.request())
+                .protocol(Protocol.HTTP_1_1)
+                .code(statusCode)
+                .message(if (statusCode in 200..299) "OK" else "Error")
+                .body(body.toResponseBody("application/json".toMediaType()))
+                .build()
+        }
+        .build()
 }

@@ -21,12 +21,16 @@ enum class ProfileGate {
 
 data class ProfileUiState(
     val isLoading: Boolean = false,
+    val isStartingAgeAssurance: Boolean = false,
+    val isRefreshingAgeAssurance: Boolean = false,
     val isSaving: Boolean = false,
     val hasLoaded: Boolean = false,
     val profile: UserProfile? = null,
     val availableInterests: List<ProfileInterest> = emptyList(),
     val draft: ProfileDraft = defaultProfileDraft(),
     val errorMessage: String? = null,
+    val infoMessage: String? = null,
+    val ageVerificationUrl: String? = null,
     val sessionExpired: Boolean = false,
     val profileIncomplete: Boolean = false,
     val gate: ProfileGate = ProfileGate.READY,
@@ -40,8 +44,10 @@ class ProfileViewModel(
 ) : ViewModel() {
     private val mutableState: MutableState<ProfileUiState> = mutableStateOf(ProfileUiState())
     val state: State<ProfileUiState> = mutableState
+    private var requestGeneration = 0L
 
     fun reset() {
+        requestGeneration += 1
         mutableState.value = ProfileUiState()
     }
 
@@ -52,21 +58,26 @@ class ProfileViewModel(
             expireSession()
             return
         }
+        val generation = requestGeneration
         mutableState.value = mutableState.value.copy(isLoading = true, errorMessage = null)
         viewModelScope.launch {
             try {
                 val interests = gateway.listInterests(token)
+                if (!isCurrentRequest(generation, token)) return@launch
                 val profile = gateway.getProfile(token)
+                if (!isCurrentRequest(generation, token)) return@launch
                 val ageStatus = try {
                     gateway.getAgeAssuranceStatus(token)
                 } catch (error: Exception) {
                     if (error is ProfileApiException && error.statusCode == 401) throw error
                     AgeAssuranceStatus.UNKNOWN
                 }
+                if (!isCurrentRequest(generation, token)) return@launch
                 mutableState.value = mutableState.value.copy(
                     isLoading = false,
                     hasLoaded = true,
                     profile = profile,
+                    ageVerificationUrl = null,
                     availableInterests = interests,
                     draft = profile?.toDraft() ?: defaultProfileDraft(),
                     profileIncomplete = profile == null,
@@ -74,6 +85,7 @@ class ProfileViewModel(
                     errorMessage = null,
                 )
             } catch (error: Exception) {
+                if (!isCurrentRequest(generation, token)) return@launch
                 if (!handleSessionOrGateError(error)) {
                     mutableState.value = mutableState.value.copy(
                         isLoading = false,
@@ -116,6 +128,73 @@ class ProfileViewModel(
         updateDraft { copy(interestIds = next) }
     }
 
+    fun startAgeAssurance() {
+        if (mutableState.value.isStartingAgeAssurance || mutableState.value.isRefreshingAgeAssurance) return
+        val token = accessTokenProvider()?.trim()
+        if (token.isNullOrEmpty()) {
+            expireSession()
+            return
+        }
+        val generation = requestGeneration
+        mutableState.value = mutableState.value.copy(
+            isStartingAgeAssurance = true,
+            errorMessage = null,
+            infoMessage = null,
+        )
+        viewModelScope.launch {
+            try {
+                val result = gateway.startAgeAssurance(token)
+                if (!isCurrentRequest(generation, token)) return@launch
+                mutableState.value = mutableState.value.copy(
+                    isStartingAgeAssurance = false,
+                    gate = gateFor(result.status),
+                    ageVerificationUrl = result.verificationUrl,
+                    errorMessage = null,
+                    infoMessage = "A verificação foi iniciada pelo provedor. Abra o link seguro e volte ao app para atualizar o status.",
+                )
+            } catch (error: Exception) {
+                if (isCurrentRequest(generation, token)) handleAgeAssuranceError(error)
+            }
+        }
+    }
+
+    fun refreshAgeAssurance() {
+        if (mutableState.value.isStartingAgeAssurance || mutableState.value.isRefreshingAgeAssurance) return
+        val token = accessTokenProvider()?.trim()
+        if (token.isNullOrEmpty()) {
+            expireSession()
+            return
+        }
+        val generation = requestGeneration
+        mutableState.value = mutableState.value.copy(
+            isRefreshingAgeAssurance = true,
+            errorMessage = null,
+        )
+        viewModelScope.launch {
+            try {
+                val status = gateway.refreshAgeAssurance(token)
+                if (!isCurrentRequest(generation, token)) return@launch
+                mutableState.value = mutableState.value.copy(
+                    isRefreshingAgeAssurance = false,
+                    gate = gateFor(status),
+                    ageVerificationUrl = if (status == AgeAssuranceStatus.PENDING) {
+                        mutableState.value.ageVerificationUrl
+                    } else {
+                        null
+                    },
+                    errorMessage = null,
+                    infoMessage = if (status == AgeAssuranceStatus.APPROVED) {
+                        "Verificação aprovada pelo backend."
+                    } else {
+                        null
+                    },
+                )
+            } catch (error: Exception) {
+                if (isCurrentRequest(generation, token)) handleAgeAssuranceError(error)
+            }
+        }
+    }
+
     fun save() {
         if (mutableState.value.isSaving) return
         val token = accessTokenProvider()?.trim()
@@ -134,6 +213,7 @@ class ProfileViewModel(
             mutableState.value = mutableState.value.copy(errorMessage = validationError)
             return
         }
+        val generation = requestGeneration
         mutableState.value = mutableState.value.copy(
             draft = draft,
             isSaving = true,
@@ -143,6 +223,7 @@ class ProfileViewModel(
         viewModelScope.launch {
             try {
                 val profile = gateway.updateProfile(token, draft)
+                if (!isCurrentRequest(generation, token)) return@launch
                 mutableState.value = mutableState.value.copy(
                     isSaving = false,
                     profile = profile,
@@ -152,6 +233,7 @@ class ProfileViewModel(
                     saved = true,
                 )
             } catch (error: Exception) {
+                if (!isCurrentRequest(generation, token)) return@launch
                 if (!handleSessionOrGateError(error)) {
                     mutableState.value = mutableState.value.copy(
                         isSaving = false,
@@ -166,9 +248,16 @@ class ProfileViewModel(
         mutableState.value = mutableState.value.copy(errorMessage = null)
     }
 
+    fun clearInfo() {
+        mutableState.value = mutableState.value.copy(infoMessage = null)
+    }
+
     fun clearSaved() {
         mutableState.value = mutableState.value.copy(saved = false)
     }
+
+    private fun isCurrentRequest(generation: Long, token: String): Boolean =
+        requestGeneration == generation && accessTokenProvider()?.trim() == token
 
     private fun updateDraft(transform: ProfileDraft.() -> ProfileDraft) {
         mutableState.value = mutableState.value.copy(
@@ -183,6 +272,20 @@ class ProfileViewModel(
         draft.language.isBlank() -> "Informe seu idioma."
         draft.region.isBlank() -> "Informe sua região."
         else -> null
+    }
+
+    private fun handleAgeAssuranceError(error: Exception) {
+        if (error is ProfileApiException && error.statusCode == 401) {
+            expireSession()
+            return
+        }
+        val gate = gateFor(error)
+        mutableState.value = mutableState.value.copy(
+            isStartingAgeAssurance = false,
+            isRefreshingAgeAssurance = false,
+            gate = gate ?: mutableState.value.gate,
+            errorMessage = publicError(error),
+        )
     }
 
     private fun handleSessionOrGateError(error: Exception): Boolean {
@@ -224,10 +327,17 @@ class ProfileViewModel(
     }
 
     private fun publicError(error: Exception): String = when (error) {
-        is ProfileApiException -> when (error.errorCode) {
-            "INVALID_PROFILE", "INVALID_INTERESTS" ->
+        is ProfileApiException -> when {
+            error.statusCode == 403 -> "Esta conta não está autorizada para esta etapa."
+            error.statusCode == 409 -> "A verificação já está em andamento. Atualize o status antes de tentar novamente."
+            error.statusCode == 429 -> "Muitas tentativas. Aguarde antes de tentar novamente."
+            error.errorCode == "AGE_PROVIDER_UNAVAILABLE" || error.statusCode >= 500 ->
+                "O serviço de verificação está temporariamente indisponível."
+            error.errorCode == "AGE_SESSION_NOT_AVAILABLE" ->
+                "Nenhuma sessão de verificação está disponível. Inicie novamente pelo backend."
+            error.errorCode == "INVALID_PROFILE" || error.errorCode == "INVALID_INTERESTS" ->
                 "Revise os dados do perfil e tente novamente."
-            "PROFILE_NOT_CONFIGURED" -> "O perfil ainda não está disponível."
+            error.errorCode == "PROFILE_NOT_CONFIGURED" -> "O perfil ainda não está disponível."
             else -> error.message ?: "Não foi possível atualizar o perfil agora."
         }
         else -> "Não foi possível atualizar o perfil agora. Verifique sua conexão."
@@ -236,11 +346,18 @@ class ProfileViewModel(
     private fun expireSession() {
         mutableState.value = mutableState.value.copy(
             isLoading = false,
+            isStartingAgeAssurance = false,
+            isRefreshingAgeAssurance = false,
             isSaving = false,
             sessionExpired = true,
             errorMessage = "Sua sessão expirou. Entre novamente para continuar.",
         )
         onSessionExpired()
+    }
+
+    override fun onCleared() {
+        requestGeneration += 1
+        super.onCleared()
     }
 
     private companion object {

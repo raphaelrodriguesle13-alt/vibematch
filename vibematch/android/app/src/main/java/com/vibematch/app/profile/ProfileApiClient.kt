@@ -75,6 +75,49 @@ class ProfileApiClient(
         }
     }
 
+    override suspend fun startAgeAssurance(accessToken: String): AgeAssuranceStart {
+        val response = execute(
+            Request.Builder()
+                .url("$baseUrl/api/age-assurance/start")
+                .header("Authorization", "Bearer $accessToken")
+                .header("Accept", "application/json")
+                .post("{}".toRequestBody("application/json; charset=utf-8".toMediaType()))
+                .build(),
+        )
+        response.use {
+            val body = it.body?.string().orEmpty()
+            ensureSuccess(it.code, it.isSuccessful, body)
+            val data = decode<AgeAssuranceEnvelope>(body, it.code).data
+            val status = parseAgeAssuranceStatus(data.status)
+            val verificationUrl = data.verificationUrl
+                ?.takeIf { url -> url.startsWith("https://") }
+            if (status != AgeAssuranceStatus.PENDING || verificationUrl == null) {
+                throw ProfileApiException(
+                    it.code,
+                    "INVALID_RESPONSE",
+                    "O provedor de verificação não retornou um link seguro.",
+                )
+            }
+            return AgeAssuranceStart(status, verificationUrl)
+        }
+    }
+
+    override suspend fun refreshAgeAssurance(accessToken: String): AgeAssuranceStatus {
+        val response = execute(
+            Request.Builder()
+                .url("$baseUrl/api/age-assurance/refresh")
+                .header("Authorization", "Bearer $accessToken")
+                .header("Accept", "application/json")
+                .post("{}".toRequestBody("application/json; charset=utf-8".toMediaType()))
+                .build(),
+        )
+        response.use {
+            val body = it.body?.string().orEmpty()
+            ensureSuccess(it.code, it.isSuccessful, body)
+            return parseAgeAssuranceStatus(decode<AgeAssuranceEnvelope>(body, it.code).data.status)
+        }
+    }
+
     override suspend fun updateProfile(accessToken: String, draft: ProfileDraft): UserProfile {
         val requestBody = buildProfileUpdateRequestBody(json, draft)
             .toRequestBody("application/json; charset=utf-8".toMediaType())
@@ -115,6 +158,11 @@ class ProfileApiClient(
 
     private fun publicError(statusCode: Int, errorCode: String?): String = when {
         statusCode == 401 -> "Sua sessão expirou. Entre novamente para continuar."
+        statusCode == 403 -> "Esta conta não está autorizada a iniciar esta verificação."
+        statusCode == 409 -> "A verificação já está em andamento. Atualize o status antes de tentar novamente."
+        statusCode == 429 -> "Muitas tentativas. Aguarde antes de tentar novamente."
+        errorCode == "AGE_PROVIDER_UNAVAILABLE" || statusCode >= 500 ->
+            "O serviço de verificação está temporariamente indisponível."
         errorCode == "PROFILE_NOT_CONFIGURED" -> "O perfil ainda não está disponível."
         errorCode == "INVALID_PROFILE" || errorCode == "INVALID_INTERESTS" ->
             "Revise os dados do perfil e tente novamente."
@@ -135,7 +183,10 @@ class ProfileApiClient(
 private data class AgeAssuranceEnvelope(val data: AgeAssuranceBody)
 
 @Serializable
-private data class AgeAssuranceBody(val status: String)
+private data class AgeAssuranceBody(
+    val status: String,
+    @SerialName("verification_url") val verificationUrl: String? = null,
+)
 
 @Serializable
 private data class ProfileEnvelope(val data: ProfileBody)

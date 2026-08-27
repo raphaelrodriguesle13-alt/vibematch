@@ -1,15 +1,19 @@
 package com.vibematch.app
 
+import com.vibematch.app.profile.AgeAssuranceStart
 import com.vibematch.app.profile.AgeAssuranceStatus
+import com.vibematch.app.profile.ProfileApiException
 import com.vibematch.app.profile.ProfileDraft
 import com.vibematch.app.profile.ProfileGateway
 import com.vibematch.app.profile.ProfileGate
 import com.vibematch.app.profile.ProfileInterest
 import com.vibematch.app.profile.ProfileViewModel
 import com.vibematch.app.profile.UserProfile
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -77,6 +81,47 @@ class ProfileViewModelTest {
     }
 
     @Test
+    fun `starts hosted age assurance and stays pending until backend refresh`() = runTest {
+        val viewModel = ProfileViewModel(gateway, { "session-jwt" })
+        viewModel.load()
+
+        viewModel.startAgeAssurance()
+
+        assertEquals(1, gateway.startCalls)
+        assertEquals(ProfileGate.AGE_PENDING, viewModel.state.value.gate)
+        assertEquals("https://verify.example/age", viewModel.state.value.ageVerificationUrl)
+        assertFalse(viewModel.state.value.gate == ProfileGate.READY)
+    }
+
+    @Test
+    fun `refresh uses backend approval to unlock the gate`() = runTest {
+        gateway.ageStatus = AgeAssuranceStatus.PENDING
+        val viewModel = ProfileViewModel(gateway, { "session-jwt" })
+        viewModel.load()
+        gateway.ageStatus = AgeAssuranceStatus.APPROVED
+
+        viewModel.refreshAgeAssurance()
+
+        assertEquals(1, gateway.refreshCalls)
+        assertEquals(ProfileGate.READY, viewModel.state.value.gate)
+        assertTrue(viewModel.state.value.ageVerificationUrl == null)
+    }
+
+    @Test
+    fun `provider unavailable keeps age assurance fail closed`() = runTest {
+        gateway.ageStatus = AgeAssuranceStatus.PENDING
+        gateway.refreshError = ProfileApiException(503, "AGE_PROVIDER_UNAVAILABLE", "unavailable")
+        val viewModel = ProfileViewModel(gateway, { "session-jwt" })
+        viewModel.load()
+
+        viewModel.refreshAgeAssurance()
+
+        assertEquals(ProfileGate.AGE_PENDING, viewModel.state.value.gate)
+        assertFalse(viewModel.state.value.gate == ProfileGate.READY)
+        assertTrue(viewModel.state.value.errorMessage.orEmpty().contains("temporariamente"))
+    }
+
+    @Test
     fun `unknown age assurance status fails closed`() = runTest {
         gateway.ageStatus = AgeAssuranceStatus.UNKNOWN
         val viewModel = ProfileViewModel(gateway, { "session-jwt" })
@@ -99,6 +144,23 @@ class ProfileViewModelTest {
     }
 
     @Test
+    fun `ignores stale profile response after reset and account switch`() = runTest {
+        var accessToken = "old-session"
+        gateway.interestsGate = CompletableDeferred()
+        val viewModel = ProfileViewModel(gateway, { accessToken })
+
+        viewModel.load()
+        viewModel.reset()
+        accessToken = "new-session"
+        gateway.interestsGate?.complete(Unit)
+        advanceUntilIdle()
+
+        assertFalse(viewModel.state.value.hasLoaded)
+        assertEquals(ProfileGate.READY, viewModel.state.value.gate)
+        assertTrue(viewModel.state.value.profile == null)
+    }
+
+    @Test
     fun `returns to authentication when session is missing`() = runTest {
         var sessionExpired = false
         val viewModel = ProfileViewModel(gateway, { null }) { sessionExpired = true }
@@ -117,12 +179,30 @@ class ProfileViewModelTest {
         )
         var lastDraft: ProfileDraft? = null
         var ageStatus = AgeAssuranceStatus.APPROVED
+        var startCalls = 0
+        var refreshCalls = 0
+        var refreshError: Exception? = null
+        var interestsGate: CompletableDeferred<Unit>? = null
 
         override suspend fun getProfile(accessToken: String): UserProfile? = null
 
         override suspend fun getAgeAssuranceStatus(accessToken: String): AgeAssuranceStatus = ageStatus
 
-        override suspend fun listInterests(accessToken: String): List<ProfileInterest> = interests
+        override suspend fun startAgeAssurance(accessToken: String): AgeAssuranceStart {
+            startCalls += 1
+            return AgeAssuranceStart(AgeAssuranceStatus.PENDING, "https://verify.example/age")
+        }
+
+        override suspend fun refreshAgeAssurance(accessToken: String): AgeAssuranceStatus {
+            refreshCalls += 1
+            refreshError?.let { throw it }
+            return ageStatus
+        }
+
+        override suspend fun listInterests(accessToken: String): List<ProfileInterest> {
+            interestsGate?.await()
+            return interests
+        }
 
         override suspend fun updateProfile(
             accessToken: String,

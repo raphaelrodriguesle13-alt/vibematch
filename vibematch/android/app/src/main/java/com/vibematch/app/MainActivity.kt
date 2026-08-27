@@ -2,7 +2,9 @@ package com.vibematch.app
 
 import android.Manifest
 import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -65,6 +67,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vibematch.app.auth.AuthApiClient
 import com.vibematch.app.consent.Consent
@@ -283,8 +288,16 @@ private fun VibeMatchApp(
         rtcRoomViewModel.discardPendingJitToken()
     }
 
-    DisposableEffect(Unit) {
-        onDispose { stopRtc() }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) stopRtc()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            stopRtc()
+        }
     }
 
     LaunchedEffect(sessionId) {
@@ -871,7 +884,23 @@ private fun ProfileScreen(
     onLogout: () -> Unit,
 ) {
     val state by viewModel.state
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val verificationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) {
+        viewModel.refreshAgeAssurance()
+    }
     val canClose = !state.profileIncomplete && state.gate == ProfileGate.READY
+
+    DisposableEffect(lifecycleOwner, state.gate, state.hasLoaded) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && state.gate == ProfileGate.AGE_PENDING) {
+                viewModel.refreshAgeAssurance()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -910,12 +939,7 @@ private fun ProfileScreen(
                 }
             }
 
-            if (state.gate != ProfileGate.READY) {
-                ProfileGateCard(
-                    modifier = Modifier.weight(1f),
-                    gate = state.gate,
-                )
-            } else if (state.isLoading) {
+            if (state.isLoading || !state.hasLoaded) {
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -928,6 +952,23 @@ private fun ProfileScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Text("Carregando seu perfil...", color = Color(0xFF72717D))
                 }
+            } else if (state.gate != ProfileGate.READY) {
+                ProfileGateCard(
+                    modifier = Modifier.weight(1f),
+                    gate = state.gate,
+                    state = state,
+                    onStartAgeAssurance = viewModel::startAgeAssurance,
+                    onRefreshAgeAssurance = viewModel::refreshAgeAssurance,
+                    onOpenVerification = { url ->
+                        val uri = runCatching { Uri.parse(url) }.getOrNull()
+                        if (uri?.scheme == "https") {
+                            runCatching {
+                                verificationLauncher.launch(Intent(Intent.ACTION_VIEW, uri))
+                            }.onFailure { viewModel.clearError() }
+                        }
+                    },
+                    onClearError = viewModel::clearError,
+                )
             } else {
                 ProfileForm(
                     modifier = Modifier.weight(1f),
@@ -1193,6 +1234,14 @@ private fun VideoSessionScreen(
                             color = Color(0xFF72717D),
                             textAlign = TextAlign.Center,
                         )
+                        if (!state.sessionExpired && !state.ageBlocked && !state.phoneBlocked) {
+                            TextButton(
+                                onClick = { viewModel.create(consentId) },
+                                enabled = !isBusy,
+                            ) {
+                                Text("Tentar autorização novamente", color = VibePurple)
+                            }
+                        }
                     }
                 }
                 rtcState.status == RtcRoomStatus.CONNECTED ||
@@ -1511,6 +1560,19 @@ private fun ConsentScreen(
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center,
                         )
+                        Text(
+                            text = "O servidor não confirmou um consentimento utilizável para esta solicitação.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color(0xFF72717D),
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                        TextButton(
+                            onClick = { viewModel.create(matchIntentId) },
+                            enabled = !isBusy,
+                        ) {
+                            Text("Tentar novamente", color = VibePurple)
+                        }
                     }
                 }
                 else -> {
@@ -1519,18 +1581,15 @@ private fun ConsentScreen(
                         ConsentCard(
                             modifier = Modifier.weight(1f),
                             consent = consent,
-                                                    currentUserId = currentUserId,
-                        isDeciding = state.isDeciding,
-                        onDecision = viewModel::decide,
-                        onOpenModeration = { targetUserId ->
-                            onOpenModeration(targetUserId)
-                        },
-                        onOpenVideo = {
-                            if (consent.status == ConsentStatus.ACCEPTED_BOTH) {
-                                onOpenVideo(consent.id)
-                            }
-                        },
-
+                            currentUserId = currentUserId,
+                            isDeciding = state.isDeciding,
+                            onDecision = viewModel::decide,
+                            onOpenModeration = onOpenModeration,
+                            onOpenVideo = {
+                                if (consent.status == ConsentStatus.ACCEPTED_BOTH) {
+                                    onOpenVideo(consent.id)
+                                }
+                            },
                         )
                     }
                 }
@@ -1790,6 +1849,12 @@ private fun MatchIntentScreen(
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(top = 8.dp),
                         )
+                        TextButton(
+                            onClick = { viewModel.load(refresh = true) },
+                            enabled = !state.isLoading,
+                        ) {
+                            Text("Atualizar solicitações", color = VibePurple)
+                        }
                     }
                 }
                 else -> {
@@ -2045,7 +2110,15 @@ private fun PhoneVerificationScreen(
 }
 
 @Composable
-private fun ProfileGateCard(modifier: Modifier = Modifier, gate: ProfileGate) {
+private fun ProfileGateCard(
+    modifier: Modifier = Modifier,
+    gate: ProfileGate,
+    state: com.vibematch.app.profile.ProfileUiState,
+    onStartAgeAssurance: () -> Unit,
+    onRefreshAgeAssurance: () -> Unit,
+    onOpenVerification: (String) -> Unit,
+    onClearError: () -> Unit,
+) {
     val title: String
     val description: String
     when (gate) {
@@ -2094,6 +2167,91 @@ private fun ProfileGateCard(modifier: Modifier = Modifier, gate: ProfileGate) {
             color = Color(0xFF72717D),
             textAlign = TextAlign.Center,
         )
+        state.errorMessage?.let { error ->
+            ErrorBanner(error, onClearError)
+        }
+        state.infoMessage?.let { message ->
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color(0xFF2F7D4A),
+                textAlign = TextAlign.Center,
+            )
+        }
+        when (gate) {
+            ProfileGate.AGE_NOT_STARTED -> {
+                Button(
+                    onClick = onStartAgeAssurance,
+                    enabled = !state.isStartingAgeAssurance && !state.isRefreshingAgeAssurance,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = VibePurple),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    if (state.isStartingAgeAssurance) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Text("Iniciar verificação segura")
+                    }
+                }
+            }
+            ProfileGate.AGE_PENDING -> {
+                state.ageVerificationUrl?.let { url ->
+                    OutlinedButton(
+                        onClick = { onOpenVerification(url) },
+                        enabled = !state.isStartingAgeAssurance && !state.isRefreshingAgeAssurance,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Abrir verificação")
+                    }
+                }
+                Button(
+                    onClick = onRefreshAgeAssurance,
+                    enabled = !state.isStartingAgeAssurance && !state.isRefreshingAgeAssurance,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = VibePurple),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    if (state.isRefreshingAgeAssurance) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Text("Atualizar status")
+                    }
+                }
+            }
+            ProfileGate.AGE_REJECTED,
+            ProfileGate.AGE_UNAVAILABLE,
+            -> {
+                Button(
+                    onClick = onRefreshAgeAssurance,
+                    enabled = !state.isStartingAgeAssurance && !state.isRefreshingAgeAssurance,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = VibePurple),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    if (state.isRefreshingAgeAssurance) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp,
+                        )
+                    } else {
+                        Text("Tentar novamente")
+                    }
+                }
+            }
+            ProfileGate.BLOCKED,
+            ProfileGate.SUSPENDED,
+            ProfileGate.READY,
+            -> Unit
+        }
     }
 }
 

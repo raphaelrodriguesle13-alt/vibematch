@@ -22,6 +22,11 @@ enum class AgeAssuranceStatus {
     UNKNOWN,
 }
 
+data class AgeAssuranceStart(
+    val status: AgeAssuranceStatus,
+    val verificationUrl: String?,
+)
+
 data class ProfileDraft(
     val displayName: String,
     val avatarUrl: String,
@@ -34,6 +39,8 @@ interface ProfileGateway {
     suspend fun getProfile(accessToken: String): UserProfile?
     suspend fun listInterests(accessToken: String): List<ProfileInterest>
     suspend fun getAgeAssuranceStatus(accessToken: String): AgeAssuranceStatus
+    suspend fun startAgeAssurance(accessToken: String): AgeAssuranceStart
+    suspend fun refreshAgeAssurance(accessToken: String): AgeAssuranceStatus
     suspend fun updateProfile(accessToken: String, draft: ProfileDraft): UserProfile
 }
 
