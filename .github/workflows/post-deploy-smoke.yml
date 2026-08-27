@@ -1,0 +1,29 @@
+name: Post Deploy Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: HTTPS base URL of the deployed VibeMatch backend
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate deployed backend health
+        working-directory: vibematch
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+        run: node scripts/post-deploy-smoke.mjs
