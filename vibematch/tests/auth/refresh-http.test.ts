@@ -4,7 +4,9 @@ import { AuthError, type RefreshResult } from '../../backend/src/auth/service';
 
 class FakeRefreshService {
   token: string | null = null;
+  logoutToken: string | null = null;
   error: Error | null = null;
+  logoutError: Error | null = null;
   result: RefreshResult = {
     sessionJwt: 'rotated-jwt',
     refreshToken: 'rotated-refresh-token-that-is-long-enough',
@@ -19,6 +21,12 @@ class FakeRefreshService {
     this.token = token;
     if (this.error) return Promise.reject(this.error);
     return Promise.resolve(this.result);
+  }
+
+  logoutWithRefresh(token: string): Promise<{ ok: true }> {
+    this.logoutToken = token;
+    if (this.logoutError) return Promise.reject(this.logoutError);
+    return Promise.resolve({ ok: true });
   }
 }
 
@@ -88,6 +96,45 @@ describe('Auth refresh HTTP API', () => {
 
     expect(response.statusCode).toBe(503);
     expect(response.json()).toEqual({ error: 'SESSION_ISSUANCE_FAILED' });
+    await app.close();
+  });
+
+  test('revokes with a refresh credential without requiring a live access JWT', async () => {
+    const { app, authService } = subject();
+    const response = await app.inject({
+      method: 'POST',
+      url: '/auth/logout/refresh',
+      payload: { refresh_token: 'logout-refresh-token' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true });
+    expect(authService.logoutToken).toBe('logout-refresh-token');
+    await app.close();
+  });
+
+  test('does not reveal whether a refresh logout credential existed', async () => {
+    const { app, authService } = subject();
+    authService.logoutError = new Error('database lookup failed');
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/auth/logout/refresh',
+      payload: { refresh_token: 'unknown-refresh-token' },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true });
+    await app.close();
+  });
+
+  test('rejects malformed refresh logout payloads without token oracle behavior', async () => {
+    const { app, authService } = subject();
+    const response = await app.inject({ method: 'POST', url: '/auth/logout/refresh', payload: {} });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: 'INVALID_REQUEST' });
+    expect(authService.logoutToken).toBeNull();
     await app.close();
   });
 });
