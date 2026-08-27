@@ -14,7 +14,10 @@ export type BillingRuntime = {
 };
 
 export const createBillingRuntime = (): BillingRuntime => {
-  const pool = new Pool({ connectionString: env.billingDatabaseUrl() });
+  const pool = new Pool({
+    connectionString: env.billingDatabaseUrl(),
+    connectionTimeoutMillis: env.databaseConnectionTimeoutMs,
+  });
   const repository = new BillingRepository(pool);
   const packageName = env.googlePlayPackageName();
   const verifier = new GooglePlaySubscriptionVerifierImpl({
