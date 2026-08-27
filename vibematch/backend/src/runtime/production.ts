@@ -14,6 +14,7 @@ import { validateProductionConfig } from '../config/production-validation';
 import { ConsentRepository } from '../consent/repository';
 import { ConsentService } from '../consent/service';
 import { buildApp } from '../http/app';
+import { installHttpObservability } from '../http/observability';
 import { MatchIntentRepository } from '../matchmaking/repository';
 import { MatchIntentService } from '../matchmaking/service';
 import { ModerationRepository } from '../moderation/repository';
@@ -32,8 +33,14 @@ export type ProductionRuntime = {
   app: FastifyInstance;
   video: VideoRuntime;
   billing: BillingRuntime;
+  checkReady(): Promise<boolean>;
   reconcileVideoRevocations(): Promise<{ revoked: number; failed: number }>;
   close(): Promise<void>;
+};
+
+const poolReady = async (pool: Pool): Promise<boolean> => {
+  await pool.query('SELECT 1');
+  return true;
 };
 
 export const createProductionRuntime = (): ProductionRuntime => {
@@ -122,6 +129,20 @@ export const createProductionRuntime = (): ProductionRuntime => {
     googlePlayPackageName: billing.packageName,
   });
 
+  const checkReady = async (): Promise<boolean> => {
+    const checks = await Promise.allSettled([
+      poolReady(authPool),
+      poolReady(profilePool),
+      poolReady(matchmakingPool),
+      poolReady(moderationPool),
+      video.checkReady(),
+      billing.checkReady(),
+    ]);
+    return checks.every((check) => check.status === 'fulfilled' && check.value);
+  };
+
+  installHttpObservability(app, { readiness: checkReady });
+
   let closed = false;
   const close = async (): Promise<void> => {
     if (closed) return;
@@ -146,6 +167,7 @@ export const createProductionRuntime = (): ProductionRuntime => {
     app,
     video,
     billing,
+    checkReady,
     reconcileVideoRevocations: () => video.revocationService.reconcile(),
     close,
   };
