@@ -54,6 +54,14 @@ const incomingRequestId = (request: FastifyRequest): string | null => {
 
 const safePath = (request: FastifyRequest): string => request.url.split('?', 1)[0] || '/';
 
+const safeErrorStatus = (error: unknown): number => {
+  const candidate =
+    typeof error === 'object' && error !== null && 'statusCode' in error
+      ? (error as { statusCode?: unknown }).statusCode
+      : undefined;
+  return typeof candidate === 'number' && candidate >= 400 && candidate < 500 ? candidate : 500;
+};
+
 const withTimeout = async <T>(operation: Promise<T>, timeoutMs: number): Promise<T> => {
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     throw new Error('Timeout must be a positive finite number');
@@ -114,15 +122,13 @@ export const installHttpObservability = (
       request_id: state?.id ?? 'unavailable',
       method: request.method,
       path: safePath(request),
-      status_code: reply.statusCode,
+      status_code: safeErrorStatus(error),
       error_name: error.name,
     });
   });
 
   app.setErrorHandler(async (error, _request, reply) => {
-    const candidate = error.statusCode;
-    const statusCode =
-      typeof candidate === 'number' && candidate >= 400 && candidate < 500 ? candidate : 500;
+    const statusCode = safeErrorStatus(error);
     return reply
       .code(statusCode)
       .send({ error: statusCode >= 500 ? 'INTERNAL_ERROR' : 'INVALID_REQUEST' });

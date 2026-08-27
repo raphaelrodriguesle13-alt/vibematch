@@ -109,7 +109,7 @@ describe('HTTP observability', () => {
   test('sanitizes unexpected 5xx responses and logs no error message', async () => {
     const app = fastify({ logger: false });
     const logs = makeSink();
-    app.get('/explode', async () => {
+    app.get('/explode', () => {
       throw new Error('database password=do-not-leak');
     });
     installHttpObservability(app, { logger: logs.sink, requestId: () => 'failure-req' });
