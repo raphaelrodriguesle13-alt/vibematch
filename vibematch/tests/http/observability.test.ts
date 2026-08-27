@@ -49,8 +49,8 @@ describe('HTTP observability', () => {
     const app = fastify({ logger: false });
     const logs = makeSink();
     let clock = 1000;
-    app.get('/existing?ignored=true', async () => ({ ok: true }));
-    app.get('/existing', async () => ({ ok: true }));
+    app.get('/existing?ignored=true', () => ({ ok: true }));
+    app.get('/existing', () => ({ ok: true }));
 
     installHttpObservability(app, {
       logger: logs.sink,
@@ -90,7 +90,7 @@ describe('HTTP observability', () => {
   test('rejects unsafe incoming request ids and generates a server id', async () => {
     const app = fastify({ logger: false });
     const logs = makeSink();
-    app.get('/resource', async () => ({ ok: true }));
+    app.get('/resource', () => ({ ok: true }));
     installHttpObservability(app, { logger: logs.sink, requestId: () => 'server-generated' });
 
     const response = await app.inject({
@@ -106,7 +106,7 @@ describe('HTTP observability', () => {
   test('readiness fails closed without exposing dependency details', async () => {
     const app = fastify({ logger: false });
     const logs = makeSink();
-    installHttpObservability(app, { logger: logs.sink, readiness: async () => false });
+    installHttpObservability(app, { logger: logs.sink, readiness: () => Promise.resolve(false) });
 
     const live = await app.inject({ method: 'GET', url: '/health/live' });
     const ready = await app.inject({ method: 'GET', url: '/health/ready' });
