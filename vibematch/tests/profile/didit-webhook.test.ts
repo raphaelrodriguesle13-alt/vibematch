@@ -45,8 +45,8 @@ describe('Didit V3 webhook security', () => {
   it('authenticates before reconciling and ignores webhook decision as authority', async () => {
     const app = fastify();
     const reconcileProviderSession: Reconcile = jest.fn(async () => ({
-      outcome: 'APPLIED',
-      status: 'APPROVED',
+      outcome: 'APPLIED' as const,
+      status: 'APPROVED' as const,
     }));
     registerAgeWebhookRoute(app, {
       webhookSecret: secret,
@@ -73,7 +73,7 @@ describe('Didit V3 webhook security', () => {
   it('rejects unauthenticated requests before reconciliation', async () => {
     const app = fastify();
     const reconcileProviderSession: Reconcile = jest.fn(async () => ({
-      outcome: 'SESSION_NOT_FOUND',
+      outcome: 'SESSION_NOT_FOUND' as const,
     }));
     registerAgeWebhookRoute(app, {
       webhookSecret: secret,
@@ -95,7 +95,7 @@ describe('Didit V3 webhook security', () => {
   it('requests provider retry when the session is not persisted yet', async () => {
     const app = fastify();
     const reconcileProviderSession: Reconcile = jest.fn(async () => ({
-      outcome: 'SESSION_NOT_FOUND',
+      outcome: 'SESSION_NOT_FOUND' as const,
     }));
     registerAgeWebhookRoute(app, {
       webhookSecret: secret,
