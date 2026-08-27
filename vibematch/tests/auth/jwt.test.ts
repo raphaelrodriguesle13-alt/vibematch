@@ -20,7 +20,7 @@ const providerFor = (
   new JwtSessionProvider({
     ...keys,
     keyId,
-    verificationPublicKeys,
+    ...(verificationPublicKeys === undefined ? {} : { verificationPublicKeys }),
     issuer: 'https://api.vibematch.test',
     audience: 'vibematch-android',
     now: () => NOW,
