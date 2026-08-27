@@ -64,6 +64,7 @@ class AuthViewModel(
     fun signOut() {
         if (mutableState.value.isLoading) return
         val session = mutableState.value.session
+        val refreshCredentials = sessionStore.readRefreshCredentials()
         mutableState.value = mutableState.value.copy(isLoading = true, errorMessage = null)
 
         viewModelScope.launch {
@@ -72,6 +73,13 @@ class AuthViewModel(
                 if (session != null) authGateway.logout(session.sessionJwt)
             } catch (_: Exception) {
                 errorMessage = "A sessão local foi encerrada, mas o servidor não confirmou o logout."
+            }
+            try {
+                if (refreshCredentials != null) {
+                    authGateway.logoutWithRefresh(refreshCredentials.refreshToken)
+                }
+            } catch (_: Exception) {
+                errorMessage = "A sessão local foi encerrada, mas o servidor não confirmou a revogação."
             }
             try {
                 googleOidcClient.signOut()
