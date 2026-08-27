@@ -209,6 +209,15 @@ export class AuthRepository {
     });
   }
 
+  async revokeSessionByRefreshHash(refreshHash: string, revokedAt: Date): Promise<void> {
+    await this.pool.query(
+      `UPDATE auth_sessions
+       SET revoked_at = COALESCE(revoked_at, $2)
+       WHERE refresh_token_hash = $1 OR refresh_previous_token_hash = $1`,
+      [refreshHash, revokedAt],
+    );
+  }
+
   async revokeSession(userId: string, sessionId: string, revokedAt: Date): Promise<boolean> {
     const result = await this.pool.query(
       `UPDATE auth_sessions
