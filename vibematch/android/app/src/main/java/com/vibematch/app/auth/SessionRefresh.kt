@@ -16,7 +16,7 @@ fun interface SessionTokenRefresher {
 class SessionRefreshCoordinator(
     private val sessionStore: SessionStore,
     private val authGateway: AuthGateway,
-    private val onSessionExpired: () -> Unit,
+    private val onSessionExpired: (AuthLogoutSnapshot) -> Unit,
     private val nowMillis: () -> Long = System::currentTimeMillis,
 ) : SessionTokenRefresher {
     private val refreshLock = Any()
@@ -83,17 +83,19 @@ class SessionRefreshCoordinator(
     }
 
     private fun expireIfStillCurrent(staleAccessToken: String) {
-        var notify = false
+        var snapshot: AuthLogoutSnapshot? = null
         synchronized(refreshLock) {
             if (sessionStore.readAccessToken() == staleAccessToken) {
+                snapshot = sessionStore.readLogoutSnapshot()
                 sessionStore.clear()
                 if (expirationNotifiedFor != staleAccessToken) {
                     expirationNotifiedFor = staleAccessToken
-                    notify = true
+                } else {
+                    snapshot = null
                 }
             }
         }
-        if (notify) onSessionExpired()
+        snapshot?.let(onSessionExpired)
     }
 }
 

@@ -75,6 +75,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vibematch.app.auth.AuthApiClient
+import com.vibematch.app.auth.AuthLogoutSnapshot
 import com.vibematch.app.consent.Consent
 import com.vibematch.app.consent.ConsentApiClient
 import com.vibematch.app.consent.ConsentDecision
@@ -149,14 +150,17 @@ class MainActivity : ComponentActivity() {
                 val rtcRoomViewModel: RtcRoomViewModel = viewModel(
                     factory = RtcRoomViewModelFactory(rtcGateway),
                 )
-                val expireSession: () -> Unit = {
+                val expireSession: (AuthLogoutSnapshot) -> Unit = { snapshot ->
                     if (!isFinishing && !isDestroyed) {
                         runOnUiThread {
                             rtcRoomViewModel.disconnect()
                             rtcRoomViewModel.discardPendingJitToken()
-                            authViewModel.signOut()
+                            authViewModel.signOut(snapshot)
                         }
                     }
+                }
+                val expireCurrentSession: () -> Unit = {
+                    expireSession(sessionStore.readLogoutSnapshot())
                 }
                 val sessionRefreshCoordinator = remember {
                     SessionRefreshCoordinator(
@@ -184,7 +188,7 @@ class MainActivity : ComponentActivity() {
                         ),
                         accessTokenProvider = sessionStore::readAccessToken,
                         productId = BuildConfig.BILLING_PRODUCT_ID,
-                        onSessionExpired = expireSession,
+                        onSessionExpired = expireCurrentSession,
                     ),
                 )
                 val chatViewModel: ChatViewModel = viewModel(
@@ -194,7 +198,7 @@ class MainActivity : ComponentActivity() {
                             httpClient = sessionHttpClient,
                         ),
                         accessTokenProvider = sessionStore::readAccessToken,
-                        onSessionExpired = expireSession,
+                        onSessionExpired = expireCurrentSession,
                     ),
                 )
                 val profileViewModel: ProfileViewModel = viewModel(
@@ -204,7 +208,7 @@ class MainActivity : ComponentActivity() {
                             httpClient = sessionHttpClient,
                         ),
                         accessTokenProvider = sessionStore::readAccessToken,
-                        onSessionExpired = expireSession,
+                        onSessionExpired = expireCurrentSession,
                     ),
                 )
                 val phoneViewModel: PhoneVerificationViewModel = viewModel(
@@ -214,7 +218,7 @@ class MainActivity : ComponentActivity() {
                             httpClient = sessionHttpClient,
                         ),
                         accessTokenProvider = sessionStore::readAccessToken,
-                        onSessionExpired = expireSession,
+                        onSessionExpired = expireCurrentSession,
                         onPhoneVerified = authViewModel::markPhoneVerified,
                     ),
                 )
@@ -225,7 +229,7 @@ class MainActivity : ComponentActivity() {
                             httpClient = sessionHttpClient,
                         ),
                         accessTokenProvider = sessionStore::readAccessToken,
-                        onSessionExpired = expireSession,
+                        onSessionExpired = expireCurrentSession,
                         onPhoneVerificationRequired = authViewModel::markPhoneUnverified,
                     ),
                 )
@@ -237,7 +241,7 @@ class MainActivity : ComponentActivity() {
                         ),
                         accessTokenProvider = sessionStore::readAccessToken,
                         currentUserIdProvider = { authViewModel.state.value.session?.userId },
-                        onSessionExpired = expireSession,
+                        onSessionExpired = expireCurrentSession,
                         onPhoneVerificationRequired = authViewModel::markPhoneUnverified,
                         onAgeAssuranceRequired = {
                             profileViewModel.reset()
@@ -252,7 +256,7 @@ class MainActivity : ComponentActivity() {
                             httpClient = sessionHttpClient,
                         ),
                         accessTokenProvider = sessionStore::readAccessToken,
-                        onSessionExpired = expireSession,
+                        onSessionExpired = expireCurrentSession,
                         onPhoneVerificationRequired = authViewModel::markPhoneUnverified,
                         onAgeAssuranceRequired = {
                             profileViewModel.reset()
@@ -271,7 +275,7 @@ class MainActivity : ComponentActivity() {
                             httpClient = sessionHttpClient,
                         ),
                         accessTokenProvider = sessionStore::readAccessToken,
-                        onSessionExpired = expireSession,
+                        onSessionExpired = expireCurrentSession,
                         onBlocked = rtcRoomViewModel::disconnect,
                     ),
                 )

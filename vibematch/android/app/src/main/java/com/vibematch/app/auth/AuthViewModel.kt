@@ -67,11 +67,11 @@ class AuthViewModel(
         mutableState.value = mutableState.value.copy(session = updatedSession)
     }
 
-    fun signOut() {
-        if (mutableState.value.isLoading || signOutInFlight) return
+    fun signOut(snapshotOverride: AuthLogoutSnapshot? = null) {
+        if (signOutInFlight) return
         val generation = ++sessionGeneration
         signOutInFlight = true
-        val snapshot = sessionStore.readLogoutSnapshot()
+        val snapshot = snapshotOverride ?: sessionStore.readLogoutSnapshot()
 
         // Fail closed before any network call. The captured credentials remain only in this coroutine.
         sessionStore.clear()

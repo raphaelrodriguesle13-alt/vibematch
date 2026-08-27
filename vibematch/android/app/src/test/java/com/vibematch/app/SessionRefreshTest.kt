@@ -1,6 +1,7 @@
 package com.vibematch.app
 
 import com.vibematch.app.auth.AuthGateway
+import com.vibematch.app.auth.AuthLogoutSnapshot
 import com.vibematch.app.auth.AuthSession
 import com.vibematch.app.auth.AuthSessionBundle
 import com.vibematch.app.auth.AuthApiException
@@ -39,7 +40,7 @@ class SessionRefreshTest {
         val coordinator = SessionRefreshCoordinator(
             sessionStore = store,
             authGateway = gateway,
-            onSessionExpired = { expirationCallbacks += 1 },
+            onSessionExpired = { _ -> expirationCallbacks += 1 },
             nowMillis = { 1_000L },
         )
 
@@ -65,7 +66,7 @@ class SessionRefreshTest {
         val coordinator = SessionRefreshCoordinator(
             sessionStore = store,
             authGateway = gateway,
-            onSessionExpired = { expirationCallbacks += 1 },
+            onSessionExpired = { _ -> expirationCallbacks += 1 },
             nowMillis = { 1_000L },
         )
 
@@ -78,6 +79,27 @@ class SessionRefreshTest {
     }
 
     @Test
+    fun `invalid refresh passes the captured pair to expiry logout`() {
+        val store = FakeSessionStore(session = session("access-old"), credentials = credentials("refresh-old"))
+        val gateway = FakeAuthGateway().apply {
+            refreshError = AuthApiException(401, "expired")
+        }
+        var capturedSnapshot: AuthLogoutSnapshot? = null
+        val coordinator = SessionRefreshCoordinator(
+            sessionStore = store,
+            authGateway = gateway,
+            onSessionExpired = { snapshot -> capturedSnapshot = snapshot },
+            nowMillis = { 1_000L },
+        )
+
+        assertNull(coordinator.refreshIfCurrent("access-old"))
+        assertEquals("access-old", capturedSnapshot?.session?.sessionJwt)
+        assertEquals("refresh-old", capturedSnapshot?.refreshCredentials?.refreshToken)
+        assertNull(store.session)
+        assertNull(store.credentials)
+    }
+
+    @Test
     fun `unknown stale callback does not borrow a different account token`() {
         val store = FakeSessionStore(session = session("access-new"), credentials = credentials("refresh-new"))
         val gateway = FakeAuthGateway()
@@ -85,7 +107,7 @@ class SessionRefreshTest {
         val coordinator = SessionRefreshCoordinator(
             store,
             gateway,
-            onSessionExpired = { expirationCallbacks += 1 },
+            onSessionExpired = { _ -> expirationCallbacks += 1 },
         )
 
         assertNull(coordinator.refreshIfCurrent("access-old"))
@@ -101,7 +123,7 @@ class SessionRefreshTest {
         val coordinator = SessionRefreshCoordinator(
             store,
             gateway,
-            onSessionExpired = {},
+            onSessionExpired = { _ -> },
             nowMillis = { 1_000L },
         )
 
@@ -126,7 +148,7 @@ class SessionRefreshTest {
         val coordinator = SessionRefreshCoordinator(
             sessionStore = store,
             authGateway = gateway,
-            onSessionExpired = { expirationCallbacks += 1 },
+            onSessionExpired = { _ -> expirationCallbacks += 1 },
             nowMillis = { 1_000L },
         )
 

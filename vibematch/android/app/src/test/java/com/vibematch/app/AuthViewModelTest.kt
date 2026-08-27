@@ -98,6 +98,22 @@ class AuthViewModelTest {
     }
 
     @Test
+    fun `late Google login result cannot restore a session after logout`() = runTest {
+        val releaseGoogle = CompletableDeferred<String>()
+        google.onSignIn = { releaseGoogle.await() }
+        val viewModel = AuthViewModel(google, auth, store)
+
+        viewModel.signIn(Activity())
+        viewModel.signOut()
+        releaseGoogle.complete("google-id-token")
+        advanceUntilIdle()
+
+        assertNull(viewModel.state.value.session)
+        assertNull(store.session)
+        assertNull(store.refreshCredentials)
+    }
+
+    @Test
     fun `expired access still sends the valid refresh credential for revocation`() = runTest {
         store.session = testSession(expiresAtMillis = System.currentTimeMillis() - 1)
         store.refreshCredentials = testRefreshCredentials()
@@ -229,10 +245,11 @@ class AuthViewModelTest {
         var error: Exception? = null
         var signOutCalled = false
         var events: MutableList<String>? = null
+        var onSignIn: (suspend () -> String)? = null
 
         override suspend fun signIn(activity: Activity): String {
             error?.let { throw it }
-            return "google-id-token"
+            return onSignIn?.invoke() ?: "google-id-token"
         }
 
         override suspend fun signOut() {
