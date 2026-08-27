@@ -63,7 +63,11 @@ jobs:
         run: npm run lint
 
       - name: Format check
-        run: npm run format:check
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run format
+          git diff --exit-code
 
       - name: Apply SQL migrations
         run: npm run migrate
