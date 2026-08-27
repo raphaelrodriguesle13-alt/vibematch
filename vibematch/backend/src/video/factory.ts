@@ -10,6 +10,7 @@ export type VideoRuntime = {
   sessionService: VideoSessionService;
   revocationService: VideoRevocationService;
   rtcUrl: string;
+  checkReady(): Promise<boolean>;
   close(): Promise<void>;
 };
 
@@ -40,6 +41,10 @@ export const createVideoRuntime = (): VideoRuntime => {
     sessionService: new VideoSessionService(sessionRepository, tokenProvider),
     revocationService: new VideoRevocationService(revocationRepository, roomAdmin),
     rtcUrl: env.liveKitRtcUrl(),
+    checkReady: async () => {
+      await pool.query('SELECT 1');
+      return true;
+    },
     close: () => pool.end(),
   };
 };
