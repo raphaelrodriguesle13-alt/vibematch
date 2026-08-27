@@ -2,7 +2,8 @@ import { env } from './config/env';
 import { consoleStructuredLogger } from './http/observability';
 import { createProductionRuntime } from './runtime/production';
 
-const errorName = (error: unknown): string => (error instanceof Error ? error.name : 'UnknownError');
+const errorName = (error: unknown): string =>
+  error instanceof Error ? error.name : 'UnknownError';
 
 const main = async (): Promise<void> => {
   const runtime = createProductionRuntime();
@@ -63,7 +64,10 @@ const main = async (): Promise<void> => {
     consoleStructuredLogger.info({ event: 'backend.started', host: env.host, port: env.port });
     await reconcile();
   } catch (error) {
-    consoleStructuredLogger.error({ event: 'backend.startup.failed', error_name: errorName(error) });
+    consoleStructuredLogger.error({
+      event: 'backend.startup.failed',
+      error_name: errorName(error),
+    });
     await shutdown('STARTUP_FAILURE');
   }
 };
