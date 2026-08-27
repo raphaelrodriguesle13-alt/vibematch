@@ -23,7 +23,13 @@ const first = <T extends QueryResultRow>(result: QueryResult<T>): T => {
 const seedAcceptedConsentAndSession = async (
   client: PoolClient,
   roomName: string,
-): Promise<{ userA: string; userB: string; intentId: string; consentId: string; sessionId: string }> => {
+): Promise<{
+  userA: string;
+  userB: string;
+  intentId: string;
+  consentId: string;
+  sessionId: string;
+}> => {
   const { userA, userB, intentId } = await seedAcceptedIntent(client);
   const consent = await client.query<IdRow>(
     `INSERT INTO consents (
