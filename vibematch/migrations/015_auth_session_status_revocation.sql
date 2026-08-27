@@ -11,7 +11,7 @@ AS $$
 BEGIN
   IF OLD.status = 'ACTIVE' AND NEW.status <> 'ACTIVE' THEN
     UPDATE public.auth_sessions
-    SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP)
+    SET revoked_at = COALESCE(revoked_at, clock_timestamp())
     WHERE user_id = NEW.id
       AND revoked_at IS NULL;
   END IF;
