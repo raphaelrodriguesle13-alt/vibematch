@@ -4,6 +4,7 @@ import { PhoneVerificationService } from '../auth/phone-service';
 import { GoogleOidcProvider } from '../auth/providers/google';
 import { JwtSessionProvider } from '../auth/providers/jwt';
 import { TwilioVerifyProvider } from '../auth/providers/twilio-verify';
+import { registerRefreshRoute } from '../auth/refresh-http';
 import { AuthRepository } from '../auth/repository';
 import { AuthService } from '../auth/service';
 import { createBillingRuntime, type BillingRuntime } from '../billing/factory';
@@ -115,6 +116,8 @@ export const createProductionRuntime = (): ProductionRuntime => {
     moderationService,
     chatService,
   });
+
+  registerRefreshRoute(app, { authService });
 
   registerAgeAssuranceRoutes(app, {
     service: ageAssuranceService,
