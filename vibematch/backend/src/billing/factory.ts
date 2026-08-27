@@ -9,6 +9,7 @@ export type BillingRuntime = {
   service: BillingService;
   rtdnVerifier: PubSubPushVerifier;
   packageName: string;
+  checkReady(): Promise<boolean>;
   close(): Promise<void>;
 };
 
@@ -30,6 +31,10 @@ export const createBillingRuntime = (): BillingRuntime => {
     service,
     rtdnVerifier,
     packageName,
+    checkReady: async () => {
+      await pool.query('SELECT 1');
+      return true;
+    },
     close: async () => pool.end(),
   };
 };
