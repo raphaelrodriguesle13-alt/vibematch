@@ -30,7 +30,12 @@ export const verifyDiditWebhookV2 = (
   secret: string,
   now: Date = new Date(),
 ): boolean => {
-  if (!signature?.trim() || !timestamp?.trim() || !secret.trim() || !/^\d+$/.test(timestamp)) {
+  if (
+    !signature?.trim() ||
+    !timestamp?.trim() ||
+    !secret.trim() ||
+    !/^\d+$/.test(timestamp)
+  ) {
     return false;
   }
   const incoming = Number.parseInt(timestamp, 10);
@@ -41,7 +46,9 @@ export const verifyDiditWebhookV2 = (
   const expected = createHmac('sha256', secret).update(canonical).digest('hex');
   const expectedBuffer = Buffer.from(expected, 'utf8');
   const actualBuffer = Buffer.from(signature, 'utf8');
-  return expectedBuffer.length === actualBuffer.length && timingSafeEqual(expectedBuffer, actualBuffer);
+  return (
+    expectedBuffer.length === actualBuffer.length && timingSafeEqual(expectedBuffer, actualBuffer)
+  );
 };
 
 export const diditSessionRef = (body: DiditWebhookBody): string | null =>
