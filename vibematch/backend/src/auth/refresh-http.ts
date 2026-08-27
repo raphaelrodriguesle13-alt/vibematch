@@ -49,10 +49,10 @@ export const registerRefreshRoute = (app: FastifyInstance, deps: RefreshHttpDepe
 
     try {
       await deps.authService.logoutWithRefresh(refreshToken);
+      return reply.code(200).send({ ok: true });
     } catch (error) {
       request.log.error({ err: error }, 'auth/logout/refresh failed');
+      return reply.code(503).send({ error: 'REVOCATION_UNAVAILABLE' });
     }
-
-    return reply.code(200).send({ ok: true });
   });
 };
