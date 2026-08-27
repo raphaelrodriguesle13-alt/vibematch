@@ -28,12 +28,16 @@ export const redactSensitive = (value: unknown): unknown => {
   return redacted;
 };
 
+const writeStructured = (stream: NodeJS.WriteStream, entry: Readonly<Record<string, unknown>>): void => {
+  stream.write(`${JSON.stringify(redactSensitive(entry))}\n`);
+};
+
 export const consoleStructuredLogger: StructuredLogSink = {
   info(entry) {
-    console.info(JSON.stringify(redactSensitive(entry)));
+    writeStructured(process.stdout, entry);
   },
   error(entry) {
-    console.error(JSON.stringify(redactSensitive(entry)));
+    writeStructured(process.stderr, entry);
   },
 };
 
