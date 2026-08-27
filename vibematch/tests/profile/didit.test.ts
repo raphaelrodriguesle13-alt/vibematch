@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { DiditAgeAssuranceProvider } from '../../backend/src/profile/providers/didit';
 
 describe('DiditAgeAssuranceProvider', () => {
