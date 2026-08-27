@@ -171,11 +171,14 @@ export class BillingService {
       throw new BillingError('PURCHASE_NOT_OWNED', 'Purchase ownership changed unexpectedly');
     }
 
+    // RTDN must keep Google Play accounting synchronized even for a restricted account,
+    // but account restriction always dominates the effective premium authorization.
+    const accountActive = await this.repository.isUserActive(userId);
     return {
       duplicate: false,
       entitlement: {
         ...stored,
-        entitled: isEntitled(stored.status, stored.currentPeriodEnd, now),
+        entitled: accountActive && isEntitled(stored.status, stored.currentPeriodEnd, now),
       },
     };
   }
