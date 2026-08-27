@@ -36,6 +36,30 @@ function intFromEnv(name: string, fallback: number): number {
   return n;
 }
 
+function optionalStringRecord(name: string): Readonly<Record<string, string>> {
+  const raw = process.env[name];
+  if (!raw || raw.trim() === '') return {};
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error(`Environment variable ${name} must be a JSON object`);
+  }
+  if (parsed === null || Array.isArray(parsed) || typeof parsed !== 'object') {
+    throw new Error(`Environment variable ${name} must be a JSON object`);
+  }
+
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (key.trim() === '' || key !== key.trim() || typeof value !== 'string' || value.trim() === '') {
+      throw new Error(`Environment variable ${name} must map non-empty key ids to public keys`);
+    }
+    result[key] = value.replace(/\\n/g, '\n');
+  }
+  return result;
+}
+
 export const env = {
   nodeEnv: (process.env.NODE_ENV ?? 'development') as Environment,
   port: intFromEnv('PORT', 3000),
@@ -50,6 +74,7 @@ export const env = {
   jwtPrivateKeyPem: () => required('JWT_PRIVATE_KEY_PEM').replace(/\\n/g, '\n'),
   jwtPublicKeyPem: () => required('JWT_PUBLIC_KEY_PEM').replace(/\\n/g, '\n'),
   jwtKeyId: () => required('JWT_KEY_ID'),
+  jwtVerificationPublicKeys: () => optionalStringRecord('JWT_VERIFICATION_PUBLIC_KEYS_JSON'),
   jwtIssuer: () => required('JWT_ISSUER'),
   jwtAudience: () => required('JWT_AUDIENCE'),
 
