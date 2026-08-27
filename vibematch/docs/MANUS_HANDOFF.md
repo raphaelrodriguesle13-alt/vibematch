@@ -11,7 +11,8 @@ O rebase obrigatório preservou os commits cooperativos publicados entre o HEAD 
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | Repositório                                     | `raphaelrodriguesle13-alt/vibematch`                                                        |
 | Branch exclusiva                                | `continuity`                                                                                |
-| HEAD inicial desta continuação                  | `ad25840923e00663e83365b606bd5af8ec81942f` — `test: assert age assurance column privileges` |
+| HEAD inicial histórico da continuidade          | `ad25840923e00663e83365b606bd5af8ec81942f` — `test: assert age assurance column privileges` |
+| HEAD inicial desta tarefa                       | `015d4b640a67718cbec51feaa8808b9c1e6c7773` — `test(android): add keystore refresh runner`   |
 | HEAD cooperativo final encontrado no rebase     | `855deab` — `docs(runtime): document readiness and db timeouts`                             |
 | Commit do plano E2E na ancestralidade atual     | `6558d04` — `docs(android): add real e2e release plan`                                      |
 | Commit do preflight E2E na ancestralidade atual | `4710982` — `test(android): add sanitized e2e preflight`                                    |
@@ -19,10 +20,11 @@ O rebase obrigatório preservou os commits cooperativos publicados entre o HEAD 
 | HEAD local após avanço Android/backend          | `6c93835` — `fix(http): narrow sanitized error status safely`                               |
 | HEAD final da etapa anterior                    | `e01866c` — `docs(android): document e2e runner and accessibility advance`                  |
 | HEAD cooperativo base desta tarefa              | `38d6373` — `test(auth): require refresh credential on Google login`                        |
+| HEAD de código antes do handoff final           | `c2ff52b` — `ci(android): compile instrumented test artifact`                               |
 
 | Publicação permitida | Somente `origin/continuity`, sem force-push |
 
-Durante os rebases, `origin/continuity` avançou do HEAD inicial até `38d6373`, incluindo hardening cooperativo de JWT, rotação de `kid`, validação fail-closed de configuração de produção, observabilidade segura, readiness por privilégios mínimos, limites de conexão, smoke pós-deploy, documentação de timeouts/DB e o contrato server-side de refresh rotativo.
+Durante os rebases, `origin/continuity` avançou do HEAD inicial desta tarefa `015d4b6` até `38d6373`, incluindo hardening cooperativo de JWT, rotação de `kid`, validação fail-closed de configuração de produção, observabilidade segura, readiness por privilégios mínimos, limites de conexão, smoke pós-deploy, documentação de timeouts/DB e o contrato server-side de refresh rotativo.
 O trabalho Android e a matriz E2E foram preservados por `stash`, `rebase origin/continuity` e `stash pop`. A lógica de produção backend não foi reescrita nesta etapa; o único diff backend local adicional foi formatação e uma fixture de teste compatível com `exactOptionalPropertyTypes`.
 
 ## Commits desta entrega
@@ -42,10 +44,14 @@ O trabalho Android e a matriz E2E foram preservados por `stash`, `rebase origin/
 | `38d6373` | `test(auth): require refresh credential on Google login`       |
 | `97f64ce` | `feat(android): add server-authorized session refresh`         |
 | `a7157da` | `test(auth): align refresh contract fixture with strict types` |
+| `0a79e12` | `docs(android): document server-authorized session refresh`    |
+| `015d4b6` | `test(android): add keystore refresh runner`                   |
+| `c2ff52b` | `ci(android): compile instrumented test artifact`              |
 
 | Commit documental posterior | O SHA final deve ser confirmado com `git rev-parse HEAD` após a publicação deste handoff. |
 
-Os arquivos Android modificados foram `Billing.kt`, `BillingTest.kt`, `MainActivity.kt`, `ProfileApiClient.kt`, `ProfileModels.kt`, `ProfileViewModel.kt`, `ProfileApiClientTest.kt`, `ProfileViewModelTest.kt`, `auth/AuthRepository.kt`, `auth/AuthViewModel.kt`, `auth/SessionRefresh.kt`, `AuthRepositoryTest.kt`, `AuthViewModelTest.kt`, `SessionRefreshTest.kt` e `android/app/build.gradle.kts`. A documentação alterada foi `android/README.md`, `docs/CHANGELOG.md`, `docs/ANDROID_AUTH_REFRESH_NOTES.md` e este handoff. O backend já continha o contrato de refresh publicado; nesta etapa não foi necessário alterar sua lógica de produção.
+Os arquivos Android modificados foram `Billing.kt`, `BillingTest.kt`, `MainActivity.kt`, `ProfileApiClient.kt`, `ProfileModels.kt`, `ProfileViewModel.kt`, `ProfileApiClientTest.kt`, `ProfileViewModelTest.kt`, `auth/AuthRepository.kt`, `auth/AuthViewModel.kt`, `auth/SessionRefresh.kt`, `AuthRepositoryTest.kt`, `AuthViewModelTest.kt`, `SessionRefreshTest.kt`, `androidTest/SecureSessionStoreInstrumentedTest.kt` e `android/app/build.gradle.kts`.
+A documentação alterada foi `android/README.md`, `docs/CHANGELOG.md`, `docs/ANDROID_AUTH_REFRESH_NOTES.md` e este handoff. O backend já continha o contrato de refresh publicado; nesta etapa não foi necessário alterar sua lógica de produção.
 
 ## Contratos Android implementados
 
@@ -109,6 +115,7 @@ Os gates foram executados no sandbox com Java 21 configurando toolchain Android 
 | `./gradlew :app:compileDebugKotlin` | Aprovado |
 | `./gradlew :app:compileDebugAndroidTestKotlin` | Aprovado |
 | `./gradlew :app:assembleDebugAndroidTest` | Aprovado |
+| CI Android com `:app:assembleDebugAndroidTest` | Workflow atualizado e sintaticamente validado; execução remota depende do próximo CI run |
 | `./gradlew :app:assembleDebug` | Aprovado |
 | `./gradlew :app:lintDebug` | Aprovado |
 | `./gradlew :app:bundleRelease` com API HTTPS, LiveKit WSS e produto público placeholder | Aprovado; AAB unsigned buildable |
@@ -131,30 +138,32 @@ A implementação de segurança de release aceita placeholders públicos apenas 
 
 Os artefatos foram regenerados no gate final antes do commit documental. O AAB é construível, mas não está assinado.
 
-| Artefato             | Caminho                                                    | SHA-256                                                            |
-| -------------------- | ---------------------------------------------------------- | ------------------------------------------------------------------ |
-| Debug APK            | `android/app/build/outputs/apk/debug/app-debug.apk`        | `9435cfcbc62bf9f6e788098db4b8c2f22a223d629e20b1989bbf2bc28348e23e` |
-| Release AAB unsigned | `android/app/build/outputs/bundle/release/app-release.aab` | `99ae053bdf226cde8c5d552de9c041d29a182caa5104c1ab027b519189b0febc` |
+| Artefato             | Caminho                                                                     | SHA-256                                                            |
+| -------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Debug APK            | `android/app/build/outputs/apk/debug/app-debug.apk`                         | `37a836d1f594ea9a58130a15ebc7e9bacdd0d0b447faf8e6883419a11f8dae41` |
+| Release AAB unsigned | `android/app/build/outputs/bundle/release/app-release.aab`                  | `643f3f040eed9f516ae56026de71dc346d24cf8d9890d53bd7b429017c077d4d` |
+| Debug test APK       | `android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk` | `269264c52419ef488451693670e76f4020b0e501f0040607f95b33bfec741047` |
 
 ## Classificação de readiness e validação externa
 
-| Área                             | Classificação                                 | Observação                                                                                                                          |
-| -------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Billing Android client flow      | **IMPLEMENTED + TESTED**                      | Contrato, entitlement server-side, restore sem compra local, deduplicação, stale callback e fail-closed cobertos por testes locais. |
-| Play sandbox/Play Console        | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | Não há produto, licença de teste, conta Play Console ou dispositivo neste ambiente; nenhuma compra real foi alegada.                |
-| Age Assurance hosted UX          | **IMPLEMENTED + TESTED**                      | Start/refresh, URL HTTPS, estados e respostas tardias têm cobertura de contrato/ViewModel.                                          |
-| Didit/provider Age Assurance E2E | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | Requer API key/workflow, webhook autenticado, navegador/dispositivo e decisão real; não foi executado.                              |
-| Auth/Google OIDC Android client  | **IMPLEMENTED + TESTED**                      | Login/refresh server-side, encrypted storage, single-flight, retry único e fail-closed têm cobertura local.                         |
-| Auth/Google OIDC Android E2E     | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | Credential Manager, Web client ID real e dispositivo/Google Play ainda são necessários para expiração/rotação real.                 |
-| LiveKit/RTC duas partes          | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | Lifecycle, JIT e renderer cleanup têm testes locais; mídia, reconexão e revogação reais exigem duas contas e backend configurado.   |
-| Block/Report                     | **IMPLEMENTED + TESTED**                      | UI e contratos server-side estão conectados; a confirmação depende do backend e o E2E operacional não foi executado.                |
-| AAB                              | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | Build unsigned aprovado; assinatura, keystore, Play App Signing e Play Console ainda são externos.                                  |
-| Notificações Android             | **NOT IMPLEMENTED**                           | Nenhum contrato backend seguro de registro/entrega foi observado; não foi inventada autoridade local.                               |
-| Deep link Age Assurance          | **NOT IMPLEMENTED**                           | O retorno atual é ActivityResult/`ON_RESUME`; não há app link/deep link backend publicado.                                          |
-| Renovação de sessão              | **IMPLEMENTED + TESTED**                      | Contrato `/auth/refresh`, encrypted storage, single-flight, retry único, stale protection e logout fail-closed cobertos localmente. |
-| Keystore instrumentado           | **IMPLEMENTED, NEEDS REAL DEVICE**            | `SecureSessionStoreInstrumentedTest` compila e o runner está pronto; execução não ocorreu por ausência de device autorizado.        |
+| Área                             | Classificação                                 | Observação                                                                                                                                                     |
+| -------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Billing Android client flow      | **IMPLEMENTED + TESTED**                      | Contrato, entitlement server-side, restore sem compra local, deduplicação, stale callback e fail-closed cobertos por testes locais.                            |
+| Play sandbox/Play Console        | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | Não há produto, licença de teste, conta Play Console ou dispositivo neste ambiente; nenhuma compra real foi alegada.                                           |
+| Age Assurance hosted UX          | **IMPLEMENTED + TESTED**                      | Start/refresh, URL HTTPS, estados e respostas tardias têm cobertura de contrato/ViewModel.                                                                     |
+| Didit/provider Age Assurance E2E | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | Requer API key/workflow, webhook autenticado, navegador/dispositivo e decisão real; não foi executado.                                                         |
+| Auth/Google OIDC Android client  | **IMPLEMENTED + TESTED**                      | Login/refresh server-side, encrypted storage, single-flight, retry único e fail-closed têm cobertura local.                                                    |
+| Auth/Google OIDC Android E2E     | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | Credential Manager, Web client ID real e dispositivo/Google Play ainda são necessários para expiração/rotação real.                                            |
+| LiveKit/RTC duas partes          | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | Lifecycle, JIT e renderer cleanup têm testes locais; mídia, reconexão e revogação reais exigem duas contas e backend configurado.                              |
+| Block/Report                     | **IMPLEMENTED + TESTED**                      | UI e contratos server-side estão conectados; a confirmação depende do backend e o E2E operacional não foi executado.                                           |
+| AAB                              | **IMPLEMENTED, NEEDS REAL CREDENTIAL/DEVICE** | Build unsigned aprovado; assinatura, keystore, Play App Signing e Play Console ainda são externos.                                                             |
+| Notificações Android             | **NOT IMPLEMENTED**                           | Nenhum contrato backend seguro de registro/entrega foi observado; não foi inventada autoridade local.                                                          |
+| Deep link Age Assurance          | **NOT IMPLEMENTED**                           | O retorno atual é ActivityResult/`ON_RESUME`; não há app link/deep link backend publicado.                                                                     |
+| Renovação de sessão              | **IMPLEMENTED + TESTED**                      | Contrato `/auth/refresh`, encrypted storage, single-flight, retry único, stale protection e logout fail-closed cobertos localmente.                            |
+| Keystore instrumentado           | **IMPLEMENTED, NEEDS REAL DEVICE**            | `SecureSessionStoreInstrumentedTest` compila, o CI compila o APK instrumentado e o runner está pronto; execução não ocorreu por ausência de device autorizado. |
 
-O preflight reproduzível está em `tools/android-e2e-preflight.sh`; ele aceita um APK por `APK_PATH`, usa `ADB_BIN`/`ANDROID_SDK_ROOT` sem coletar credenciais e retorna `BLOCKED` quando não há dispositivo autorizado. O runner complementar `tools/android-e2e-session.sh` exige exatamente um device, confirma Play Services/Play Store, instala um APK, inicia o package e imprime apenas metadados sanitizados; sem device, retorna `BLOCKED` antes de qualquer fluxo. As notas do contrato de refresh estão em `docs/ANDROID_AUTH_REFRESH_NOTES.md`.
+O preflight reproduzível está em `tools/android-e2e-preflight.sh`; ele aceita um APK por `APK_PATH`, usa `ADB_BIN`/`ANDROID_SDK_ROOT` sem coletar credenciais e retorna `BLOCKED` quando não há dispositivo autorizado.
+O runner complementar `tools/android-e2e-session.sh` exige exatamente um device, confirma Play Services/Play Store, instala um APK, inicia o package e imprime apenas metadados sanitizados; sem device, retorna `BLOCKED` antes de qualquer fluxo. As notas do contrato de refresh estão em `docs/ANDROID_AUTH_REFRESH_NOTES.md`.
 O smoke de composição de produção gera chaves RSA efêmeras em memória, evitando que placeholders inválidos sejam tratados como credenciais reais.
 O AVD Google Play API 35 foi criado, mas a máquina não expõe `/dev/kvm` e o boot headless não concluiu. Os testes de banco continuam dependentes de `DATABASE_URL_OWNER` e demais URLs PostgreSQL. A migração de `EncryptedSharedPreferences`/`MasterKey` deprecados não foi forçada, pois preservar a sessão existente com uma migração segura e testada é preferível a uma troca cega antes da release. Também permanecem necessários observabilidade sanitizada, políticas operacionais de moderação, revisão de privacidade, assinatura e configuração de produção.
 
