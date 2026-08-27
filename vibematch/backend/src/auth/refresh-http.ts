@@ -4,13 +4,18 @@ import { AuthError, type AuthService } from './service';
 type RefreshBody = { refresh_token?: unknown };
 
 export type RefreshHttpDependencies = {
-  authService: Pick<AuthService, 'refresh'>;
+  authService: Pick<AuthService, 'refresh' | 'logoutWithRefresh'>;
+};
+
+const refreshTokenFromBody = (body: RefreshBody | undefined): string | null => {
+  const refreshToken = body?.refresh_token;
+  return typeof refreshToken === 'string' && refreshToken.trim() !== '' ? refreshToken : null;
 };
 
 export const registerRefreshRoute = (app: FastifyInstance, deps: RefreshHttpDependencies): void => {
   app.post<{ Body: RefreshBody }>('/auth/refresh', async (request, reply) => {
-    const refreshToken = request.body?.refresh_token;
-    if (typeof refreshToken !== 'string' || refreshToken.trim() === '') {
+    const refreshToken = refreshTokenFromBody(request.body);
+    if (!refreshToken) {
       return reply.code(400).send({ error: 'INVALID_REQUEST' });
     }
 
@@ -34,5 +39,20 @@ export const registerRefreshRoute = (app: FastifyInstance, deps: RefreshHttpDepe
       request.log.error({ err: error }, 'auth/refresh failed');
       return reply.code(500).send({ error: 'INTERNAL_ERROR' });
     }
+  });
+
+  app.post<{ Body: RefreshBody }>('/auth/logout/refresh', async (request, reply) => {
+    const refreshToken = refreshTokenFromBody(request.body);
+    if (!refreshToken) {
+      return reply.code(400).send({ error: 'INVALID_REQUEST' });
+    }
+
+    try {
+      await deps.authService.logoutWithRefresh(refreshToken);
+    } catch (error) {
+      request.log.error({ err: error }, 'auth/logout/refresh failed');
+    }
+
+    return reply.code(200).send({ ok: true });
   });
 };
