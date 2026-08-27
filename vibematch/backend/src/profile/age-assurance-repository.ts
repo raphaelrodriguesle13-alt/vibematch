@@ -39,16 +39,23 @@ export class AgeAssuranceRepository implements AgeAssuranceRepositoryPort {
     try {
       await client.query('BEGIN');
       const user = await client.query<{ id: string }>(
-        `UPDATE users
-         SET age_assurance_status = 'PENDING', updated_at = $2
+        `SELECT id
+         FROM users
          WHERE id = $1 AND status = 'ACTIVE'
-         RETURNING id`,
-        [userId, now],
+         FOR UPDATE`,
+        [userId],
       );
       if (!user.rows[0]) {
         await client.query('ROLLBACK');
         return null;
       }
+
+      await client.query(
+        `UPDATE users
+         SET age_assurance_status = 'PENDING', updated_at = $2
+         WHERE id = $1 AND status = 'ACTIVE'`,
+        [userId, now],
+      );
       const result = await client.query<AgeSessionRow>(
         `INSERT INTO age_assurance_sessions
            (user_id, provider_session_ref, verification_url, status, created_at, updated_at)
@@ -73,9 +80,11 @@ export class AgeAssuranceRepository implements AgeAssuranceRepositoryPort {
 
   async getSession(userId: string): Promise<AgeAssuranceSession | null> {
     const result = await this.pool.query<AgeSessionRow>(
-      `SELECT user_id, provider_session_ref, verification_url, status
-       FROM age_assurance_sessions
-       WHERE user_id = $1`,
+      `SELECT a.user_id, a.provider_session_ref, a.verification_url, a.status
+       FROM age_assurance_sessions AS a
+       JOIN users AS u ON u.id = a.user_id
+       WHERE a.user_id = $1
+         AND u.status = 'ACTIVE'`,
       [userId],
     );
     return this.mapSession(result.rows[0]);
@@ -90,6 +99,18 @@ export class AgeAssuranceRepository implements AgeAssuranceRepositoryPort {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
+      const activeUser = await client.query<{ id: string }>(
+        `SELECT id
+         FROM users
+         WHERE id = $1 AND status = 'ACTIVE'
+         FOR UPDATE`,
+        [userId],
+      );
+      if (!activeUser.rows[0]) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+
       const session = await client.query<{ user_id: string }>(
         `UPDATE age_assurance_sessions
          SET status = $3, updated_at = $4
@@ -108,8 +129,12 @@ export class AgeAssuranceRepository implements AgeAssuranceRepositoryPort {
          RETURNING age_assurance_status`,
         [userId, status, now],
       );
+      if (!user.rows[0]) {
+        await client.query('ROLLBACK');
+        return null;
+      }
       await client.query('COMMIT');
-      return user.rows[0]?.age_assurance_status ?? null;
+      return user.rows[0].age_assurance_status;
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
