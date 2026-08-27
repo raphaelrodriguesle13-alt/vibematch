@@ -10,6 +10,7 @@ import { createBillingRuntime, type BillingRuntime } from '../billing/factory';
 import { registerBillingRoutes } from '../billing/http';
 import { createChatService } from '../chat/factory';
 import { env } from '../config/env';
+import { validateProductionConfig } from '../config/production-validation';
 import { ConsentRepository } from '../consent/repository';
 import { ConsentService } from '../consent/service';
 import { buildApp } from '../http/app';
@@ -36,6 +37,8 @@ export type ProductionRuntime = {
 };
 
 export const createProductionRuntime = (): ProductionRuntime => {
+  validateProductionConfig();
+
   const authPool = new Pool({ connectionString: env.authDatabaseUrl() });
   const profilePool = new Pool({ connectionString: env.profileDatabaseUrl() });
   const matchmakingPool = new Pool({ connectionString: env.matchmakingDatabaseUrl() });
