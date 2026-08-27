@@ -46,6 +46,7 @@ export const createProductionRuntime = (): ProductionRuntime => {
     privateKeyPem: env.jwtPrivateKeyPem(),
     publicKeyPem: env.jwtPublicKeyPem(),
     keyId: env.jwtKeyId(),
+    verificationPublicKeys: env.jwtVerificationPublicKeys(),
     issuer: env.jwtIssuer(),
     audience: env.jwtAudience(),
   });
