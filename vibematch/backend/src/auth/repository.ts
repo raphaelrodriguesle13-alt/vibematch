@@ -234,12 +234,14 @@ export class AuthRepository {
     now: Date,
   ): Promise<AuthSession | null> {
     const result = await this.pool.query<SessionRow>(
-      `SELECT id, user_id, expires_at, revoked_at
-       FROM auth_sessions
-       WHERE id = $1
-         AND user_id = $2
-         AND revoked_at IS NULL
-         AND expires_at > $3`,
+      `SELECT s.id, s.user_id, s.expires_at, s.revoked_at
+       FROM auth_sessions s
+       JOIN users u ON u.id = s.user_id
+       WHERE s.id = $1
+         AND s.user_id = $2
+         AND s.revoked_at IS NULL
+         AND s.expires_at > $3
+         AND u.status = 'ACTIVE'`,
       [sessionId, userId, now],
     );
     const row = result.rows[0];
@@ -248,9 +250,14 @@ export class AuthRepository {
 
   async touchSession(userId: string, sessionId: string, seenAt: Date): Promise<void> {
     await this.pool.query(
-      `UPDATE auth_sessions
+      `UPDATE auth_sessions AS s
        SET last_seen_at = $3
-       WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL`,
+       FROM users AS u
+       WHERE s.id = $1
+         AND s.user_id = $2
+         AND s.revoked_at IS NULL
+         AND u.id = s.user_id
+         AND u.status = 'ACTIVE'`,
       [sessionId, userId, seenAt],
     );
   }
