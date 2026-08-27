@@ -39,7 +39,8 @@ const poolFor = (
   updatedStatus: StatusRow | null,
 ): { pool: Pool; clientQuery: ReturnType<typeof jest.fn> } => {
   const clientQuery = jest.fn((sql: string) => {
-    if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return Promise.resolve(result([]));
+    if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK')
+      return Promise.resolve(result([]));
     if (sql.includes('UPDATE age_assurance_sessions')) {
       return Promise.resolve(result(updatedStatus ? [updatedStatus] : []));
     }
@@ -69,10 +70,7 @@ describe('AgeWebhookReconciler', () => {
   });
 
   it('is idempotent for a duplicate terminal provider decision', async () => {
-    const { pool } = poolFor(
-      { user_id: 'user-1', status: 'APPROVED' },
-      { status: 'APPROVED' },
-    );
+    const { pool } = poolFor({ user_id: 'user-1', status: 'APPROVED' }, { status: 'APPROVED' });
     const { provider } = providerFor('APPROVED');
     const reconciler = new AgeWebhookReconciler(pool, provider);
 

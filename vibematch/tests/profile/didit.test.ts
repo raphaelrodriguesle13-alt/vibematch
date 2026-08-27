@@ -49,7 +49,9 @@ describe('DiditAgeAssuranceProvider', () => {
 
   test('rejects an insecure hosted verification URL', async () => {
     const fetchImpl: typeof fetch = jest.fn(() =>
-      Promise.resolve(response({ session_id: 'session-123', url: 'http://unsafe.example/session' })),
+      Promise.resolve(
+        response({ session_id: 'session-123', url: 'http://unsafe.example/session' }),
+      ),
     );
     const provider = new DiditAgeAssuranceProvider({
       apiKey: 'server-only-key',

@@ -28,7 +28,9 @@ describe('TwilioVerifyProvider', () => {
   });
 
   test('accepts a code only when Twilio returns approved', async () => {
-    const fetchImpl: typeof fetch = jest.fn(() => Promise.resolve(response({ status: 'approved' })));
+    const fetchImpl: typeof fetch = jest.fn(() =>
+      Promise.resolve(response({ status: 'approved' })),
+    );
     const provider = new TwilioVerifyProvider({
       accountSid: 'AC123',
       authToken: 'server-secret',
