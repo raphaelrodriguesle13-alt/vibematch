@@ -6,28 +6,32 @@ Atualizado em **2026-08-27** após a continuação exclusiva na branch `continui
 
 O objetivo desta etapa foi aproximar o cliente Android de um AAB release-ready, reforçando o Play Billing server-authorized, o Age Assurance hosted, a UX de estados vazios e retry, o lifecycle do RTC e os gates de segurança de release. O rebase obrigatório preservou os commits cooperativos publicados entre o HEAD inicial e o trabalho local; não houve reset destrutivo, force-push, alteração da `main` ou alteração da lógica de produção backend.
 
-| Item                                              | Valor                                                                                                |
-| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Repositório                                       | `raphaelrodriguesle13-alt/vibematch`                                                                 |
-| Branch exclusiva                                  | `continuity`                                                                                         |
-| HEAD inicial desta continuação                    | `ad25840923e00663e83365b606bd5af8ec81942f` — `test: assert age assurance column privileges`          |
-| HEAD cooperativo encontrado no rebase             | `a2a39998488de7283c5b8541e0676180916ec025` — `style(config): apply production validation formatting` |
-| HEAD local do plano/runner E2E                    | `4710982` — `test(android): add sanitized e2e preflight`                                             |
-| HEAD publicado antes desta atualização documental | `3eee40a63715857a646a522ee6708d162544e3ba`                                                           |
-| Publicação permitida                              | Somente `origin/continuity`, sem force-push                                                          |
+| Item                                         | Valor                                                                                                                |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Repositório                                  | `raphaelrodriguesle13-alt/vibematch`                                                                                 |
+| Branch exclusiva                             | `continuity`                                                                                                         |
+| HEAD inicial desta continuação               | `ad25840923e00663e83365b606bd5af8ec81942f` — `test: assert age assurance column privileges`                          |
+| HEAD cooperativo final encontrado no rebase  | `5ecbf9691a474115e041a3e14666ab9180232a5f` — `test(runtime): prove readiness through least-privilege database roles` |
+| Commit do plano E2E na ancestralidade atual  | `6558d04` — `docs(android): add real e2e release plan`                                                               |
+| Commit do runner E2E na ancestralidade atual | `4710982` — `test(android): add sanitized e2e preflight`                                                             |
+| HEAD local após smoke/gates cooperativos     | `9c322ab` — `test(runtime): use ephemeral jwt smoke keys`                                                            |
 
-Durante os rebases, `origin/continuity` avançou do HEAD inicial até `a2a3999`, incluindo hardening cooperativo de JWT, rotação de `kid` e validação fail-closed de configuração de produção. O trabalho Android e a matriz E2E foram preservados por `stash`, `rebase origin/continuity` e `stash pop`. Nenhum arquivo de produção backend foi alterado nesta etapa.
+| Publicação permitida | Somente `origin/continuity`, sem force-push |
+
+Durante os rebases, `origin/continuity` avançou do HEAD inicial até `5ecbf96`, incluindo hardening cooperativo de JWT, rotação de `kid`, validação fail-closed de configuração de produção, observabilidade segura e readiness por privilégios mínimos. O trabalho Android e a matriz E2E foram preservados por `stash`, `rebase origin/continuity` e `stash pop`. Nenhum arquivo de produção backend foi alterado pela frente Android nesta etapa.
 
 ## Commits desta entrega
 
-| Commit                      | Descrição                                                                                                                     |
-| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `913da41`                   | `fix(android): harden billing callback lifecycle`                                                                             |
-| `e20ff8f`                   | `feat(android): add hosted age assurance flow`                                                                                |
-| `59302db`                   | `build(android): reject local release endpoints`                                                                              |
-| `057e199`                   | `style: align cooperative provider test formatting`                                                                           |
-| `4710982`                   | `test(android): add sanitized e2e preflight`                                                                                  |
-| `338d9ea`                   | `docs(android): add real e2e release plan`                                                                                    |
+| Commit    | Descrição                                           |
+| --------- | --------------------------------------------------- |
+| `913da41` | `fix(android): harden billing callback lifecycle`   |
+| `e20ff8f` | `feat(android): add hosted age assurance flow`      |
+| `59302db` | `build(android): reject local release endpoints`    |
+| `057e199` | `style: align cooperative provider test formatting` |
+| `4710982` | `test(android): add sanitized e2e preflight`        |
+| `338d9ea` | `docs(android): add real e2e release plan`          |
+| `9c322ab` | `test(runtime): use ephemeral jwt smoke keys`       |
+
 | Commit documental posterior | Atualiza este handoff com o inventário final; o SHA da branch deve ser confirmado com `git rev-parse HEAD` após a publicação. |
 
 Os arquivos Android modificados foram `Billing.kt`, `BillingTest.kt`, `MainActivity.kt`, `ProfileApiClient.kt`, `ProfileModels.kt`, `ProfileViewModel.kt`, `ProfileApiClientTest.kt`, `ProfileViewModelTest.kt` e `android/app/build.gradle.kts`. A documentação alterada foi `android/README.md`, `docs/CHANGELOG.md` e este handoff. Os três testes backend formatados foram `tests/auth/twilio-verify.test.ts`, `tests/profile/age-webhook-reconciler.test.ts` e `tests/profile/didit.test.ts`.
@@ -79,6 +83,7 @@ Os gates foram executados no sandbox com Java 21 configurando toolchain Android 
 | `npm run lint`                                                                          | Aprovado                                                                                   |
 | `npm run format:check`                                                                  | Aprovado                                                                                   |
 | `npm run test:unit`                                                                     | Aprovado: **28 suítes, 138 testes**                                                        |
+| `NODE_OPTIONS=--experimental-vm-modules npx jest tests/http tests/runtime --runInBand`  | Aprovado: **2 suítes, 5 testes**                                                           |
 | `./gradlew :app:testDebugUnitTest`                                                      | Aprovado: **13 suítes, 76 testes**                                                         |
 | `./gradlew :app:compileDebugKotlin`                                                     | Aprovado                                                                                   |
 | `./gradlew :app:assembleDebug`                                                          | Aprovado                                                                                   |
@@ -122,7 +127,8 @@ Os artefatos foram regenerados no gate final antes do commit documental. O AAB �
 | Deep link Age Assurance          | **NOT IMPLEMENTED**                           | O retorno atual é ActivityResult/`ON_RESUME`; não há app link/deep link backend publicado.                                          |
 | Renovação de sessão              | **NOT IMPLEMENTED**                           | O backend não expõe contrato cliente de refresh; HTTP 401 encerra a sessão de forma fail-closed.                                    |
 
-O preflight reproduzível está em `tools/android-e2e-preflight.sh`; ele aceita um APK por `APK_PATH`, usa `ADB_BIN`/`ANDROID_SDK_ROOT` sem coletar credenciais e retorna `BLOCKED` quando não há dispositivo autorizado. O AVD Google Play API 35 foi criado, mas a máquina não expõe `/dev/kvm` e o boot headless não concluiu. Os testes de banco continuam dependentes de `DATABASE_URL_OWNER` e demais URLs PostgreSQL. A migração de `EncryptedSharedPreferences`/`MasterKey` deprecados não foi forçada, pois preservar a sessão existente com uma migração segura e testada é preferível a uma troca cega antes da release. Também permanecem necessários observabilidade sanitizada, políticas operacionais de moderação, revisão de privacidade, assinatura e configuração de produção.
+O preflight reproduzível está em `tools/android-e2e-preflight.sh`; ele aceita um APK por `APK_PATH`, usa `ADB_BIN`/`ANDROID_SDK_ROOT` sem coletar credenciais e retorna `BLOCKED` quando não há dispositivo autorizado. O smoke de composição de produção gera chaves RSA efêmeras em memória, evitando que placeholders inválidos sejam tratados como credenciais reais.
+O AVD Google Play API 35 foi criado, mas a máquina não expõe `/dev/kvm` e o boot headless não concluiu. Os testes de banco continuam dependentes de `DATABASE_URL_OWNER` e demais URLs PostgreSQL. A migração de `EncryptedSharedPreferences`/`MasterKey` deprecados não foi forçada, pois preservar a sessão existente com uma migração segura e testada é preferível a uma troca cega antes da release. Também permanecem necessários observabilidade sanitizada, políticas operacionais de moderação, revisão de privacidade, assinatura e configuração de produção.
 
 > **ANDROID RELEASE READINESS: 74%**
 
