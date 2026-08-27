@@ -1,5 +1,9 @@
 import type { FastifyInstance } from 'fastify';
-import { diditSessionRef, type DiditWebhookBody, verifyDiditWebhookV2 } from './didit-webhook';
+import {
+  diditSessionRef,
+  type DiditWebhookBody,
+  verifyDiditWebhookV2,
+} from './didit-webhook';
 import type { AgeWebhookReconciler } from './age-webhook-reconciler';
 
 export type AgeWebhookHttpDependencies = {
