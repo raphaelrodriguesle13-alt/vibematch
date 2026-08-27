@@ -65,6 +65,18 @@ describe('Direct invocation of administrative SECURITY DEFINER functions is deni
       expect(err!.code).toBe(PERMISSION_DENIED);
     },
   );
+
+  test.each(roles)(
+    '%s CANNOT directly call enforce_restrictive_moderation_decision()',
+    async (role) => {
+      const err = await expectDbError(
+        rolePools[role],
+        'SELECT enforce_restrictive_moderation_decision()',
+      );
+      expect(err).not.toBeNull();
+      expect(err!.code).toBe(PERMISSION_DENIED);
+    },
+  );
 });
 
 describe('PUBLIC has no EXECUTE on protected database functions', () => {
@@ -92,6 +104,7 @@ describe('PUBLIC has no EXECUTE on protected database functions', () => {
       'enforce_user_interest_active_user',
       'enforce_age_assurance_session_active_user',
       'enforce_age_assurance_approval_active_user',
+      'enforce_restrictive_moderation_decision',
     ];
     const r = await ownerPool.query<FunctionAclRow>(
       `SELECT p.proname,
