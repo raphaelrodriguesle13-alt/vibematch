@@ -37,13 +37,13 @@ export interface AuthRepositoryPort {
 
 export interface GoogleLoginResult {
   sessionJwt: string;
-  refreshToken: string;
+  refreshToken?: string;
   userId: string;
   isNewUser: boolean;
   phoneVerified: boolean;
   sessionId: string;
   expiresAt: Date;
-  refreshExpiresAt: Date;
+  refreshExpiresAt?: Date;
 }
 
 export interface RefreshResult {
