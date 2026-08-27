@@ -116,7 +116,10 @@ export class AuthService {
     const refreshExpiresAt = new Date(now.getTime() + this.refreshTtlSeconds * 1000);
     const refreshToken = this.refreshToken();
     if (refreshToken.length < 32) {
-      throw new AuthError('SESSION_ISSUANCE_FAILED', 'Refresh token generator returned weak output');
+      throw new AuthError(
+        'SESSION_ISSUANCE_FAILED',
+        'Refresh token generator returned weak output',
+      );
     }
     const session = await this.repository.createSession(
       user.id,
@@ -155,7 +158,10 @@ export class AuthService {
 
     const replacementToken = this.refreshToken();
     if (replacementToken.length < 32) {
-      throw new AuthError('SESSION_ISSUANCE_FAILED', 'Refresh token generator returned weak output');
+      throw new AuthError(
+        'SESSION_ISSUANCE_FAILED',
+        'Refresh token generator returned weak output',
+      );
     }
     const now = this.now();
     const expiresAt = new Date(now.getTime() + this.options.sessionTtlSeconds * 1000);
