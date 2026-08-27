@@ -17,6 +17,13 @@ export interface AuthSession {
   revokedAt: Date | null;
 }
 
+export interface RefreshRotationResult {
+  session: AuthSession;
+  phoneVerified: boolean;
+  refreshExpiresAt: Date;
+  reused: boolean;
+}
+
 export interface PhoneVerification {
   id: string;
   userId: string;
@@ -40,6 +47,14 @@ type SessionRow = {
   user_id: string;
   expires_at: Date;
   revoked_at: Date | null;
+};
+
+type RefreshSessionRow = SessionRow & {
+  refresh_token_hash: string | null;
+  refresh_previous_token_hash: string | null;
+  refresh_expires_at: Date | null;
+  phone_verified: boolean;
+  user_status: UserStatus;
 };
 
 type PhoneVerificationRow = {
@@ -91,14 +106,102 @@ export class AuthRepository {
     };
   }
 
-  async createSession(userId: string, expiresAt: Date): Promise<AuthSession> {
+  async createSession(
+    userId: string,
+    expiresAt: Date,
+    refreshTokenHash?: string,
+    refreshExpiresAt?: Date,
+  ): Promise<AuthSession> {
     const result = await this.pool.query<SessionRow>(
-      `INSERT INTO auth_sessions (user_id, expires_at)
-       VALUES ($1, $2)
+      `INSERT INTO auth_sessions
+         (user_id, expires_at, refresh_token_hash, refresh_expires_at)
+       VALUES ($1, $2, $3, $4)
        RETURNING id, user_id, expires_at, revoked_at`,
-      [userId, expiresAt],
+      [userId, expiresAt, refreshTokenHash ?? null, refreshExpiresAt ?? null],
     );
     return this.mapSession(first(result));
+  }
+
+  async rotateRefreshSession(params: {
+    presentedHash: string;
+    replacementHash: string;
+    accessExpiresAt: Date;
+    now: Date;
+  }): Promise<RefreshRotationResult | null> {
+    return this.withClient(async (client) => {
+      await client.query('BEGIN');
+      try {
+        const result = await client.query<RefreshSessionRow>(
+          `SELECT s.id, s.user_id, s.expires_at, s.revoked_at,
+                  s.refresh_token_hash, s.refresh_previous_token_hash, s.refresh_expires_at,
+                  u.phone_verified, u.status AS user_status
+           FROM auth_sessions s
+           JOIN users u ON u.id = s.user_id
+           WHERE s.refresh_token_hash = $1 OR s.refresh_previous_token_hash = $1
+           FOR UPDATE OF s`,
+          [params.presentedHash],
+        );
+        const row = result.rows[0];
+        if (!row || row.revoked_at || !row.refresh_expires_at || row.refresh_expires_at <= params.now) {
+          await client.query('ROLLBACK');
+          return null;
+        }
+
+        if (row.user_status !== 'ACTIVE') {
+          await client.query(
+            `UPDATE auth_sessions SET revoked_at = COALESCE(revoked_at, $2) WHERE id = $1`,
+            [row.id, params.now],
+          );
+          await client.query('COMMIT');
+          return null;
+        }
+
+        if (row.refresh_previous_token_hash === params.presentedHash) {
+          await client.query(
+            `UPDATE auth_sessions SET revoked_at = COALESCE(revoked_at, $2) WHERE id = $1`,
+            [row.id, params.now],
+          );
+          await client.query('COMMIT');
+          return {
+            session: { ...this.mapSession(row), revokedAt: params.now },
+            phoneVerified: row.phone_verified,
+            refreshExpiresAt: row.refresh_expires_at,
+            reused: true,
+          };
+        }
+
+        if (row.refresh_token_hash !== params.presentedHash) {
+          await client.query('ROLLBACK');
+          return null;
+        }
+
+        const rotated = await client.query<SessionRow>(
+          `UPDATE auth_sessions
+           SET refresh_previous_token_hash = refresh_token_hash,
+               refresh_token_hash = $2,
+               expires_at = $3,
+               last_seen_at = $4
+           WHERE id = $1 AND revoked_at IS NULL
+           RETURNING id, user_id, expires_at, revoked_at`,
+          [row.id, params.replacementHash, params.accessExpiresAt, params.now],
+        );
+        const session = rotated.rows[0];
+        if (!session) {
+          await client.query('ROLLBACK');
+          return null;
+        }
+        await client.query('COMMIT');
+        return {
+          session: this.mapSession(session),
+          phoneVerified: row.phone_verified,
+          refreshExpiresAt: row.refresh_expires_at,
+          reused: false,
+        };
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      }
+    });
   }
 
   async revokeSession(userId: string, sessionId: string, revokedAt: Date): Promise<boolean> {
