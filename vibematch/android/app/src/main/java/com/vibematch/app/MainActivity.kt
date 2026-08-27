@@ -145,19 +145,33 @@ class MainActivity : ComponentActivity() {
                         sessionStore = sessionStore,
                     ),
                 )
+                val rtcGateway = remember { LiveKitRtcRoomGateway(applicationContext) }
+                val rtcRoomViewModel: RtcRoomViewModel = viewModel(
+                    factory = RtcRoomViewModelFactory(rtcGateway),
+                )
+                val expireSession: () -> Unit = {
+                    if (!isFinishing && !isDestroyed) {
+                        runOnUiThread {
+                            rtcRoomViewModel.disconnect()
+                            rtcRoomViewModel.discardPendingJitToken()
+                            authViewModel.signOut()
+                        }
+                    }
+                }
                 val sessionRefreshCoordinator = remember {
                     SessionRefreshCoordinator(
                         sessionStore = sessionStore,
                         authGateway = authGateway,
-                        onSessionExpired = {
-                            if (!isFinishing && !isDestroyed) {
-                                runOnUiThread(authViewModel::signOut)
-                            }
-                        },
+                        onSessionExpired = expireSession,
                     )
                 }
                 val sessionHttpClient = remember {
                     buildSessionAwareHttpClient(sessionRefreshCoordinator)
+                }
+                val onLogout: () -> Unit = {
+                    rtcRoomViewModel.disconnect()
+                    rtcRoomViewModel.discardPendingJitToken()
+                    authViewModel.signOut()
                 }
                 val billingGateway = remember { PlayBillingClientGateway(applicationContext) }
                 val billingViewModel: BillingViewModel = viewModel(
@@ -170,7 +184,7 @@ class MainActivity : ComponentActivity() {
                         ),
                         accessTokenProvider = sessionStore::readAccessToken,
                         productId = BuildConfig.BILLING_PRODUCT_ID,
-                        onSessionExpired = authViewModel::signOut,
+                        onSessionExpired = expireSession,
                     ),
                 )
                 val chatViewModel: ChatViewModel = viewModel(
@@ -180,7 +194,7 @@ class MainActivity : ComponentActivity() {
                             httpClient = sessionHttpClient,
                         ),
                         accessTokenProvider = sessionStore::readAccessToken,
-                        onSessionExpired = authViewModel::signOut,
+                        onSessionExpired = expireSession,
                     ),
                 )
                 val profileViewModel: ProfileViewModel = viewModel(
@@ -190,7 +204,7 @@ class MainActivity : ComponentActivity() {
                             httpClient = sessionHttpClient,
                         ),
                         accessTokenProvider = sessionStore::readAccessToken,
-                        onSessionExpired = authViewModel::signOut,
+                        onSessionExpired = expireSession,
                     ),
                 )
                 val phoneViewModel: PhoneVerificationViewModel = viewModel(
@@ -200,7 +214,7 @@ class MainActivity : ComponentActivity() {
                             httpClient = sessionHttpClient,
                         ),
                         accessTokenProvider = sessionStore::readAccessToken,
-                        onSessionExpired = authViewModel::signOut,
+                        onSessionExpired = expireSession,
                         onPhoneVerified = authViewModel::markPhoneVerified,
                     ),
                 )
@@ -211,7 +225,7 @@ class MainActivity : ComponentActivity() {
                             httpClient = sessionHttpClient,
                         ),
                         accessTokenProvider = sessionStore::readAccessToken,
-                        onSessionExpired = authViewModel::signOut,
+                        onSessionExpired = expireSession,
                         onPhoneVerificationRequired = authViewModel::markPhoneUnverified,
                     ),
                 )
@@ -223,17 +237,13 @@ class MainActivity : ComponentActivity() {
                         ),
                         accessTokenProvider = sessionStore::readAccessToken,
                         currentUserIdProvider = { authViewModel.state.value.session?.userId },
-                        onSessionExpired = authViewModel::signOut,
+                        onSessionExpired = expireSession,
                         onPhoneVerificationRequired = authViewModel::markPhoneUnverified,
                         onAgeAssuranceRequired = {
                             profileViewModel.reset()
                             profileViewModel.load()
                         },
                     ),
-                )
-                val rtcGateway = remember { LiveKitRtcRoomGateway(applicationContext) }
-                val rtcRoomViewModel: RtcRoomViewModel = viewModel(
-                    factory = RtcRoomViewModelFactory(rtcGateway),
                 )
                 val videoViewModel: VideoSessionViewModel = viewModel(
                     factory = VideoSessionViewModelFactory(
@@ -242,7 +252,7 @@ class MainActivity : ComponentActivity() {
                             httpClient = sessionHttpClient,
                         ),
                         accessTokenProvider = sessionStore::readAccessToken,
-                        onSessionExpired = authViewModel::signOut,
+                        onSessionExpired = expireSession,
                         onPhoneVerificationRequired = authViewModel::markPhoneUnverified,
                         onAgeAssuranceRequired = {
                             profileViewModel.reset()
@@ -261,7 +271,7 @@ class MainActivity : ComponentActivity() {
                             httpClient = sessionHttpClient,
                         ),
                         accessTokenProvider = sessionStore::readAccessToken,
-                        onSessionExpired = authViewModel::signOut,
+                        onSessionExpired = expireSession,
                         onBlocked = rtcRoomViewModel::disconnect,
                     ),
                 )
@@ -277,6 +287,7 @@ class MainActivity : ComponentActivity() {
                     videoViewModel = videoViewModel,
                     moderationViewModel = moderationViewModel,
                     rtcRoomViewModel = rtcRoomViewModel,
+                    onLogout = onLogout,
                 )
             }
         }
@@ -308,7 +319,9 @@ private fun VibeMatchApp(
     videoViewModel: VideoSessionViewModel,
     moderationViewModel: ModerationViewModel,
     rtcRoomViewModel: RtcRoomViewModel,
+    onLogout: () -> Unit,
 ) {
+
     val authState by authViewModel.state
     val session = authState.session
     val sessionId = session?.userId
@@ -389,7 +402,7 @@ private fun VibeMatchApp(
                     onLogout = {
                         billingViewModel.reset()
                         stopRtc()
-                        authViewModel.signOut()
+                        onLogout()
                     },
                 )
             }
@@ -408,7 +421,7 @@ private fun VibeMatchApp(
                         matchIntentViewModel.reset()
                         chatViewModel.clearConversation()
                         phoneViewModel.reset()
-                        authViewModel.signOut()
+                        onLogout()
                     },
                 )
             }
@@ -422,7 +435,7 @@ private fun VibeMatchApp(
 
                         matchIntentViewModel.reset()
                         chatViewModel.clearConversation()
-                        authViewModel.signOut()
+                        onLogout()
                     },
                 )
             }
@@ -452,7 +465,7 @@ private fun VibeMatchApp(
                         matchIntentViewModel.reset()
                         chatViewModel.clearConversation()
                         phoneViewModel.reset()
-                        authViewModel.signOut()
+                        onLogout()
                     },
                 )
             }
@@ -489,7 +502,7 @@ private fun VibeMatchApp(
                         matchIntentViewModel.reset()
                         chatViewModel.clearConversation()
                         phoneViewModel.reset()
-                        authViewModel.signOut()
+                        onLogout()
                     },
                 )
             }
@@ -523,7 +536,7 @@ private fun VibeMatchApp(
                         matchIntentViewModel.reset()
                         chatViewModel.clearConversation()
                         phoneViewModel.reset()
-                        authViewModel.signOut()
+                        onLogout()
                     },
                 )
             }
@@ -544,7 +557,7 @@ private fun VibeMatchApp(
                         consentViewModel.reset()
                         chatViewModel.clearConversation()
                         phoneViewModel.reset()
-                        authViewModel.signOut()
+                        onLogout()
                     },
                 )
             }
@@ -559,7 +572,7 @@ private fun VibeMatchApp(
                         chatViewModel.clearConversation()
                         matchIntentViewModel.reset()
                         phoneViewModel.reset()
-                        authViewModel.signOut()
+                        onLogout()
                     },
                     onOpenProfile = { showProfile = true },
                     onOpenBilling = { showBilling = true },

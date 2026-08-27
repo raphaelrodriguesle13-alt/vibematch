@@ -21,7 +21,7 @@ interface AuthGateway {
     suspend fun loginWithGoogle(googleIdToken: String): AuthSessionBundle
     suspend fun refreshSession(refreshToken: String): AuthSessionBundle
     suspend fun logout(sessionJwt: String)
-    suspend fun logoutWithRefresh(refreshToken: String) {}
+    suspend fun logoutWithRefresh(refreshToken: String)
 }
 
 data class AuthSession(
@@ -42,6 +42,11 @@ data class AuthSessionBundle(
     val refreshCredentials: RefreshCredentials,
 )
 
+data class AuthLogoutSnapshot(
+    val session: AuthSession?,
+    val refreshCredentials: RefreshCredentials?,
+)
+
 class AuthApiException(
     val statusCode: Int,
     message: String,
@@ -51,6 +56,10 @@ interface SessionStore {
     fun read(): AuthSession?
     fun readAccessToken(): String?
     fun readRefreshCredentials(): RefreshCredentials? = null
+    fun readLogoutSnapshot(): AuthLogoutSnapshot = AuthLogoutSnapshot(
+        session = read(),
+        refreshCredentials = readRefreshCredentials(),
+    )
     fun save(session: AuthSession)
     fun saveWithRefresh(session: AuthSession, credentials: RefreshCredentials) {
         save(session)
@@ -114,6 +123,13 @@ class SecureSessionStore(context: Context) : SessionStore {
     }
 
     override fun readAccessToken(): String? = read()?.sessionJwt
+
+    override fun readLogoutSnapshot(): AuthLogoutSnapshot = synchronized(storeLock) {
+        AuthLogoutSnapshot(
+            session = read(),
+            refreshCredentials = readRefreshCredentials(),
+        )
+    }
 
     override fun readRefreshCredentials(): RefreshCredentials? = synchronized(storeLock) {
         val refreshToken = preferences.getString(KEY_REFRESH_TOKEN, null)

@@ -217,6 +217,8 @@ class SessionRefreshTest {
         }
 
         override suspend fun logout(sessionJwt: String) = Unit
+
+        override suspend fun logoutWithRefresh(refreshToken: String) = Unit
     }
 
     private class FakeSessionStore(

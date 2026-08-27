@@ -46,6 +46,20 @@ class SecureSessionStoreInstrumentedTest {
     }
 
     @Test
+    fun capturesLogoutPairAcrossStoreRecreation() {
+        val session = session("access-logout", System.currentTimeMillis() - 1L)
+        val credentials = credentials("refresh-logout", System.currentTimeMillis() + 120_000L)
+        store.saveWithRefresh(session, credentials)
+
+        val reopenedStore = SecureSessionStore(context)
+        val snapshot = reopenedStore.readLogoutSnapshot()
+
+        assertEquals(session, snapshot.session)
+        assertEquals(credentials, snapshot.refreshCredentials)
+        reopenedStore.clear()
+    }
+
+    @Test
     fun retainsExpiredAccessWhileRefreshIsStillValid() {
         val session = session("access-expired", System.currentTimeMillis() - 1L)
         val credentials = credentials("refresh-valid", System.currentTimeMillis() + 120_000L)

@@ -2,15 +2,18 @@ package com.vibematch.app
 
 import android.app.Activity
 import com.vibematch.app.auth.AuthGateway
+import com.vibematch.app.auth.AuthLogoutSnapshot
 import com.vibematch.app.auth.AuthSession
 import com.vibematch.app.auth.AuthSessionBundle
 import com.vibematch.app.auth.RefreshCredentials
 import com.vibematch.app.auth.AuthViewModel
 import com.vibematch.app.auth.GoogleSignInGateway
 import com.vibematch.app.auth.SessionStore
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -69,14 +72,18 @@ class AuthViewModelTest {
     }
 
     @Test
-    fun `sign out revokes access and refresh credentials before clearing local session`() = runTest {
+    fun `sign out clears local session before revoking refresh credentials`() = runTest {
         store.session = testSession()
         store.refreshCredentials = testRefreshCredentials()
+        val events = mutableListOf<String>()
+        store.events = events
+        auth.events = events
+        google.events = events
         val viewModel = AuthViewModel(google, auth, store)
 
         viewModel.signOut()
 
-        assertEquals("session-jwt", auth.lastLogoutToken)
+        assertNull(auth.lastLogoutToken)
         assertEquals("refresh-token", auth.lastRefreshLogoutToken)
         assertTrue(google.signOutCalled)
         assertNull(store.session)
@@ -84,24 +91,80 @@ class AuthViewModelTest {
         assertNull(viewModel.state.value.session)
         assertFalse(viewModel.state.value.isLoading)
         assertNull(viewModel.state.value.errorMessage)
+        assertEquals(
+            listOf("store-clear", "refresh-logout", "google-sign-out"),
+            events,
+        )
     }
 
     @Test
-    fun `sign out still revokes refresh credential when access logout cannot be confirmed`() = runTest {
-        store.session = testSession()
+    fun `expired access still sends the valid refresh credential for revocation`() = runTest {
+        store.session = testSession(expiresAtMillis = System.currentTimeMillis() - 1)
         store.refreshCredentials = testRefreshCredentials()
-        auth.logoutError = IllegalStateException("access expired")
         val viewModel = AuthViewModel(google, auth, store)
 
         viewModel.signOut()
 
+        assertNull(auth.lastLogoutToken)
         assertEquals("refresh-token", auth.lastRefreshLogoutToken)
         assertNull(store.session)
         assertNull(store.refreshCredentials)
-        assertEquals(
-            "A sessão local foi encerrada, mas o servidor não confirmou o logout.",
-            viewModel.state.value.errorMessage,
-        )
+    }
+
+    @Test
+    fun `duplicate sign out does not revoke the same snapshot twice`() = runTest {
+        store.session = testSession()
+        store.refreshCredentials = testRefreshCredentials()
+        val releaseRevocation = CompletableDeferred<Unit>()
+        auth.onRefreshLogout = { releaseRevocation.await() }
+        val viewModel = AuthViewModel(google, auth, store)
+
+        viewModel.signOut()
+        viewModel.signOut()
+
+        assertEquals(0, auth.logoutCalls)
+        assertEquals(1, auth.refreshLogoutCalls)
+        releaseRevocation.complete(Unit)
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `late revocation from account A cannot clear account B`() = runTest {
+        store.session = testSession(userId = "user-a", sessionJwt = "session-a")
+        store.refreshCredentials = testRefreshCredentials("refresh-a")
+        val releaseRevocation = CompletableDeferred<Unit>()
+        auth.onRefreshLogout = { releaseRevocation.await() }
+        val viewModel = AuthViewModel(google, auth, store)
+
+        viewModel.signOut()
+        assertNull(viewModel.state.value.session)
+        assertNull(store.session)
+
+        auth.loginResult = testBundle(userId = "user-b", sessionJwt = "session-b", refreshToken = "refresh-b")
+        viewModel.signIn(Activity())
+        assertEquals("user-b", viewModel.state.value.session?.userId)
+
+        releaseRevocation.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals("user-b", viewModel.state.value.session?.userId)
+        assertEquals("user-b", store.session?.userId)
+        assertEquals("refresh-b", store.refreshCredentials?.refreshToken)
+        assertFalse(google.signOutCalled)
+    }
+
+    @Test
+    fun `sign out uses legacy access logout only when refresh is unavailable`() = runTest {
+        store.session = testSession()
+        val viewModel = AuthViewModel(google, auth, store)
+
+        viewModel.signOut()
+
+        assertEquals("session-jwt", auth.lastLogoutToken)
+        assertNull(auth.lastRefreshLogoutToken)
+        assertNull(store.session)
+        assertNull(store.refreshCredentials)
+        assertNull(viewModel.state.value.errorMessage)
     }
 
     @Test
@@ -136,22 +199,36 @@ class AuthViewModelTest {
         assertNull(store.session)
     }
 
-    private fun testSession() = AuthSession(
-        sessionJwt = "session-jwt",
-        userId = "user-1",
+    private fun testSession(
+        userId: String = "user-1",
+        sessionJwt: String = "session-jwt",
+        expiresAtMillis: Long = System.currentTimeMillis() + 60_000,
+    ) = AuthSession(
+        sessionJwt = sessionJwt,
+        userId = userId,
         isNewUser = false,
         phoneVerified = false,
-        expiresAtMillis = System.currentTimeMillis() + 60_000,
+        expiresAtMillis = expiresAtMillis,
     )
 
-    private fun testRefreshCredentials() = RefreshCredentials(
-        refreshToken = "refresh-token",
+    private fun testRefreshCredentials(refreshToken: String = "refresh-token") = RefreshCredentials(
+        refreshToken = refreshToken,
         refreshExpiresAtMillis = System.currentTimeMillis() + 86_400_000,
+    )
+
+    private fun testBundle(
+        userId: String,
+        sessionJwt: String,
+        refreshToken: String,
+    ) = AuthSessionBundle(
+        session = testSession(userId = userId, sessionJwt = sessionJwt),
+        refreshCredentials = testRefreshCredentials(refreshToken),
     )
 
     private class FakeGoogleSignInGateway : GoogleSignInGateway {
         var error: Exception? = null
         var signOutCalled = false
+        var events: MutableList<String>? = null
 
         override suspend fun signIn(activity: Activity): String {
             error?.let { throw it }
@@ -160,6 +237,7 @@ class AuthViewModelTest {
 
         override suspend fun signOut() {
             signOutCalled = true
+            events?.add("google-sign-out")
         }
     }
 
@@ -169,22 +247,27 @@ class AuthViewModelTest {
         var lastRefreshLogoutToken: String? = null
         var logoutError: Exception? = null
         var refreshLogoutError: Exception? = null
+        var loginResult: AuthSessionBundle = AuthSessionBundle(
+            session = AuthSession(
+                sessionJwt = "session-jwt",
+                userId = "user-1",
+                isNewUser = true,
+                phoneVerified = false,
+                expiresAtMillis = System.currentTimeMillis() + 60_000,
+            ),
+            refreshCredentials = RefreshCredentials(
+                refreshToken = "refresh-token",
+                refreshExpiresAtMillis = System.currentTimeMillis() + 86_400_000,
+            ),
+        )
+        var onRefreshLogout: (suspend () -> Unit)? = null
+        var logoutCalls = 0
+        var refreshLogoutCalls = 0
+        var events: MutableList<String>? = null
 
         override suspend fun loginWithGoogle(googleIdToken: String): AuthSessionBundle {
             lastGoogleIdToken = googleIdToken
-            return AuthSessionBundle(
-                session = AuthSession(
-                    sessionJwt = "session-jwt",
-                    userId = "user-1",
-                    isNewUser = true,
-                    phoneVerified = false,
-                    expiresAtMillis = System.currentTimeMillis() + 60_000,
-                ),
-                refreshCredentials = RefreshCredentials(
-                    refreshToken = "refresh-token",
-                    refreshExpiresAtMillis = System.currentTimeMillis() + 86_400_000,
-                ),
-            )
+            return loginResult
         }
 
         override suspend fun refreshSession(refreshToken: String): AuthSessionBundle =
@@ -192,11 +275,16 @@ class AuthViewModelTest {
 
         override suspend fun logout(sessionJwt: String) {
             lastLogoutToken = sessionJwt
+            logoutCalls += 1
+            events?.add("access-logout")
             logoutError?.let { throw it }
         }
 
         override suspend fun logoutWithRefresh(refreshToken: String) {
             lastRefreshLogoutToken = refreshToken
+            refreshLogoutCalls += 1
+            events?.add("refresh-logout")
+            onRefreshLogout?.invoke()
             refreshLogoutError?.let { throw it }
         }
     }
@@ -204,12 +292,15 @@ class AuthViewModelTest {
     private class FakeSessionStore : SessionStore {
         var session: AuthSession? = null
         var refreshCredentials: RefreshCredentials? = null
+        var events: MutableList<String>? = null
 
         override fun read(): AuthSession? = session
 
         override fun readAccessToken(): String? = session?.sessionJwt
 
         override fun readRefreshCredentials(): RefreshCredentials? = refreshCredentials
+
+        override fun readLogoutSnapshot() = AuthLogoutSnapshot(session, refreshCredentials)
 
         override fun save(session: AuthSession) {
             this.session = session
@@ -221,6 +312,7 @@ class AuthViewModelTest {
         }
 
         override fun clear() {
+            events?.add("store-clear")
             session = null
             refreshCredentials = null
         }

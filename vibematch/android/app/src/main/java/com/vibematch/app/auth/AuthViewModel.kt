@@ -23,22 +23,28 @@ class AuthViewModel(
     private val mutableState: MutableState<AuthUiState> = mutableStateOf(
         AuthUiState(session = sessionStore.read()),
     )
+    private var sessionGeneration = 0L
+    private var signOutInFlight = false
     val state: State<AuthUiState> = mutableState
 
     fun signIn(activity: Activity) {
         if (mutableState.value.isLoading) return
+        val generation = ++sessionGeneration
+        signOutInFlight = false
         mutableState.value = mutableState.value.copy(isLoading = true, errorMessage = null)
 
         viewModelScope.launch {
             try {
                 val googleIdToken = googleOidcClient.signIn(activity)
                 val sessionBundle = authGateway.loginWithGoogle(googleIdToken)
+                if (generation != sessionGeneration) return@launch
                 sessionStore.saveWithRefresh(
                     sessionBundle.session,
                     sessionBundle.refreshCredentials,
                 )
                 mutableState.value = AuthUiState(session = sessionBundle.session)
             } catch (error: Exception) {
+                if (generation != sessionGeneration) return@launch
                 mutableState.value = AuthUiState(
                     errorMessage = publicSignInError(error),
                 )
@@ -62,34 +68,43 @@ class AuthViewModel(
     }
 
     fun signOut() {
-        if (mutableState.value.isLoading) return
-        val session = mutableState.value.session
-        val refreshCredentials = sessionStore.readRefreshCredentials()
-        mutableState.value = mutableState.value.copy(isLoading = true, errorMessage = null)
+        if (mutableState.value.isLoading || signOutInFlight) return
+        val generation = ++sessionGeneration
+        signOutInFlight = true
+        val snapshot = sessionStore.readLogoutSnapshot()
+
+        // Fail closed before any network call. The captured credentials remain only in this coroutine.
+        sessionStore.clear()
+        mutableState.value = AuthUiState()
 
         viewModelScope.launch {
             var errorMessage: String? = null
             try {
-                if (session != null) authGateway.logout(session.sessionJwt)
-            } catch (_: Exception) {
-                errorMessage = "A sessão local foi encerrada, mas o servidor não confirmou o logout."
-            }
-            try {
-                if (refreshCredentials != null) {
-                    authGateway.logoutWithRefresh(refreshCredentials.refreshToken)
+                if (snapshot.refreshCredentials != null) {
+                    authGateway.logoutWithRefresh(snapshot.refreshCredentials.refreshToken)
+                } else {
+                    snapshot.session?.let { authGateway.logout(it.sessionJwt) }
                 }
             } catch (_: Exception) {
-                errorMessage = "A sessão local foi encerrada, mas o servidor não confirmou a revogação."
-            }
-            try {
-                googleOidcClient.signOut()
-            } catch (_: Exception) {
-                if (errorMessage == null) {
-                    errorMessage = "A sessão foi encerrada, mas o estado do Google não pôde ser limpo."
+                errorMessage = if (snapshot.refreshCredentials != null) {
+                    "A sessão local foi encerrada, mas o servidor não confirmou a revogação."
+                } else {
+                    "A sessão local foi encerrada, mas o servidor não confirmou o logout."
                 }
             }
-            sessionStore.clear()
-            mutableState.value = AuthUiState(errorMessage = errorMessage)
+            if (generation == sessionGeneration) {
+                try {
+                    googleOidcClient.signOut()
+                } catch (_: Exception) {
+                    if (errorMessage == null) {
+                        errorMessage = "A sessão foi encerrada, mas o estado do Google não pôde ser limpo."
+                    }
+                }
+            }
+            if (generation == sessionGeneration) {
+                signOutInFlight = false
+                mutableState.value = AuthUiState(errorMessage = errorMessage)
+            }
         }
     }
 
