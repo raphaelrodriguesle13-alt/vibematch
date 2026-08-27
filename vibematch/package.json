@@ -19,7 +19,8 @@
     "test": "NODE_OPTIONS=--experimental-vm-modules jest --runInBand",
     "test:unit": "NODE_OPTIONS=--experimental-vm-modules jest tests/auth tests/chat tests/profile tests/matchmaking tests/consent tests/video tests/moderation tests/billing tests/restricted --runInBand",
     "test:db": "jest tests/db --runInBand",
-    "verify": "npm run typecheck && npm run lint && npm run migrate && npm run test"
+    "verify": "npm run typecheck && npm run lint && npm run migrate && npm run test",
+    "release:gate": "bash scripts/release-gate.sh"
   },
   "dependencies": {
     "fastify": "5.12.1",
