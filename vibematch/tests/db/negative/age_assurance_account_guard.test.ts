@@ -63,7 +63,9 @@ describe('Age assurance/account restriction boundary', () => {
         await client.query('UPDATE users SET status = $2 WHERE id = $1', [userId, status]);
 
         const message = await expectRejection(() =>
-          client.query("UPDATE users SET age_assurance_status = 'APPROVED' WHERE id = $1", [userId]),
+          client.query("UPDATE users SET age_assurance_status = 'APPROVED' WHERE id = $1", [
+            userId,
+          ]),
         );
 
         expect(message).toMatch(/Age assurance approval denied: account must be ACTIVE/);
