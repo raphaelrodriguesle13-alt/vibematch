@@ -63,8 +63,10 @@ describe('VideoRevocationService', () => {
   });
 
   it('queues every revocation_pending row even when DB already marked it ENDED/revoked', async () => {
-    const query = jest.fn(() =>
-      Promise.resolve({
+    const observedSql: string[] = [];
+    const query = jest.fn((sql: string) => {
+      observedSql.push(sql);
+      return Promise.resolve({
         rows: [
           {
             session_id: '11111111-1111-4111-8111-111111111111',
@@ -72,12 +74,12 @@ describe('VideoRevocationService', () => {
             end_reason: 'BLOCK',
           },
         ],
-      }),
-    );
+      });
+    });
     const repository = new VideoRevocationRepository({ query } as never);
 
     await expect(repository.listPending()).resolves.toHaveLength(1);
-    const sql = String(query.mock.calls[0]?.[0]);
+    const sql = observedSql[0] ?? '';
     expect(sql).toContain('WHERE revocation_pending = TRUE');
     expect(sql).not.toContain('revoked_at IS NULL');
     expect(sql).not.toContain("status <> 'ENDED'");
