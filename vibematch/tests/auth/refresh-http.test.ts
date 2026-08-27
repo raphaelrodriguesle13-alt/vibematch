@@ -113,9 +113,9 @@ describe('Auth refresh HTTP API', () => {
     await app.close();
   });
 
-  test('does not reveal whether a refresh logout credential existed', async () => {
+  test('fails closed on revocation infrastructure errors without exposing token validity', async () => {
     const { app, authService } = subject();
-    authService.logoutError = new Error('database lookup failed');
+    authService.logoutError = new Error('database unavailable');
 
     const response = await app.inject({
       method: 'POST',
@@ -123,8 +123,8 @@ describe('Auth refresh HTTP API', () => {
       payload: { refresh_token: 'unknown-refresh-token' },
     });
 
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ ok: true });
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ error: 'REVOCATION_UNAVAILABLE' });
     await app.close();
   });
 
