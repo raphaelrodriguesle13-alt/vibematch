@@ -8,6 +8,7 @@ import type {
 export interface JwtSessionProviderOptions {
   privateKeyPem: string;
   publicKeyPem: string;
+  keyId: string;
   issuer: string;
   audience: string;
   now?: () => Date;
@@ -22,6 +23,7 @@ export class JwtSessionProvider implements SessionTokenProvider, SessionTokenVer
     if (options.privateKeyPem.trim() === '' || options.publicKeyPem.trim() === '') {
       throw new Error('JWT signing key pair is required');
     }
+    if (options.keyId.trim() === '') throw new Error('JWT signing key id is required');
     if (options.issuer.trim() === '' || options.audience.trim() === '') {
       throw new Error('JWT issuer and audience are required');
     }
@@ -34,7 +36,7 @@ export class JwtSessionProvider implements SessionTokenProvider, SessionTokenVer
     if (expiresAtSeconds <= nowSeconds) throw new Error('JWT expiry must be in the future');
 
     return new SignJWT({ phone_verified: claims.phoneVerified })
-      .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
+      .setProtectedHeader({ alg: 'RS256', typ: 'JWT', kid: this.options.keyId })
       .setIssuer(this.options.issuer)
       .setAudience(this.options.audience)
       .setSubject(claims.userId)
@@ -45,12 +47,13 @@ export class JwtSessionProvider implements SessionTokenProvider, SessionTokenVer
   }
 
   async verify(token: string): Promise<SessionTokenClaims> {
-    const { payload } = await jwtVerify(token, await this.publicKey(), {
+    const { payload, protectedHeader } = await jwtVerify(token, await this.publicKey(), {
       algorithms: ['RS256'],
       issuer: this.options.issuer,
       audience: this.options.audience,
     });
 
+    if (protectedHeader.kid !== this.options.keyId) throw new Error('Unknown JWT key id');
     if (!payload.sub || !payload.jti || typeof payload.phone_verified !== 'boolean') {
       throw new Error('Session JWT is missing required claims');
     }
