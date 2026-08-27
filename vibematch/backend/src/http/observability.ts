@@ -9,6 +9,7 @@ export interface StructuredLogSink {
 export interface HttpObservabilityOptions {
   logger?: StructuredLogSink;
   readiness?: () => Promise<boolean>;
+  readinessTimeoutMs?: number;
   nowMs?: () => number;
   requestId?: () => string;
 }
@@ -16,6 +17,7 @@ export interface HttpObservabilityOptions {
 const SENSITIVE_KEY =
   /authorization|cookie|token|jwt|password|secret|private.?key|api.?key|auth.?token|phone|otp|verification.?code|sms.?code|code.?verifier/i;
 const REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
+const DEFAULT_READINESS_TIMEOUT_MS = 2_000;
 
 export const redactSensitive = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(redactSensitive);
@@ -52,6 +54,24 @@ const incomingRequestId = (request: FastifyRequest): string | null => {
 
 const safePath = (request: FastifyRequest): string => request.url.split('?', 1)[0] || '/';
 
+const withTimeout = async <T>(operation: Promise<T>, timeoutMs: number): Promise<T> => {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new Error('Timeout must be a positive finite number');
+  }
+
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => reject(new Error('Operation timed out')), timeoutMs);
+    timer.unref?.();
+  });
+
+  try {
+    return await Promise.race([operation, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+};
+
 export const installHttpObservability = (
   app: FastifyInstance,
   options: HttpObservabilityOptions = {},
@@ -59,6 +79,7 @@ export const installHttpObservability = (
   const logger = options.logger ?? consoleStructuredLogger;
   const nowMs = options.nowMs ?? Date.now;
   const requestId = options.requestId ?? randomUUID;
+  const readinessTimeoutMs = options.readinessTimeoutMs ?? DEFAULT_READINESS_TIMEOUT_MS;
   const requests = new WeakMap<FastifyRequest, { id: string; startedAtMs: number }>();
 
   app.addHook('onRequest', async (request, reply) => {
@@ -98,12 +119,21 @@ export const installHttpObservability = (
     });
   });
 
+  app.setErrorHandler(async (error, _request, reply) => {
+    const candidate = error.statusCode;
+    const statusCode =
+      typeof candidate === 'number' && candidate >= 400 && candidate < 500 ? candidate : 500;
+    return reply
+      .code(statusCode)
+      .send({ error: statusCode >= 500 ? 'INTERNAL_ERROR' : 'INVALID_REQUEST' });
+  });
+
   app.get('/health/live', async (_request, reply) => reply.code(200).send({ ok: true }));
 
   app.get('/health/ready', async (_request, reply) => {
     if (!options.readiness) return reply.code(200).send({ ok: true });
     try {
-      const ready = await options.readiness();
+      const ready = await withTimeout(options.readiness(), readinessTimeoutMs);
       return reply.code(ready ? 200 : 503).send({ ok: ready });
     } catch {
       return reply.code(503).send({ ok: false });
