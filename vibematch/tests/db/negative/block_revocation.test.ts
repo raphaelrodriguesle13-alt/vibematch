@@ -37,7 +37,7 @@ const seedAcceptedConsent = async (
 };
 
 describe('Block active revocation', () => {
-  test('blocking immediately cancels accepted consent and ends video session', async () => {
+  test('blocking immediately cancels accepted consent, ends video session, and revokes token authorization', async () => {
     await withRollback(ownerPool, async (client) => {
       const { consentId, userA, userB } = await seedAcceptedConsent(client);
       const session = await client.query<IdRow>(
@@ -45,6 +45,27 @@ describe('Block active revocation', () => {
          VALUES ($1, 'block-revocation') RETURNING id`,
         [consentId],
       );
+      const sessionId = first(session).id;
+
+      const beforeBlock = await client.query<IdRow>(
+        `SELECT s.id
+         FROM sessions s
+         JOIN consents c ON c.id = s.consent_id
+         WHERE s.id = $1
+           AND $2 IN (c.user_a_id, c.user_b_id)
+           AND c.status = 'ACCEPTED_BOTH'
+           AND c.video_deadline > now()
+           AND s.status IN ('CREATED', 'ACTIVE')
+           AND s.revocation_pending = FALSE
+           AND s.revoked_at IS NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM blocks b
+             WHERE (b.blocker_id = c.user_a_id AND b.blocked_id = c.user_b_id)
+                OR (b.blocker_id = c.user_b_id AND b.blocked_id = c.user_a_id)
+           )`,
+        [sessionId, userA],
+      );
+      expect(beforeBlock.rowCount).toBe(1);
 
       await client.query('INSERT INTO blocks (blocker_id, blocked_id) VALUES ($1, $2)', [
         userA,
@@ -59,13 +80,33 @@ describe('Block active revocation', () => {
 
       const state = await client.query<SessionStateRow>(
         'SELECT status, end_reason, revocation_pending FROM sessions WHERE id = $1',
-        [first(session).id],
+        [sessionId],
       );
       expect(first(state)).toEqual({
         status: 'ENDED',
         end_reason: 'BLOCK',
         revocation_pending: true,
       });
+
+      const afterBlock = await client.query<IdRow>(
+        `SELECT s.id
+         FROM sessions s
+         JOIN consents c ON c.id = s.consent_id
+         WHERE s.id = $1
+           AND $2 IN (c.user_a_id, c.user_b_id)
+           AND c.status = 'ACCEPTED_BOTH'
+           AND c.video_deadline > now()
+           AND s.status IN ('CREATED', 'ACTIVE')
+           AND s.revocation_pending = FALSE
+           AND s.revoked_at IS NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM blocks b
+             WHERE (b.blocker_id = c.user_a_id AND b.blocked_id = c.user_b_id)
+                OR (b.blocker_id = c.user_b_id AND b.blocked_id = c.user_a_id)
+           )`,
+        [sessionId, userA],
+      );
+      expect(afterBlock.rowCount).toBe(0);
     });
   });
 
