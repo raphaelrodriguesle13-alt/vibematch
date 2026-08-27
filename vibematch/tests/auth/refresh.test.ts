@@ -23,6 +23,7 @@ class RefreshRepository implements AuthRepositoryPort {
   };
   rotateParams: Parameters<NonNullable<AuthRepositoryPort['rotateRefreshSession']>>[0] | null =
     null;
+  refreshRevocation: { hash: string; revokedAt: Date } | null = null;
   revoked: { userId: string; sessionId: string } | null = null;
 
   upsertGoogleUser(): Promise<AuthUser> {
@@ -38,6 +39,11 @@ class RefreshRepository implements AuthRepositoryPort {
   ): Promise<RefreshRotationResult | null> {
     this.rotateParams = params;
     return Promise.resolve(this.rotation);
+  }
+
+  revokeSessionByRefreshHash(hash: string, revokedAt: Date): Promise<void> {
+    this.refreshRevocation = { hash, revokedAt };
+    return Promise.resolve();
   }
 
   revokeSession(userId: string, sessionId: string): Promise<boolean> {
@@ -131,5 +137,19 @@ describe('Auth refresh rotation', () => {
       code: 'SESSION_ISSUANCE_FAILED',
     });
     expect(repository.revoked).toEqual({ userId: 'user-1', sessionId: 'session-1' });
+  });
+
+  test('hashes refresh credentials for idempotent logout without exposing session identity', async () => {
+    const { repository, service } = subject();
+
+    await expect(service.logoutWithRefresh(oldToken)).resolves.toEqual({ ok: true });
+    expect(repository.refreshRevocation).toEqual({ hash: sha256(oldToken), revokedAt: now });
+  });
+
+  test('treats an empty refresh logout credential as a no-op success', async () => {
+    const { repository, service } = subject();
+
+    await expect(service.logoutWithRefresh('   ')).resolves.toEqual({ ok: true });
+    expect(repository.refreshRevocation).toBeNull();
   });
 });
