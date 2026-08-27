@@ -10,14 +10,17 @@ export type DiditWebhookBody = {
 
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
-const canonicalize = (value: JsonValue): JsonValue => {
+const canonicalize = (value: unknown): JsonValue => {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
   if (Array.isArray(value)) return value.map(canonicalize);
-  if (value !== null && typeof value === 'object') {
+  if (typeof value === 'object') {
+    const input = value as Record<string, unknown>;
     const output: Record<string, JsonValue> = {};
-    for (const key of Object.keys(value).sort()) output[key] = canonicalize(value[key]);
+    for (const key of Object.keys(input).sort()) output[key] = canonicalize(input[key]);
     return output;
   }
-  return value;
+  return null;
 };
 
 export const verifyDiditWebhookV2 = (
@@ -34,7 +37,7 @@ export const verifyDiditWebhookV2 = (
   const current = Math.floor(now.getTime() / 1000);
   if (!Number.isSafeInteger(incoming) || Math.abs(current - incoming) > 300) return false;
 
-  const canonical = JSON.stringify(canonicalize(body as JsonValue));
+  const canonical = JSON.stringify(canonicalize(body));
   const expected = createHmac('sha256', secret).update(canonical).digest('hex');
   const expectedBuffer = Buffer.from(expected, 'utf8');
   const actualBuffer = Buffer.from(signature, 'utf8');
