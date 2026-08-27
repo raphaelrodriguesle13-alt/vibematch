@@ -44,10 +44,9 @@ describe('Didit V3 webhook security', () => {
 
   it('authenticates before reconciling and ignores webhook decision as authority', async () => {
     const app = fastify();
-    const reconcileProviderSession: Reconcile = jest.fn(async () => ({
-      outcome: 'APPLIED' as const,
-      status: 'APPROVED' as const,
-    }));
+    const reconcileProviderSession: Reconcile = jest.fn(() =>
+      Promise.resolve({ outcome: 'APPLIED' as const, status: 'APPROVED' as const }),
+    );
     registerAgeWebhookRoute(app, {
       webhookSecret: secret,
       reconciler: { reconcileProviderSession },
@@ -72,9 +71,9 @@ describe('Didit V3 webhook security', () => {
 
   it('rejects unauthenticated requests before reconciliation', async () => {
     const app = fastify();
-    const reconcileProviderSession: Reconcile = jest.fn(async () => ({
-      outcome: 'SESSION_NOT_FOUND' as const,
-    }));
+    const reconcileProviderSession: Reconcile = jest.fn(() =>
+      Promise.resolve({ outcome: 'SESSION_NOT_FOUND' as const }),
+    );
     registerAgeWebhookRoute(app, {
       webhookSecret: secret,
       reconciler: { reconcileProviderSession },
@@ -94,9 +93,9 @@ describe('Didit V3 webhook security', () => {
 
   it('requests provider retry when the session is not persisted yet', async () => {
     const app = fastify();
-    const reconcileProviderSession: Reconcile = jest.fn(async () => ({
-      outcome: 'SESSION_NOT_FOUND' as const,
-    }));
+    const reconcileProviderSession: Reconcile = jest.fn(() =>
+      Promise.resolve({ outcome: 'SESSION_NOT_FOUND' as const }),
+    );
     registerAgeWebhookRoute(app, {
       webhookSecret: secret,
       reconciler: { reconcileProviderSession },
@@ -120,9 +119,9 @@ describe('Didit V3 webhook security', () => {
 
   it('fails closed when server-to-server reconciliation fails', async () => {
     const app = fastify();
-    const reconcileProviderSession: Reconcile = jest.fn(async () => {
-      throw new Error('provider timeout');
-    });
+    const reconcileProviderSession: Reconcile = jest.fn(() =>
+      Promise.reject(new Error('provider timeout')),
+    );
     registerAgeWebhookRoute(app, {
       webhookSecret: secret,
       reconciler: { reconcileProviderSession },
