@@ -1,6 +1,7 @@
 package com.vibematch.app
 
 import android.app.Activity
+import java.io.IOException
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.Purchase
@@ -85,6 +86,48 @@ class BillingTest {
     }
 
     @Test
+    fun `duplicate purchased callbacks validate and acknowledge only once`() = runTest {
+        val viewModel = newViewModel()
+        viewModel.start()
+
+        playGateway.emitPurchase(purchase("duplicate-token"))
+        playGateway.emitPurchase(purchase("duplicate-token"))
+        advanceUntilIdle()
+
+        assertEquals(1, validationGateway.validateCalls)
+        assertEquals(listOf("duplicate-token"), playGateway.acknowledgedTokens)
+        assertTrue(viewModel.state.value.entitlementActive)
+    }
+
+    @Test
+    fun `stale callback after reset cannot grant entitlement`() = runTest {
+        val viewModel = newViewModel()
+        viewModel.start()
+        viewModel.reset()
+
+        playGateway.emitPurchase(purchase("stale-token"))
+        advanceUntilIdle()
+
+        assertEquals(BillingUiStatus.IDLE, viewModel.state.value.status)
+        assertFalse(viewModel.state.value.entitlementActive)
+        assertEquals(0, validationGateway.validateCalls)
+        assertTrue(playGateway.acknowledgedTokens.isEmpty())
+    }
+
+    @Test
+    fun `Google Play cancellation is visible and never validates`() = runTest {
+        val viewModel = newViewModel()
+        viewModel.start()
+
+        playGateway.emitFailure(BillingClient.BillingResponseCode.USER_CANCELED)
+        advanceUntilIdle()
+
+        assertEquals(BillingUiStatus.ERROR, viewModel.state.value.status)
+        assertFalse(viewModel.state.value.entitlementActive)
+        assertEquals(0, validationGateway.validateCalls)
+    }
+
+    @Test
     fun `server rejection never grants local premium`() = runTest {
         validationGateway.entitlement = BillingEntitlement(
             active = false,
@@ -154,7 +197,7 @@ class BillingTest {
     @Test
     fun `validation 401 expires the authenticated session`() = runTest {
         var expired = false
-        validationGateway.error = BillingApiException(401, "UNAUTHORIZED", "expired")
+        validationGateway.failure = BillingApiException(401, "UNAUTHORIZED", "expired")
         val viewModel = BillingViewModel(
             playGateway = playGateway,
             validationGateway = validationGateway,
@@ -169,6 +212,78 @@ class BillingTest {
         assertTrue(expired)
         assertEquals(BillingUiStatus.ERROR, viewModel.state.value.status)
         assertFalse(viewModel.state.value.entitlementActive)
+    }
+
+    @Test
+    fun `validation timeout fails closed without entitlement`() = runTest {
+        validationGateway.failure = IOException("timeout")
+        val viewModel = newViewModel()
+        viewModel.start()
+        playGateway.emitPurchase(purchase("timeout-token"))
+        advanceUntilIdle()
+
+        assertEquals(BillingUiStatus.ERROR, viewModel.state.value.status)
+        assertFalse(viewModel.state.value.entitlementActive)
+        assertTrue(playGateway.acknowledgedTokens.isEmpty())
+    }
+
+    @Test
+    fun `restore with revoked server entitlement stays inactive`() = runTest {
+        validationGateway.entitlement = BillingEntitlement(
+            active = false,
+            plan = "premium",
+            state = "REVOKED",
+            expiresAt = null,
+        )
+        val viewModel = newViewModel()
+        viewModel.start()
+        viewModel.restore()
+        advanceUntilIdle()
+
+        assertEquals(BillingUiStatus.READY, viewModel.state.value.status)
+        assertFalse(viewModel.state.value.entitlementActive)
+        assertEquals(1, validationGateway.getEntitlementCalls)
+    }
+
+    @Test
+    fun `account change resets entitlement and validates with the new session`() = runTest {
+        var accessToken: String? = "session-a"
+        val viewModel = BillingViewModel(
+            playGateway = playGateway,
+            validationGateway = validationGateway,
+            accessTokenProvider = { accessToken },
+            productId = PRODUCT_ID,
+        )
+        viewModel.start()
+        playGateway.emitPurchase(purchase("account-a-token"))
+        advanceUntilIdle()
+        assertTrue(viewModel.state.value.entitlementActive)
+
+        viewModel.reset()
+        accessToken = "session-b"
+        viewModel.start()
+        playGateway.emitPurchase(purchase("account-b-token"))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.state.value.entitlementActive)
+        assertEquals("session-b", validationGateway.lastAccessToken)
+        assertEquals("account-b-token", validationGateway.lastPurchaseToken)
+    }
+
+    @Test
+    fun `new ViewModel restores only server entitlement after app restart`() = runTest {
+        val first = newViewModel()
+        first.start()
+        first.reset()
+
+        val second = newViewModel()
+        second.start()
+        second.restore()
+        advanceUntilIdle()
+
+        assertEquals(BillingUiStatus.SUCCESS, second.state.value.status)
+        assertTrue(second.state.value.entitlementActive)
+        assertEquals(1, validationGateway.getEntitlementCalls)
     }
 
     @Test
@@ -253,6 +368,16 @@ class BillingTest {
         fun emitPurchase(purchase: BillingPurchase) {
             updatesMutable.tryEmit(BillingUpdate.PurchaseReceived(purchase))
         }
+
+        fun emitFailure(responseCode: Int) {
+            updatesMutable.tryEmit(
+                BillingUpdate.Failed(
+                    BillingResult.newBuilder()
+                        .setResponseCode(responseCode)
+                        .build(),
+                ),
+            )
+        }
     }
 
     private class FakeValidationGateway : BillingValidationGateway {
@@ -263,15 +388,19 @@ class BillingTest {
             state = "ACTIVE",
             expiresAt = Instant.parse("2027-01-01T00:00:00Z"),
         )
-        var error: BillingApiException? = null
+        var failure: Throwable? = null
+        var validateCalls = 0
+        var lastAccessToken: String? = null
         var lastPurchaseToken: String? = null
 
         override suspend fun validate(
             accessToken: String,
             purchaseToken: String,
         ): BillingEntitlement {
+            validateCalls += 1
+            lastAccessToken = accessToken
             lastPurchaseToken = purchaseToken
-            error?.let { throw it }
+            failure?.let { throw it }
             return entitlement
         }
 

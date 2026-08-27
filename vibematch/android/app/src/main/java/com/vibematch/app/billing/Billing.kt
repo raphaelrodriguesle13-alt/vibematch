@@ -240,8 +240,11 @@ class PlayBillingClientGateway(context: Context) : PlayBillingGateway {
         }
     }
 
-    override suspend fun acknowledge(purchaseToken: String): BillingResult =
-        suspendCancellableCoroutine { continuation ->
+    override suspend fun acknowledge(purchaseToken: String): BillingResult {
+        if (closed || purchaseToken.isBlank()) {
+            return errorResult("A confirmação da compra não está disponível.")
+        }
+        return suspendCancellableCoroutine { continuation ->
             billingClient.acknowledgePurchase(
                 AcknowledgePurchaseParams.newBuilder()
                     .setPurchaseToken(purchaseToken)
@@ -250,6 +253,7 @@ class PlayBillingClientGateway(context: Context) : PlayBillingGateway {
                 if (continuation.isActive) continuation.resume(result)
             }
         }
+    }
 
     override fun close() {
         if (closed) return
@@ -390,6 +394,13 @@ class BillingApiClient(
     }
 
     override suspend fun getEntitlement(accessToken: String): BillingEntitlement {
+        if (!canValidate) {
+            throw BillingApiException(
+                0,
+                "INSECURE_ENDPOINT",
+                "A validação de pagamentos exige uma API HTTPS.",
+            )
+        }
         val response = withContext(kotlinx.coroutines.Dispatchers.IO) {
             httpClient.newCall(
                 Request.Builder()
@@ -462,13 +473,16 @@ class BillingViewModel(
     val state: androidx.compose.runtime.State<BillingUiState> = mutableState
     private var operationJob: Job? = null
     private var flowActive = false
+    private var flowGeneration = 0L
+    private val purchaseTokensInFlight = mutableSetOf<String>()
+    private val completedPurchaseTokens = mutableSetOf<String>()
 
     init {
         viewModelScope.launch {
             playGateway.updates.collect { update ->
                 when (update) {
                     is BillingUpdate.PurchaseReceived -> handlePurchase(update.purchase)
-                    is BillingUpdate.Failed -> showBillingError(update.billingResult)
+                    is BillingUpdate.Failed -> if (flowActive) showBillingError(update.billingResult)
                 }
             }
         }
@@ -477,9 +491,12 @@ class BillingViewModel(
     fun start() {
         if (mutableState.value.status == BillingUiStatus.CONNECTING ||
             mutableState.value.status == BillingUiStatus.VALIDATING ||
-            mutableState.value.status == BillingUiStatus.PURCHASING
+            mutableState.value.status == BillingUiStatus.PURCHASING ||
+            mutableState.value.status == BillingUiStatus.WAITING_FOR_PURCHASE ||
+            mutableState.value.status == BillingUiStatus.RESTORING
         ) return
         if (productId.isBlank()) {
+            flowGeneration += 1
             flowActive = false
             mutableState.value = BillingUiState(
                 status = BillingUiStatus.NOT_CONFIGURED,
@@ -487,7 +504,10 @@ class BillingViewModel(
             )
             return
         }
+        flowGeneration += 1
         flowActive = true
+        purchaseTokensInFlight.clear()
+        completedPurchaseTokens.clear()
         runOperation {
             mutableState.value = mutableState.value.copy(
                 status = BillingUiStatus.CONNECTING,
@@ -539,6 +559,7 @@ class BillingViewModel(
         }
         val accessToken = accessTokenProvider()?.trim()
         if (accessToken.isNullOrEmpty()) {
+            flowActive = false
             mutableState.value = BillingUiState(
                 status = BillingUiStatus.SIGNED_OUT,
                 errorMessage = "Entre novamente para iniciar uma compra.",
@@ -546,13 +567,16 @@ class BillingViewModel(
             onSessionExpired()
             return
         }
+        val generation = flowGeneration
         operationJob = viewModelScope.launch {
+            if (!isActiveGeneration(generation)) return@launch
             mutableState.value = mutableState.value.copy(
                 status = BillingUiStatus.PURCHASING,
                 errorMessage = null,
                 infoMessage = "Abrindo o Google Play para concluir a compra...",
             )
             val result = playGateway.launchPurchase(activity, productId)
+            if (!isActiveGeneration(generation)) return@launch
             if (isOk(result)) {
                 mutableState.value = mutableState.value.copy(
                     status = BillingUiStatus.WAITING_FOR_PURCHASE,
@@ -577,6 +601,7 @@ class BillingViewModel(
         }
         val accessToken = accessTokenProvider()?.trim()
         if (accessToken.isNullOrEmpty()) {
+            flowActive = false
             mutableState.value = BillingUiState(
                 status = BillingUiStatus.SIGNED_OUT,
                 errorMessage = "Entre novamente para restaurar compras.",
@@ -584,13 +609,16 @@ class BillingViewModel(
             onSessionExpired()
             return
         }
+        val generation = flowGeneration
         operationJob = viewModelScope.launch {
+            if (!isActiveGeneration(generation)) return@launch
             mutableState.value = mutableState.value.copy(
                 status = BillingUiStatus.RESTORING,
                 errorMessage = null,
                 infoMessage = "Consultando compras do Google Play...",
             )
             val result = playGateway.queryActivePurchases()
+            if (!isActiveGeneration(generation)) return@launch
             if (!isOk(result.billingResult)) {
                 showBillingError(result.billingResult)
                 return@launch
@@ -598,9 +626,15 @@ class BillingViewModel(
             val matchingPurchases = result.purchases.filter { it.productId == productId }
             if (matchingPurchases.isEmpty()) {
                 try {
-                    applyServerEntitlement(validationGateway.getEntitlement(accessToken))
+                    val entitlement = validationGateway.getEntitlement(accessToken)
+                    if (!isActiveGeneration(generation)) return@launch
+                    applyServerEntitlement(entitlement)
                 } catch (error: BillingApiException) {
-                    if (error.statusCode == 401) onSessionExpired()
+                    if (!isActiveGeneration(generation)) return@launch
+                    if (error.statusCode == 401) {
+                        flowActive = false
+                        onSessionExpired()
+                    }
                     mutableState.value = mutableState.value.copy(
                         status = BillingUiStatus.ERROR,
                         entitlementActive = false,
@@ -608,6 +642,7 @@ class BillingViewModel(
                         infoMessage = null,
                     )
                 } catch (_: Exception) {
+                    if (!isActiveGeneration(generation)) return@launch
                     mutableState.value = mutableState.value.copy(
                         status = BillingUiStatus.ERROR,
                         entitlementActive = false,
@@ -626,42 +661,60 @@ class BillingViewModel(
     }
 
     fun reset() {
+        flowGeneration += 1
         flowActive = false
+        purchaseTokensInFlight.clear()
+        completedPurchaseTokens.clear()
         operationJob?.cancel()
         operationJob = null
         mutableState.value = BillingUiState()
     }
 
     private suspend fun handlePurchase(purchase: BillingPurchase) {
-        if (!flowActive || purchase.productId != productId) return
-        if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) {
-            mutableState.value = mutableState.value.copy(
-                status = BillingUiStatus.READY,
-                entitlementActive = false,
-                infoMessage = "A compra está pendente no Google Play e ainda não libera Premium.",
-            )
-            return
-        }
-        val accessToken = accessTokenProvider()?.trim()
-        if (accessToken.isNullOrEmpty()) {
-            mutableState.value = BillingUiState(
-                status = BillingUiStatus.SIGNED_OUT,
-                errorMessage = "Entre novamente para validar a compra.",
-            )
-            onSessionExpired()
-            return
-        }
-        mutableState.value = mutableState.value.copy(
-            status = BillingUiStatus.VALIDATING,
-            entitlementActive = false,
-            errorMessage = null,
-            infoMessage = "Validando a compra com o servidor...",
-        )
+        val generation = flowGeneration
+        val purchaseToken = purchase.purchaseToken.trim()
+        if (!isActiveGeneration(generation) || purchase.productId != productId || purchaseToken.isEmpty()) return
+        if (completedPurchaseTokens.contains(purchaseToken) || !purchaseTokensInFlight.add(purchaseToken)) return
         try {
-            val entitlement = validationGateway.validate(
-                accessToken = accessToken,
-                purchaseToken = purchase.purchaseToken,
+            if (!isActiveGeneration(generation)) return
+            if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) {
+                mutableState.value = mutableState.value.copy(
+                    status = BillingUiStatus.READY,
+                    entitlementActive = false,
+                    infoMessage = "A compra está pendente no Google Play e ainda não libera Premium.",
+                )
+                return
+            }
+            val accessToken = accessTokenProvider()?.trim()
+            if (accessToken.isNullOrEmpty()) {
+                flowActive = false
+                mutableState.value = BillingUiState(
+                    status = BillingUiStatus.SIGNED_OUT,
+                    errorMessage = "Entre novamente para validar a compra.",
+                )
+                onSessionExpired()
+                return
+            }
+            if (!isActiveGeneration(generation)) return
+            mutableState.value = mutableState.value.copy(
+                status = BillingUiStatus.VALIDATING,
+                entitlementActive = false,
+                errorMessage = null,
+                infoMessage = "Validando a compra com o servidor...",
             )
+            val entitlement = try {
+                validationGateway.validate(
+                    accessToken = accessToken,
+                    purchaseToken = purchaseToken,
+                )
+            } catch (error: BillingApiException) {
+                if (error.statusCode == 401) {
+                    flowActive = false
+                    onSessionExpired()
+                }
+                throw error
+            }
+            if (!isActiveGeneration(generation)) return
             if (!entitlement.active) {
                 mutableState.value = mutableState.value.copy(
                     status = BillingUiStatus.ERROR,
@@ -672,7 +725,8 @@ class BillingViewModel(
                 return
             }
             if (!purchase.acknowledged) {
-                val acknowledgement = playGateway.acknowledge(purchase.purchaseToken)
+                val acknowledgement = playGateway.acknowledge(purchaseToken)
+                if (!isActiveGeneration(generation)) return
                 if (!isOk(acknowledgement)) {
                     mutableState.value = mutableState.value.copy(
                         status = BillingUiStatus.ERROR,
@@ -683,24 +737,29 @@ class BillingViewModel(
                     return
                 }
             }
+            if (!isActiveGeneration(generation)) return
             applyServerEntitlement(entitlement)
+            completedPurchaseTokens.add(purchaseToken)
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: BillingApiException) {
-            if (error.statusCode == 401) onSessionExpired()
+            if (flowGeneration != generation) return
             mutableState.value = mutableState.value.copy(
                 status = BillingUiStatus.ERROR,
                 entitlementActive = false,
                 errorMessage = error.message ?: "Não foi possível validar a compra com segurança.",
                 infoMessage = null,
             )
-        } catch (_: CancellationException) {
-            throw CancellationException()
         } catch (_: Exception) {
+            if (flowGeneration != generation) return
             mutableState.value = mutableState.value.copy(
                 status = BillingUiStatus.ERROR,
                 entitlementActive = false,
                 errorMessage = "Não foi possível validar a compra com segurança.",
                 infoMessage = null,
             )
+        } finally {
+            if (flowGeneration == generation) purchaseTokensInFlight.remove(purchaseToken)
         }
     }
 
@@ -728,6 +787,9 @@ class BillingViewModel(
         )
     }
 
+    private fun isActiveGeneration(generation: Long): Boolean =
+        flowActive && flowGeneration == generation
+
     private fun runOperation(block: suspend () -> Unit) {
         operationJob?.cancel()
         operationJob = viewModelScope.launch { block() }
@@ -754,7 +816,10 @@ class BillingViewModel(
         result.responseCode == BillingClient.BillingResponseCode.OK
 
     override fun onCleared() {
+        flowGeneration += 1
         flowActive = false
+        purchaseTokensInFlight.clear()
+        completedPurchaseTokens.clear()
         operationJob?.cancel()
         playGateway.close()
         super.onCleared()
