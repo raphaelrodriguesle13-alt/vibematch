@@ -1,5 +1,10 @@
-import type { Pool, QueryResultRow } from 'pg';
-import type { BillingRepositoryPort, BillingStatus, SubscriptionEntitlement } from './service';
+import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import type {
+  AppliedRtdnResult,
+  BillingRepositoryPort,
+  BillingStatus,
+  SubscriptionEntitlement,
+} from './service';
 
 interface SubscriptionRow extends QueryResultRow {
   user_id: string;
@@ -15,6 +20,41 @@ const toEntitlement = (row: SubscriptionRow): SubscriptionEntitlement => ({
   currentPeriodEnd: new Date(row.current_period_end),
   entitled: false,
 });
+
+const upsertSubscription = async (
+  client: Pick<PoolClient, 'query'>,
+  input: {
+    userId: string;
+    purchaseToken: string;
+    plan: string;
+    status: BillingStatus;
+    currentPeriodEnd: Date;
+    now: Date;
+  },
+): Promise<SubscriptionEntitlement | null> => {
+  const result = await client.query<SubscriptionRow>(
+    `INSERT INTO subscriptions (
+       user_id, play_purchase_token, plan, status, current_period_end, updated_at
+     ) VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (play_purchase_token) DO UPDATE
+     SET plan = EXCLUDED.plan,
+         status = EXCLUDED.status,
+         current_period_end = EXCLUDED.current_period_end,
+         updated_at = EXCLUDED.updated_at
+     WHERE subscriptions.user_id = EXCLUDED.user_id
+     RETURNING user_id, plan, status, current_period_end`,
+    [
+      input.userId,
+      input.purchaseToken,
+      input.plan,
+      input.status,
+      input.currentPeriodEnd,
+      input.now,
+    ],
+  );
+  const row = result.rows[0];
+  return row ? toEntitlement(row) : null;
+};
 
 export class BillingRepository implements BillingRepositoryPort {
   constructor(private readonly pool: Pool) {}
@@ -37,28 +77,7 @@ export class BillingRepository implements BillingRepositoryPort {
     currentPeriodEnd: Date;
     now: Date;
   }): Promise<SubscriptionEntitlement | null> {
-    const result = await this.pool.query<SubscriptionRow>(
-      `INSERT INTO subscriptions (
-         user_id, play_purchase_token, plan, status, current_period_end, updated_at
-       ) VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT (play_purchase_token) DO UPDATE
-       SET plan = EXCLUDED.plan,
-           status = EXCLUDED.status,
-           current_period_end = EXCLUDED.current_period_end,
-           updated_at = EXCLUDED.updated_at
-       WHERE subscriptions.user_id = EXCLUDED.user_id
-       RETURNING user_id, plan, status, current_period_end`,
-      [
-        input.userId,
-        input.purchaseToken,
-        input.plan,
-        input.status,
-        input.currentPeriodEnd,
-        input.now,
-      ],
-    );
-    const row = result.rows[0];
-    return row ? toEntitlement(row) : null;
+    return upsertSubscription(this.pool, input);
   }
 
   async findLatestEntitlementForUser(userId: string): Promise<SubscriptionEntitlement | null> {
@@ -82,19 +101,64 @@ export class BillingRepository implements BillingRepositoryPort {
     return result.rows[0]?.user_id ?? null;
   }
 
-  async recordBillingEvent(input: {
+  async applyVerifiedRtdn(input: {
+    userId: string;
     notificationId: string;
     purchaseToken: string;
     notificationType: string;
     eventTime: Date;
-  }): Promise<boolean> {
-    const result = await this.pool.query(
-      `INSERT INTO billing_events (
-         notification_id, purchase_token, notification_type, event_time
-       ) VALUES ($1, $2, $3, $4)
-       ON CONFLICT (notification_id) DO NOTHING`,
-      [input.notificationId, input.purchaseToken, input.notificationType, input.eventTime],
-    );
-    return result.rowCount === 1;
+    plan: string;
+    status: BillingStatus;
+    currentPeriodEnd: Date;
+    now: Date;
+  }): Promise<AppliedRtdnResult> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const event = await client.query<{ id: string }>(
+        `INSERT INTO billing_events (
+           notification_id, purchase_token, notification_type, event_time
+         ) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (notification_id) DO NOTHING
+         RETURNING id`,
+        [input.notificationId, input.purchaseToken, input.notificationType, input.eventTime],
+      );
+      if (event.rowCount !== 1) {
+        await client.query('COMMIT');
+        return { duplicate: true, entitlement: null, accountActive: false };
+      }
+
+      const account = await client.query<{ status: string }>(
+        `SELECT status
+         FROM users
+         WHERE id = $1
+         FOR SHARE`,
+        [input.userId],
+      );
+      const accountStatus = account.rows[0]?.status;
+      if (!accountStatus) {
+        await client.query('ROLLBACK');
+        return { duplicate: false, entitlement: null, accountActive: false };
+      }
+
+      const entitlement = await upsertSubscription(client, input);
+      if (!entitlement) {
+        await client.query('ROLLBACK');
+        return { duplicate: false, entitlement: null, accountActive: accountStatus === 'ACTIVE' };
+      }
+
+      await client.query('COMMIT');
+      return {
+        duplicate: false,
+        entitlement,
+        accountActive: accountStatus === 'ACTIVE',
+      };
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 }
