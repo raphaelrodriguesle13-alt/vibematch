@@ -3,7 +3,9 @@ import { jest } from '@jest/globals';
 import {
   BillingError,
   BillingService,
+  type AppliedRtdnResult,
   type BillingRepositoryPort,
+  type BillingStatus,
   type SubscriptionEntitlement,
   type VerifiedPlaySubscription,
 } from '../../backend/src/billing/service';
@@ -29,7 +31,7 @@ class FakeBillingRepository implements BillingRepositoryPort {
     userId: string;
     purchaseToken: string;
     plan: string;
-    status: 'ACTIVE' | 'CANCELLED' | 'EXPIRED' | 'GRACE_PERIOD' | 'REVOKED';
+    status: BillingStatus;
     currentPeriodEnd: Date;
     now: Date;
   }): Promise<SubscriptionEntitlement | null> {
@@ -50,15 +52,37 @@ class FakeBillingRepository implements BillingRepositoryPort {
     return Promise.resolve(this.ownerByToken.get(purchaseToken) ?? null);
   }
 
-  recordBillingEvent(input: {
+  async applyVerifiedRtdn(input: {
+    userId: string;
     notificationId: string;
     purchaseToken: string;
     notificationType: string;
     eventTime: Date;
-  }): Promise<boolean> {
-    if (this.events.has(input.notificationId)) return Promise.resolve(false);
+    plan: string;
+    status: BillingStatus;
+    currentPeriodEnd: Date;
+    now: Date;
+  }): Promise<AppliedRtdnResult> {
+    if (this.events.has(input.notificationId)) {
+      return { duplicate: true, entitlement: null, accountActive: false };
+    }
+
+    const existingOwner = this.ownerByToken.get(input.purchaseToken);
+    if (existingOwner && existingOwner !== input.userId) {
+      return { duplicate: false, entitlement: null, accountActive: this.active };
+    }
+
+    const next: SubscriptionEntitlement = {
+      userId: input.userId,
+      plan: input.plan,
+      status: input.status,
+      currentPeriodEnd: input.currentPeriodEnd,
+      entitled: false,
+    };
     this.events.add(input.notificationId);
-    return Promise.resolve(true);
+    this.ownerByToken.set(input.purchaseToken, input.userId);
+    this.stored = next;
+    return { duplicate: false, entitlement: next, accountActive: this.active };
   }
 }
 
@@ -132,7 +156,7 @@ describe('BillingService', () => {
     } satisfies Partial<BillingError>);
   });
 
-  it('revalidates RTDN against Google and deduplicates notification ids', async () => {
+  it('revalidates RTDN against Google and atomically deduplicates notification ids', async () => {
     const repository = new FakeBillingRepository();
     repository.ownerByToken.set('purchase-1', userId);
     const verifier = {
@@ -159,6 +183,33 @@ describe('BillingService', () => {
     expect(first.entitlement).toMatchObject({ status: 'REVOKED', entitled: false });
     expect(second).toEqual({ duplicate: true, entitlement: null });
     expect(verifier.verifySubscription).toHaveBeenCalledTimes(2);
+    expect(repository.events).toEqual(new Set(['notification-1']));
+  });
+
+  it('rejects an RTDN when Google returns a different purchase token', async () => {
+    const repository = new FakeBillingRepository();
+    repository.ownerByToken.set('purchase-1', userId);
+    const service = new BillingService(repository, {
+      verifySubscription: () =>
+        Promise.resolve({
+          purchaseToken: 'different-token',
+          productId: 'premium_monthly',
+          status: 'ACTIVE',
+          currentPeriodEnd: new Date('2026-09-26T00:00:00.000Z'),
+        }),
+    });
+
+    await expect(
+      service.processRtdn({
+        notificationId: 'notification-mismatch',
+        purchaseToken: 'purchase-1',
+        notificationType: 'SUBSCRIPTION_RECOVERED',
+        eventTime: new Date('2026-08-26T00:00:00.000Z'),
+      }),
+    ).rejects.toMatchObject({ code: 'PLAY_VERIFICATION_FAILED' } satisfies Partial<BillingError>);
+
+    expect(repository.events.size).toBe(0);
+    expect(repository.stored).toBeNull();
   });
 
   it('keeps RTDN accounting synchronized but never grants premium to a restricted account', async () => {
