@@ -6,19 +6,19 @@ import { verifyDiditWebhookV2 } from '../../backend/src/profile/didit-webhook';
 const secret = 'test-webhook-secret-not-production';
 const now = new Date('2026-08-27T12:00:00.000Z');
 const timestamp = String(Math.floor(now.getTime() / 1000));
-const body = {
+const body: Record<string, unknown> = {
   webhook_type: 'status.updated',
   status: 'Approved',
   session_id: 'provider-session-1',
   timestamp: Number(timestamp),
 };
 
-const signatureFor = (payload: object): string => {
+const signatureFor = (payload: Record<string, unknown>): string => {
   const canonical = JSON.stringify(
     Object.keys(payload)
       .sort()
       .reduce<Record<string, unknown>>((result, key) => {
-        result[key] = payload[key as keyof typeof payload];
+        result[key] = payload[key];
         return result;
       }, {}),
   );
