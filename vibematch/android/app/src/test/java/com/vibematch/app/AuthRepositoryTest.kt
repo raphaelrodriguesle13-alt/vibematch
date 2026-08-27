@@ -70,6 +70,42 @@ class AuthRepositoryTest {
     }
 
     @Test
+    fun `refresh logout posts protected refresh credential without authorization header`() = runTest {
+        val requests = mutableListOf<okhttp3.Request>()
+        val bodies = mutableListOf<String>()
+        val client = AuthApiClient(
+            baseUrl = "https://api.example",
+            httpClient = fakeHttpClient(requests, "{\"ok\":true}", bodies),
+        )
+
+        client.logoutWithRefresh("protected-refresh-token")
+        val root = json.parseToJsonElement(bodies.single()).jsonObject
+
+        assertEquals("protected-refresh-token", root.getValue("refresh_token").jsonPrimitive.content)
+        assertEquals("/auth/logout/refresh", requests.single().url.encodedPath)
+        assertTrue(requests.single().header("Authorization") == null)
+    }
+
+    @Test
+    fun `refresh logout treats server unavailable as unconfirmed revocation`() = runTest {
+        val client = AuthApiClient(
+            baseUrl = "https://api.example",
+            httpClient = fakeHttpClient(
+                requests = mutableListOf(),
+                body = "{\"error\":\"REVOCATION_UNAVAILABLE\"}",
+                statusCode = 503,
+            ),
+        )
+
+        val error = assertThrows(AuthApiException::class.java) {
+            kotlinx.coroutines.runBlocking { client.logoutWithRefresh("protected-refresh-token") }
+        }
+
+        assertEquals(503, error.statusCode)
+        assertEquals("Logout revocation was not confirmed", error.message)
+    }
+
+    @Test
     fun `refresh maps invalid rotation to a public 401 error`() = runTest {
         val client = AuthApiClient(
             baseUrl = "https://api.example",
