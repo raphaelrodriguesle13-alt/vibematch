@@ -69,17 +69,57 @@ class AuthViewModelTest {
     }
 
     @Test
-    fun `sign out revokes backend session clears Google state and local session`() = runTest {
+    fun `sign out revokes access and refresh credentials before clearing local session`() = runTest {
         store.session = testSession()
+        store.refreshCredentials = testRefreshCredentials()
         val viewModel = AuthViewModel(google, auth, store)
 
         viewModel.signOut()
 
         assertEquals("session-jwt", auth.lastLogoutToken)
+        assertEquals("refresh-token", auth.lastRefreshLogoutToken)
         assertTrue(google.signOutCalled)
         assertNull(store.session)
+        assertNull(store.refreshCredentials)
         assertNull(viewModel.state.value.session)
         assertFalse(viewModel.state.value.isLoading)
+        assertNull(viewModel.state.value.errorMessage)
+    }
+
+    @Test
+    fun `sign out still revokes refresh credential when access logout cannot be confirmed`() = runTest {
+        store.session = testSession()
+        store.refreshCredentials = testRefreshCredentials()
+        auth.logoutError = IllegalStateException("access expired")
+        val viewModel = AuthViewModel(google, auth, store)
+
+        viewModel.signOut()
+
+        assertEquals("refresh-token", auth.lastRefreshLogoutToken)
+        assertNull(store.session)
+        assertNull(store.refreshCredentials)
+        assertEquals(
+            "A sessão local foi encerrada, mas o servidor não confirmou o logout.",
+            viewModel.state.value.errorMessage,
+        )
+    }
+
+    @Test
+    fun `sign out clears local session but surfaces unconfirmed refresh revocation`() = runTest {
+        store.session = testSession()
+        store.refreshCredentials = testRefreshCredentials()
+        auth.refreshLogoutError = IllegalStateException("backend unavailable")
+        val viewModel = AuthViewModel(google, auth, store)
+
+        viewModel.signOut()
+
+        assertEquals("refresh-token", auth.lastRefreshLogoutToken)
+        assertNull(store.session)
+        assertNull(store.refreshCredentials)
+        assertEquals(
+            "A sessão local foi encerrada, mas o servidor não confirmou a revogação.",
+            viewModel.state.value.errorMessage,
+        )
     }
 
     @Test
@@ -104,6 +144,11 @@ class AuthViewModelTest {
         expiresAtMillis = System.currentTimeMillis() + 60_000,
     )
 
+    private fun testRefreshCredentials() = RefreshCredentials(
+        refreshToken = "refresh-token",
+        refreshExpiresAtMillis = System.currentTimeMillis() + 86_400_000,
+    )
+
     private class FakeGoogleSignInGateway : GoogleSignInGateway {
         var error: Exception? = null
         var signOutCalled = false
@@ -121,6 +166,9 @@ class AuthViewModelTest {
     private class FakeAuthGateway : AuthGateway {
         var lastGoogleIdToken: String? = null
         var lastLogoutToken: String? = null
+        var lastRefreshLogoutToken: String? = null
+        var logoutError: Exception? = null
+        var refreshLogoutError: Exception? = null
 
         override suspend fun loginWithGoogle(googleIdToken: String): AuthSessionBundle {
             lastGoogleIdToken = googleIdToken
@@ -144,6 +192,12 @@ class AuthViewModelTest {
 
         override suspend fun logout(sessionJwt: String) {
             lastLogoutToken = sessionJwt
+            logoutError?.let { throw it }
+        }
+
+        override suspend fun logoutWithRefresh(refreshToken: String) {
+            lastRefreshLogoutToken = refreshToken
+            refreshLogoutError?.let { throw it }
         }
     }
 
