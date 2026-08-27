@@ -1,0 +1,45 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
+
+export type DiditWebhookBody = {
+  session_id?: unknown;
+  status?: unknown;
+  webhook_type?: unknown;
+  timestamp?: unknown;
+  [key: string]: unknown;
+};
+
+type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
+
+const canonicalize = (value: JsonValue): JsonValue => {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value !== null && typeof value === 'object') {
+    const output: Record<string, JsonValue> = {};
+    for (const key of Object.keys(value).sort()) output[key] = canonicalize(value[key]);
+    return output;
+  }
+  return value;
+};
+
+export const verifyDiditWebhookV2 = (
+  body: DiditWebhookBody,
+  signature: string | undefined,
+  timestamp: string | undefined,
+  secret: string,
+  now: Date = new Date(),
+): boolean => {
+  if (!signature?.trim() || !timestamp?.trim() || !secret.trim() || !/^\d+$/.test(timestamp)) {
+    return false;
+  }
+  const incoming = Number.parseInt(timestamp, 10);
+  const current = Math.floor(now.getTime() / 1000);
+  if (!Number.isSafeInteger(incoming) || Math.abs(current - incoming) > 300) return false;
+
+  const canonical = JSON.stringify(canonicalize(body as JsonValue));
+  const expected = createHmac('sha256', secret).update(canonical).digest('hex');
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+  const actualBuffer = Buffer.from(signature, 'utf8');
+  return expectedBuffer.length === actualBuffer.length && timingSafeEqual(expectedBuffer, actualBuffer);
+};
+
+export const diditSessionRef = (body: DiditWebhookBody): string | null =>
+  typeof body.session_id === 'string' && body.session_id.trim() ? body.session_id.trim() : null;
