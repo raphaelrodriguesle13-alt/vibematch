@@ -142,9 +142,9 @@ Os gates foram executados no sandbox com Java 21 configurando toolchain Android 
 | Android logout refresh contract | Aprovado: payload/endpoint/headers, 503 e access expirado com refresh válido cobertos em testes locais |
 | `git diff --check` | Aprovado no estado fonte e repetido após as atualizações documentais |
 | Secret scan e scan de persistência Android | Aprovado; nenhum segredo encontrado, nenhum sink proibido e apenas `SecureSessionStore` criptografado persiste o par |
-| `tools/android-e2e-preflight.sh` | Executado; `BLOCKED / no_authorized_device` sem coletar tokens ou PII |
-| `tools/android-e2e-session.sh` | Executado sem APK e com APK; `BLOCKED / APK_PATH_required` e `expected_exactly_one_authorized_device` |
-| `tools/android-e2e-auth-refresh.sh` | APK debug + APK instrumentado construídos; `BLOCKED / expected_exactly_one_authorized_device`, sem coletar tokens/PII |
+| `tools/android-e2e-preflight.sh` | Executado com APK final; `BLOCKED / adb_not_found` sem coletar tokens ou PII |
+| `tools/android-e2e-session.sh` | Executado com APK final; `BLOCKED / adb_not_found` sem coletar tokens ou PII |
+| `tools/android-e2e-auth-refresh.sh` | APK debug + APK instrumentado finais; `BLOCKED / adb_not_found`, sem coletar tokens/PII |
 | AVD Google Play API 35 headless | Provisionado, mas boot falhou após 300 s sem `/dev/kvm`; não é evidência de E2E |
 
 A implementação de segurança de release aceita placeholders públicos apenas para demonstrar o build. Isso não configura API real, produto real, endpoint LiveKit real ou credencial de assinatura.
