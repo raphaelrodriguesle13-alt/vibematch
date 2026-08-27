@@ -11,11 +11,13 @@ import {
 class FakeAuthService {
   loginResult: GoogleLoginResult = {
     sessionJwt: 'signed-jwt',
+    refreshToken: 'refresh-token-that-is-long-enough-for-login',
     userId: 'user-1',
     isNewUser: true,
     phoneVerified: false,
     sessionId: 'session-1',
     expiresAt: new Date('2026-08-25T22:30:00.000Z'),
+    refreshExpiresAt: new Date('2026-09-24T22:05:00.000Z'),
   };
   loginError: Error | null = null;
   loginToken: string | null = null;
@@ -142,7 +144,7 @@ describe('Auth HTTP API', () => {
     await app.close();
   });
 
-  test('POST /auth/google returns the Blueprint response contract', async () => {
+  test('POST /auth/google returns access and refresh credentials', async () => {
     const { app, authService } = createSubject();
     const response = await app.inject({
       method: 'POST',
@@ -154,11 +156,32 @@ describe('Auth HTTP API', () => {
     expect(authService.loginToken).toBe('google-token');
     expect(response.json()).toEqual({
       session_jwt: 'signed-jwt',
+      refresh_token: 'refresh-token-that-is-long-enough-for-login',
       user_id: 'user-1',
       is_new_user: true,
       phone_verified: false,
       expires_at: '2026-08-25T22:30:00.000Z',
+      refresh_expires_at: '2026-09-24T22:05:00.000Z',
     });
+    await app.close();
+  });
+
+  test('POST /auth/google fails closed if refresh metadata is missing', async () => {
+    const { app, authService } = createSubject();
+    authService.loginResult = {
+      ...authService.loginResult,
+      refreshToken: undefined,
+      refreshExpiresAt: undefined,
+    };
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/auth/google',
+      payload: { google_id_token: 'google-token' },
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json()).toEqual({ error: 'SESSION_ISSUANCE_FAILED' });
     await app.close();
   });
 
