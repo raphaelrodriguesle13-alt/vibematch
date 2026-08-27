@@ -1,5 +1,8 @@
 import { env } from './config/env';
+import { consoleStructuredLogger } from './http/observability';
 import { createProductionRuntime } from './runtime/production';
+
+const errorName = (error: unknown): string => (error instanceof Error ? error.name : 'UnknownError');
 
 const main = async (): Promise<void> => {
   const runtime = createProductionRuntime();
@@ -12,10 +15,17 @@ const main = async (): Promise<void> => {
     try {
       const result = await runtime.reconcileVideoRevocations();
       if (result.failed > 0) {
-        console.error('video revocation reconciliation incomplete', result);
+        consoleStructuredLogger.error({
+          event: 'video.revocation.reconciliation.incomplete',
+          revoked: result.revoked,
+          failed: result.failed,
+        });
       }
     } catch (error) {
-      console.error('video revocation reconciliation failed', error);
+      consoleStructuredLogger.error({
+        event: 'video.revocation.reconciliation.failed',
+        error_name: errorName(error),
+      });
     } finally {
       reconciling = false;
     }
@@ -30,11 +40,17 @@ const main = async (): Promise<void> => {
     if (shuttingDown) return;
     shuttingDown = true;
     clearInterval(timer);
+    consoleStructuredLogger.info({ event: 'backend.shutdown.started', signal });
     try {
       await runtime.close();
       process.exitCode = 0;
+      consoleStructuredLogger.info({ event: 'backend.shutdown.completed', signal });
     } catch (error) {
-      console.error(`backend shutdown failed after ${signal}`, error);
+      consoleStructuredLogger.error({
+        event: 'backend.shutdown.failed',
+        signal,
+        error_name: errorName(error),
+      });
       process.exitCode = 1;
     }
   };
@@ -44,9 +60,10 @@ const main = async (): Promise<void> => {
 
   try {
     await runtime.app.listen({ host: env.host, port: env.port });
+    consoleStructuredLogger.info({ event: 'backend.started', host: env.host, port: env.port });
     await reconcile();
   } catch (error) {
-    console.error('backend startup failed', error);
+    consoleStructuredLogger.error({ event: 'backend.startup.failed', error_name: errorName(error) });
     await shutdown('STARTUP_FAILURE');
   }
 };
