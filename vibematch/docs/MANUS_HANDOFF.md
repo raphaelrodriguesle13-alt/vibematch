@@ -6,14 +6,15 @@ Atualizado em **2026-08-27** após a continuação exclusiva na branch `continui
 
 O objetivo desta etapa foi aproximar o cliente Android de um AAB release-ready, reforçando o Play Billing server-authorized, o Age Assurance hosted, a UX de estados vazios e retry, o lifecycle do RTC e os gates de segurança de release. O rebase obrigatório preservou os commits cooperativos publicados entre o HEAD inicial e o trabalho local; não houve reset destrutivo, force-push, alteração da `main` ou alteração da lógica de produção backend.
 
-| Item                                  | Valor                                                                                                |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Repositório                           | `raphaelrodriguesle13-alt/vibematch`                                                                 |
-| Branch exclusiva                      | `continuity`                                                                                         |
-| HEAD inicial desta continuação        | `ad25840923e00663e83365b606bd5af8ec81942f` — `test: assert age assurance column privileges`          |
-| HEAD cooperativo encontrado no rebase | `a2a39998488de7283c5b8541e0676180916ec025` — `style(config): apply production validation formatting` |
-| HEAD local do plano/runner E2E        | `4710982` — `test(android): add sanitized e2e preflight`                                             |
-| Publicação permitida                  | Somente `origin/continuity`, sem force-push                                                          |
+| Item                                              | Valor                                                                                                |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Repositório                                       | `raphaelrodriguesle13-alt/vibematch`                                                                 |
+| Branch exclusiva                                  | `continuity`                                                                                         |
+| HEAD inicial desta continuação                    | `ad25840923e00663e83365b606bd5af8ec81942f` — `test: assert age assurance column privileges`          |
+| HEAD cooperativo encontrado no rebase             | `a2a39998488de7283c5b8541e0676180916ec025` — `style(config): apply production validation formatting` |
+| HEAD local do plano/runner E2E                    | `4710982` — `test(android): add sanitized e2e preflight`                                             |
+| HEAD publicado antes desta atualização documental | `3eee40a63715857a646a522ee6708d162544e3ba`                                                           |
+| Publicação permitida                              | Somente `origin/continuity`, sem force-push                                                          |
 
 Durante os rebases, `origin/continuity` avançou do HEAD inicial até `a2a3999`, incluindo hardening cooperativo de JWT, rotação de `kid` e validação fail-closed de configuração de produção. O trabalho Android e a matriz E2E foram preservados por `stash`, `rebase origin/continuity` e `stash pop`. Nenhum arquivo de produção backend foi alterado nesta etapa.
 
@@ -77,7 +78,7 @@ Os gates foram executados no sandbox com Java 21 configurando toolchain Android 
 | `npm run typecheck`                                                                     | Aprovado                                                                                   |
 | `npm run lint`                                                                          | Aprovado                                                                                   |
 | `npm run format:check`                                                                  | Aprovado                                                                                   |
-| `npm run test:unit`                                                                     | Aprovado: **25 suítes, 116 testes**                                                        |
+| `npm run test:unit`                                                                     | Aprovado: **28 suítes, 138 testes**                                                        |
 | `./gradlew :app:testDebugUnitTest`                                                      | Aprovado: **13 suítes, 76 testes**                                                         |
 | `./gradlew :app:compileDebugKotlin`                                                     | Aprovado                                                                                   |
 | `./gradlew :app:assembleDebug`                                                          | Aprovado                                                                                   |
@@ -89,7 +90,7 @@ Os gates foram executados no sandbox com Java 21 configurando toolchain Android 
 | Release com LiveKit em `localhost`                                                      | Rejeitado: `Release LIVEKIT_URL must not use a local host`                                 |
 | Release sem `BILLING_PRODUCT_ID`                                                        | Rejeitado: `Release BILLING_PRODUCT_ID must be configured`                                 |
 | Release com caminho Billing relativo                                                    | Rejeitado: `Release BILLING_VALIDATION_PATH must be an absolute API path`                  |
-| `git diff --check`                                                                      | Aprovado antes da documentação; repetir após o commit documental                           |
+| `git diff --check`                                                                      | Aprovado no estado fonte e repetido após as atualizações documentais                       |
 | Secret scan e scan de persistência Android                                              | Aprovado; nenhum segredo encontrado e nenhum sink de persistência/log para tokens críticos |
 | `tools/android-e2e-preflight.sh`                                                        | Executado; `BLOCKED / no_authorized_device` sem coletar tokens ou PII                      |
 | AVD Google Play API 35 headless                                                         | Provisionado, mas boot falhou após 300 s sem `/dev/kvm`; não é evidência de E2E            |
@@ -129,7 +130,8 @@ O percentual é deliberadamente conservador. O cliente, os contratos, os gates l
 
 ## Próximo passo recomendado ao ChatGPT
 
-O próximo passo é conectar um dispositivo Android com Google Play ou um device lab que exponha ADB, além de publicar um AAB assinado em Play Internal Testing. Com o ambiente disponível, executar a matriz em `docs/ANDROID_E2E_RELEASE_PLAN.md`: Google login real, Age Assurance/Didit, telefone/Twilio, MatchIntent, Consent, RTC LiveKit de duas partes, Block/revogação e Billing/restore/revogação. Registrar apenas estados públicos e confirmações server-side, sem purchase token, token LiveKit, OTP ou PII.
+O próximo passo é conectar um dispositivo Android com Google Play ou um device lab que exponha ADB, além de publicar um AAB assinado em Play Internal Testing. O último gate cooperativo também confirmou o hardening de JWT/configuração de produção no backend; essa parte foi preservada sem reescrita Android.
+Com o ambiente disponível, executar a matriz em `docs/ANDROID_E2E_RELEASE_PLAN.md`: Google login real, Age Assurance/Didit, telefone/Twilio, MatchIntent, Consent, RTC LiveKit de duas partes, Block/revogação e Billing/restore/revogação. Registrar apenas estados públicos e confirmações server-side, sem purchase token, token LiveKit, OTP ou PII.
 
 ## Referências técnicas
 
