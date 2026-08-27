@@ -1,9 +1,19 @@
+import { generateKeyPairSync } from 'node:crypto';
 import { createProductionRuntime } from '../../backend/src/runtime/production';
+
+const { privateKey: JWT_PRIVATE_KEY_PEM, publicKey: JWT_PUBLIC_KEY_PEM } = generateKeyPairSync(
+  'rsa',
+  {
+    modulusLength: 2048,
+    privateKeyEncoding: { format: 'pem', type: 'pkcs8' },
+    publicKeyEncoding: { format: 'pem', type: 'spki' },
+  },
+);
 
 const RUNTIME_ENV: Readonly<Record<string, string>> = {
   GOOGLE_OIDC_AUDIENCE: 'android-client.apps.googleusercontent.com',
-  JWT_PRIVATE_KEY_PEM: 'private-key-placeholder',
-  JWT_PUBLIC_KEY_PEM: 'public-key-placeholder',
+  JWT_PRIVATE_KEY_PEM,
+  JWT_PUBLIC_KEY_PEM,
   JWT_KEY_ID: '2026-08-primary',
   JWT_ISSUER: 'https://api.vibematch.test',
   JWT_AUDIENCE: 'vibematch-android',
