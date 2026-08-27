@@ -2,12 +2,12 @@ import { jest } from '@jest/globals';
 import { TwilioVerifyProvider } from '../../backend/src/auth/providers/twilio-verify';
 
 const response = (payload: unknown, ok = true, status = 200): Response =>
-  ({ ok, status, json: async () => payload }) as Response;
+  ({ ok, status, json: () => Promise.resolve(payload) }) as Response;
 
 describe('TwilioVerifyProvider', () => {
   test('starts SMS verification without exposing provider credentials to the caller', async () => {
-    const fetchImpl: typeof fetch = jest.fn(async () =>
-      response({ sid: 'VE1234567890abcdef1234567890abcdef' }),
+    const fetchImpl: typeof fetch = jest.fn(() =>
+      Promise.resolve(response({ sid: 'VE1234567890abcdef1234567890abcdef' })),
     );
     const provider = new TwilioVerifyProvider({
       accountSid: 'AC123',
@@ -28,7 +28,7 @@ describe('TwilioVerifyProvider', () => {
   });
 
   test('accepts a code only when Twilio returns approved', async () => {
-    const fetchImpl: typeof fetch = jest.fn(async () => response({ status: 'approved' }));
+    const fetchImpl: typeof fetch = jest.fn(() => Promise.resolve(response({ status: 'approved' })));
     const provider = new TwilioVerifyProvider({
       accountSid: 'AC123',
       authToken: 'server-secret',
@@ -40,7 +40,7 @@ describe('TwilioVerifyProvider', () => {
   });
 
   test('fails closed on provider HTTP errors', async () => {
-    const fetchImpl: typeof fetch = jest.fn(async () => response(null, false, 503));
+    const fetchImpl: typeof fetch = jest.fn(() => Promise.resolve(response(null, false, 503)));
     const provider = new TwilioVerifyProvider({
       accountSid: 'AC123',
       authToken: 'server-secret',
