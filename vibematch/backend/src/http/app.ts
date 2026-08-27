@@ -328,12 +328,17 @@ export const buildApp = (deps: AuthHttpDependencies): FastifyInstance => {
 
     try {
       const result = await deps.authService.loginWithGoogle(googleIdToken);
+      if (!result.refreshToken || !result.refreshExpiresAt) {
+        throw new AuthError('SESSION_ISSUANCE_FAILED', 'Refresh credential was not issued');
+      }
       return reply.code(200).send({
         session_jwt: result.sessionJwt,
+        refresh_token: result.refreshToken,
         user_id: result.userId,
         is_new_user: result.isNewUser,
         phone_verified: result.phoneVerified,
         expires_at: result.expiresAt.toISOString(),
+        refresh_expires_at: result.refreshExpiresAt.toISOString(),
       });
     } catch (error) {
       if (error instanceof AuthError) {
