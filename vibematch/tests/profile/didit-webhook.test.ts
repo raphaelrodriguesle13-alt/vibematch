@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { createHmac } from 'node:crypto';
 import fastify from 'fastify';
 import { registerAgeWebhookRoute } from '../../backend/src/profile/age-webhook-http';
