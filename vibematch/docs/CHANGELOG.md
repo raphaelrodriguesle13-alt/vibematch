@@ -50,10 +50,14 @@
 - Runner manual `tools/android-e2e-session.sh` para verificar Play Services/Play Store, instalar APK, iniciar a sessão e emitir somente metadados sanitizados.
 - `SecureSessionStoreInstrumentedTest` e `tools/android-e2e-auth-refresh.sh` para provar o armazenamento protegido e a substituição condicional em device, sem coletar credenciais; sem device, o runner permanece `BLOCKED`.
 - Cabeçalho do Chat com menu acessível para evitar overflow em telas estreitas, mantendo Perfil, Premium, Solicitações e Sair disponíveis sem alterar a autoridade server-side.
+- Contrato cooperativo `POST /auth/logout/refresh` integrado ao Android: payload mínimo `refresh_token`, sem Authorization, resposta idempotente `200 {ok:true}` e falha pública `503 REVOCATION_UNAVAILABLE`.
+- Logout Android captura o snapshot access/refresh atomically, limpa o armazenamento antes da rede, usa refresh para revogação quando disponível, mantém fallback Bearer somente sem refresh, bloqueia clique duplicado e descarta resposta tardia após troca de conta.
+- `SecureSessionStoreInstrumentedTest` também cobre captura do par após recriação do store; a execução física continua condicionada a device ADB autorizado.
 
 ### Limitações conhecidas
 
-- A validação OAuth Google em dispositivo, renovação de sessão, rate limiting, persistência de conversas e observabilidade ainda estão pendentes.
+- A validação OAuth Google em dispositivo, rate limiting, persistência de conversas e observabilidade ainda estão pendentes.
+- A revogação por refresh está implementada no contrato cooperativo e coberta por testes locais, mas o E2E físico ainda depende de device, duas contas e backend/DB reais; falhas `503 REVOCATION_UNAVAILABLE` permanecem fail-closed e não são convertidas em sucesso local.
 - A configuração real do Web client ID e a validação OAuth em dispositivo dependem do ambiente Google do projeto.
 - A chamada RTC real depende de um backend com LiveKit configurado, URL pública `wss://`, credenciais server-side e pelo menos dois usuários autenticados; nenhum segredo LiveKit é distribuído no APK.
 - Os testes locais exercitam contratos, estados e gates, mas não substituem a validação de mídia com duas contas em um ambiente LiveKit real.

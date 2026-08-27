@@ -34,12 +34,16 @@ O `SessionAuthenticator` repete a requisição original no máximo uma vez. Se a
 
 ## Logout e troca de conta
 
-Quando a renovação falha, o coordenador limpa o armazenamento protegido antes de acionar o logout fail-closed na Activity. O callback é roteado para a UI principal somente enquanto a Activity não está finalizando ou destruída. O logout revoga a sessão no backend quando possível, limpa estado Google, encerra RTC e remove credenciais locais.
+Quando a renovação falha, o coordenador limpa o armazenamento protegido antes de acionar o logout fail-closed na Activity. O callback é roteado para a UI principal somente enquanto a Activity não está finalizando ou destruída. Logout, expiração e revogação também encerram RTC e descartam qualquer credencial JIT pendente.
 
-Se logout, reset ou troca de conta ocorrer enquanto o backend processa a rotação, a resposta tardia não pode salvar credenciais nem ressuscitar a sessão anterior. Se já houver uma conta diferente no `SessionStore`, o callback stale é descartado sem emprestar o token novo.
+O backend agora publica `POST /auth/logout/refresh` com o corpo mínimo `{ "refresh_token": "..." }`, sem `Authorization`. O endpoint retorna `200 {"ok":true}` para revogação idempotente/indistinguível e `503 {"error":"REVOCATION_UNAVAILABLE"}` quando a infraestrutura de revogação não pode confirmar o efeito. O serviço server-side calcula hash do refresh apresentado e revoga a sessão correspondente; não expõe validade do token. O Android usa um cliente HTTP sem `SessionAuthenticator` para evitar recursão.
+
+O `AuthViewModel` captura uma única vez o snapshot access/refresh do `SecureSessionStore`, limpa o armazenamento e a UI antes de qualquer chamada de rede e mantém as credenciais apenas na coroutine transitória. Quando há refresh válido, somente `/auth/logout/refresh` é chamado, inclusive com access JWT expirado; o logout Bearer legado é usado apenas se não houver refresh. Clique duplicado é ignorado enquanto a operação está em andamento. Falhas de rede/5xx da revogação deixam a UI local encerrada e exibem confirmação não comprovada, sem inventar sucesso ou revogação local.
+
+Se logout, reset ou troca de conta ocorrer enquanto o backend processa a revogação ou rotação, a resposta tardia não pode salvar credenciais, limpar a nova conta ou ressuscitar a sessão anterior. A geração da sessão A não executa limpeza do Google nem altera a UI da conta B. O snapshot protegido é atômico no `SecureSessionStore`; a implementação futura deve preservar essa propriedade.
 
 ## Cobertura local
 
-Os testes Android cobrem parse de login/refresh, payload mínimo, 401 público, resposta incompleta, deduplicação concorrente e sequencial, token stale de outra conta, logout durante refresh, limpeza fail-closed e retry único do Authenticator. A suíte local aprovada deve ser complementada por teste real em dispositivo ou device lab com backend configurado para expiração curta, rotação, reutilização do token antigo, revogação, reinício do app e troca de conta.
+Os testes Android cobrem parse de login/refresh, contrato de `/auth/logout/refresh`, ausência de Authorization, 503 de revogação, access expirado com refresh válido, captura/limpeza local anterior à rede, clique duplicado, troca de conta durante revogação, resposta tardia, deduplicação concorrente e sequencial, token stale de outra conta, limpeza fail-closed e retry único do Authenticator. A suíte local aprovada deve ser complementada por teste real em dispositivo ou device lab com backend configurado para expiração curta, rotação, reutilização do token antigo, revogação, reinício do app e troca de conta.
 
 A ausência de dispositivo, Google OIDC real e ambiente de produção não permite classificar esses cenários como E2E real nesta sessão. Nenhum teste de provider, Play sandbox, SMS ou RTC foi convertido em PASS por mock.
