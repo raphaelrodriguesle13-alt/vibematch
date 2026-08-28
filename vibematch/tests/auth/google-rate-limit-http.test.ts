@@ -12,10 +12,10 @@ class FakeRateLimiter implements AuthRateLimiter {
   error: Error | null = null;
   calls: Array<{ scope: AuthRateLimitScope; keyMaterial: string | null; now: Date }> = [];
 
-  async consume(scope: AuthRateLimitScope, keyMaterial: string | null, now: Date) {
+  consume(scope: AuthRateLimitScope, keyMaterial: string | null, now: Date) {
     this.calls.push({ scope, keyMaterial, now });
-    if (this.error) throw this.error;
-    return this.decision;
+    if (this.error) return Promise.reject(this.error);
+    return Promise.resolve(this.decision);
   }
 }
 
