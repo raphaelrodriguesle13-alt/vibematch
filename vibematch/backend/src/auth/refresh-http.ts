@@ -23,7 +23,11 @@ const enforceRateLimit = async (
 ): Promise<boolean> => {
   if (!deps.rateLimiter) return true;
   try {
-    const decision = await deps.rateLimiter.consume(scope, refreshToken, (deps.now ?? (() => new Date()))());
+    const decision = await deps.rateLimiter.consume(
+      scope,
+      refreshToken,
+      (deps.now ?? (() => new Date()))(),
+    );
     if (decision.allowed) return true;
     void reply.header('retry-after', String(decision.retryAfterSeconds));
     await reply.code(429).send({ error: 'RATE_LIMITED' });
