@@ -20,6 +20,10 @@ const build = (overrides?: {
     overrides?.requestDeletion ?? (() => Promise.resolve<'PENDING_DELETION'>('PENDING_DELETION')),
   );
   const touchSession = jest.fn(() => Promise.resolve());
+  const session =
+    overrides && Object.prototype.hasOwnProperty.call(overrides, 'activeSession')
+      ? (overrides.activeSession ?? null)
+      : activeSession;
 
   registerAccountDeletionRoute(app, {
     service: { requestDeletion },
@@ -29,7 +33,7 @@ const build = (overrides?: {
       ),
     },
     activeSessionStore: {
-      findActiveSession: jest.fn(() => Promise.resolve(overrides?.activeSession ?? activeSession)),
+      findActiveSession: jest.fn(() => Promise.resolve(session)),
       touchSession,
     },
     now: () => now,
