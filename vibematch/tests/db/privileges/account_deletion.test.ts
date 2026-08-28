@@ -82,7 +82,9 @@ describe('account deletion least privilege', () => {
     );
     expect(repeated.rows[0]?.status).toBe('PENDING_DELETION');
 
-    const status = await ownerPool.query<StatusRow>('SELECT status FROM users WHERE id = $1', [userId]);
+    const status = await ownerPool.query<StatusRow>('SELECT status FROM users WHERE id = $1', [
+      userId,
+    ]);
     expect(status.rows[0]?.status).toBe('PENDING_DELETION');
 
     const revoked = await ownerPool.query<RevokedRow>(
