@@ -78,44 +78,15 @@ describe('critical protected HTTP path', () => {
       new MatchIntentRepository(rolePools.svc_matchmaking),
     );
     const consentService = new ConsentService(new ConsentRepository(rolePools.svc_matchmaking));
-    let videoRepositoryError: string | null = null;
-    let videoServiceError: string | null = null;
     const videoRepository = new VideoSessionRepository(rolePools.svc_video);
-    const videoServiceImplementation = new VideoSessionService(
+    const videoService = new VideoSessionService(
       {
         consumeRateLimit: (...args) => videoRepository.consumeRateLimit(...args),
-        createAuthorized: async (...args) => {
-          try {
-            return await videoRepository.createAuthorized(...args);
-          } catch (error) {
-            videoRepositoryError = JSON.stringify({
-              name: error instanceof Error ? error.name : typeof error,
-              message: error instanceof Error ? error.message : String(error),
-              code: typeof error === 'object' && error && 'code' in error ? error.code : undefined,
-            });
-            throw error;
-          }
-        },
+        createAuthorized: (...args) => videoRepository.createAuthorized(...args),
         revalidateParticipant: (...args) => videoRepository.revalidateParticipant(...args),
       },
       new LiveKitTokenProvider({ apiKey: 'e2e-key', apiSecret: 'e2e-secret-not-production' }),
     );
-    const videoService = {
-      create: async (...args: Parameters<VideoSessionService['create']>) => {
-        try {
-          return await videoServiceImplementation.create(...args);
-        } catch (error) {
-          videoServiceError = JSON.stringify({
-            name: error instanceof Error ? error.name : typeof error,
-            message: error instanceof Error ? error.message : String(error),
-            code: typeof error === 'object' && error && 'code' in error ? error.code : undefined,
-          });
-          throw error;
-        }
-      },
-      issueToken: (...args: Parameters<VideoSessionService['issueToken']>) =>
-        videoServiceImplementation.issueToken(...args),
-    };
     const moderationService = new ModerationService(
       new ModerationRepository(rolePools.svc_moderation),
     );
@@ -239,15 +210,6 @@ describe('critical protected HTTP path', () => {
         headers: bearer(tokenA),
         payload: { consent_id: consentId },
       });
-      if (createdVideo.statusCode !== 201) {
-        const persistedSession = await ownerPool.query<{ id: string }>(
-          'SELECT id FROM sessions WHERE consent_id = $1 LIMIT 1',
-          [consentId],
-        );
-        throw new Error(
-          `Video session create failed: ${createdVideo.body}; persisted=${persistedSession.rowCount === 1}; repository=${videoRepositoryError}; service=${videoServiceError}`,
-        );
-      }
       expect(createdVideo.statusCode).toBe(201);
       videoSessionId = createdVideo.json<DataResponse>().data.id;
 
