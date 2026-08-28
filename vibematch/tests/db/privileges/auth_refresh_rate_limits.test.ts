@@ -69,7 +69,9 @@ describe('auth refresh distributed rate limits', () => {
     );
     expect(old.rows[0]?.count).toBe('0');
 
-    await ownerPool.query(`DELETE FROM auth_rate_limits WHERE window_started_at = $1`, [currentWindow]);
+    await ownerPool.query(`DELETE FROM auth_rate_limits WHERE window_started_at = $1`, [
+      currentWindow,
+    ]);
   });
 
   test('non-auth runtime roles cannot write auth throttling state', async () => {
