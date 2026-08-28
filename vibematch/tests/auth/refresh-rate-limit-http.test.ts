@@ -12,10 +12,7 @@ class FakeRateLimiter implements AuthRateLimiter {
   decision: AuthRateLimitDecision = { allowed: true, retryAfterSeconds: 60 };
   error: Error | null = null;
 
-  consume(
-    scope: AuthRateLimitScope,
-    refreshToken: string | null,
-  ): Promise<AuthRateLimitDecision> {
+  consume(scope: AuthRateLimitScope, refreshToken: string | null): Promise<AuthRateLimitDecision> {
     this.calls.push({ scope, token: refreshToken });
     if (this.error) return Promise.reject(this.error);
     return Promise.resolve(this.decision);
@@ -72,9 +69,7 @@ describe('refresh HTTP throttling', () => {
     expect(response.headers['retry-after']).toBe('17');
     expect(response.json()).toEqual({ error: 'RATE_LIMITED' });
     expect(authService.refreshCalls).toBe(0);
-    expect(rateLimiter.calls).toEqual([
-      { scope: 'REFRESH', token: 'presented-refresh-token' },
-    ]);
+    expect(rateLimiter.calls).toEqual([{ scope: 'REFRESH', token: 'presented-refresh-token' }]);
     await app.close();
   });
 
@@ -101,9 +96,7 @@ describe('refresh HTTP throttling', () => {
     expect(response.statusCode).toBe(503);
     expect(response.json()).toEqual({ error: 'RATE_LIMIT_UNAVAILABLE' });
     expect(authService.logoutCalls).toBe(0);
-    expect(rateLimiter.calls).toEqual([
-      { scope: 'LOGOUT_REFRESH', token: 'logout-refresh-token' },
-    ]);
+    expect(rateLimiter.calls).toEqual([{ scope: 'LOGOUT_REFRESH', token: 'logout-refresh-token' }]);
     await app.close();
   });
 });
