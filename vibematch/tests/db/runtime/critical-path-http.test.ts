@@ -78,8 +78,24 @@ describe('critical protected HTTP path', () => {
       new MatchIntentRepository(rolePools.svc_matchmaking),
     );
     const consentService = new ConsentService(new ConsentRepository(rolePools.svc_matchmaking));
+    const videoRepository = new VideoSessionRepository(rolePools.svc_video);
     const videoService = new VideoSessionService(
-      new VideoSessionRepository(rolePools.svc_video),
+      {
+        consumeRateLimit: (...args) => videoRepository.consumeRateLimit(...args),
+        createAuthorized: async (...args) => {
+          try {
+            return await videoRepository.createAuthorized(...args);
+          } catch (error) {
+            console.error('critical-path video repository error', {
+              name: error instanceof Error ? error.name : typeof error,
+              message: error instanceof Error ? error.message : String(error),
+              code: typeof error === 'object' && error && 'code' in error ? error.code : undefined,
+            });
+            throw error;
+          }
+        },
+        revalidateParticipant: (...args) => videoRepository.revalidateParticipant(...args),
+      },
       new LiveKitTokenProvider({ apiKey: 'e2e-key', apiSecret: 'e2e-secret-not-production' }),
     );
     const moderationService = new ModerationService(
