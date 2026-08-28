@@ -87,7 +87,7 @@ export const createProductionRuntime = (): ProductionRuntime => {
       serviceSid: env.twilioVerifyServiceSid(),
       baseUrl: env.twilioVerifyBaseUrl(),
     }),
-    { phoneHashPepper: env.phoneHashPepper() },
+    { phoneHashPepper: env.phoneHashPepper(), rateLimiter: authRateLimiter },
   );
 
   const profileService = new ProfileService(new ProfileRepository(profilePool));
