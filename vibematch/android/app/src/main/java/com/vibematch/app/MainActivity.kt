@@ -75,6 +75,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.vibematch.app.account.AccountDeletionAction
 import com.vibematch.app.account.AccountDeletionApiClient
 import com.vibematch.app.account.AccountDeletionViewModel
 import com.vibematch.app.account.AccountDeletionViewModelFactory
@@ -348,7 +349,6 @@ private fun VibeMatchApp(
     rtcRoomViewModel: RtcRoomViewModel,
     onLogout: () -> Unit,
 ) {
-
     val authState by authViewModel.state
     val session = authState.session
     val sessionId = session?.userId
@@ -440,12 +440,12 @@ private fun VibeMatchApp(
                 profileState.gate != ProfileGate.READY -> {
                 ProfileScreen(
                     viewModel = profileViewModel,
+                    accountDeletionViewModel = accountDeletionViewModel,
                     onClose = { showProfile = false },
                     onLogout = {
                         billingViewModel.reset()
                         stopRtc()
                         profileViewModel.reset()
-
                         matchIntentViewModel.reset()
                         chatViewModel.clearConversation()
                         phoneViewModel.reset()
@@ -456,11 +456,11 @@ private fun VibeMatchApp(
             !session.phoneVerified -> {
                 PhoneVerificationScreen(
                     viewModel = phoneViewModel,
+                    accountDeletionViewModel = accountDeletionViewModel,
                     onLogout = {
                         billingViewModel.reset()
                         stopRtc()
                         phoneViewModel.reset()
-
                         matchIntentViewModel.reset()
                         chatViewModel.clearConversation()
                         onLogout()
@@ -488,7 +488,6 @@ private fun VibeMatchApp(
                         billingViewModel.reset()
                         stopRtc()
                         moderationViewModel.reset()
-
                         consentViewModel.reset()
                         matchIntentViewModel.reset()
                         chatViewModel.clearConversation()
@@ -525,7 +524,6 @@ private fun VibeMatchApp(
                         billingViewModel.reset()
                         stopRtc()
                         videoViewModel.reset()
-
                         consentViewModel.reset()
                         matchIntentViewModel.reset()
                         chatViewModel.clearConversation()
@@ -560,7 +558,6 @@ private fun VibeMatchApp(
                         billingViewModel.reset()
                         stopRtc()
                         consentViewModel.reset()
-
                         matchIntentViewModel.reset()
                         chatViewModel.clearConversation()
                         phoneViewModel.reset()
@@ -581,7 +578,6 @@ private fun VibeMatchApp(
                         billingViewModel.reset()
                         stopRtc()
                         matchIntentViewModel.reset()
-
                         consentViewModel.reset()
                         chatViewModel.clearConversation()
                         phoneViewModel.reset()
@@ -594,7 +590,6 @@ private fun VibeMatchApp(
                     viewModel = chatViewModel,
                     accountDeletionViewModel = accountDeletionViewModel,
                     isSigningOut = authState.isLoading,
-
                     onLogout = {
                         billingViewModel.reset()
                         stopRtc()
@@ -606,7 +601,6 @@ private fun VibeMatchApp(
                     onOpenProfile = { showProfile = true },
                     onOpenBilling = { showBilling = true },
                     onOpenMatchIntents = { showMatchIntents = true },
-
                 )
             }
         }
@@ -1043,6 +1037,7 @@ private fun Composer(
 @Composable
 private fun ProfileScreen(
     viewModel: ProfileViewModel,
+    accountDeletionViewModel: AccountDeletionViewModel,
     onClose: () -> Unit,
     onLogout: () -> Unit,
 ) {
@@ -1101,6 +1096,10 @@ private fun ProfileScreen(
                     Text("Sair", color = VibePurple)
                 }
             }
+            AccountDeletionAction(
+                viewModel = accountDeletionViewModel,
+                modifier = Modifier.padding(horizontal = 20.dp),
+            )
 
             if (state.isLoading || !state.hasLoaded) {
                 Column(
@@ -1187,7 +1186,6 @@ private fun ModerationScreen(
                     Text("Sair", color = VibePurple)
                 }
             }
-
             Text(
                 text = "Você pode bloquear esta pessoa ou registrar uma denúncia. O backend fará a validação e o encaminhamento operacional; o app não decide punições localmente.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -1203,7 +1201,6 @@ private fun ModerationScreen(
                     color = Color(0xFF2F7D4A),
                 )
             }
-
             Button(
                 onClick = { viewModel.block(targetUserId) },
                 enabled = !isBusy && !state.blockCompleted,
@@ -1221,7 +1218,6 @@ private fun ModerationScreen(
                     Text("Bloquear esta pessoa")
                 }
             }
-
             Text(
                 text = "Denunciar por categoria",
                 style = MaterialTheme.typography.titleMedium,
@@ -1354,7 +1350,6 @@ private fun VideoSessionScreen(
                     Text("Sair", color = VibePurple)
                 }
             }
-
             state.errorMessage?.let { error ->
                 ErrorBanner(error) { viewModel.clearMessages() }
             }
@@ -1368,7 +1363,6 @@ private fun VideoSessionScreen(
             rtcState.errorMessage?.let { error ->
                 ErrorBanner(error) { rtcViewModel.disconnect() }
             }
-
             when {
                 state.isCreating -> {
                     Box(
@@ -1687,7 +1681,6 @@ private fun ConsentScreen(
                     Text("Sair", color = VibePurple)
                 }
             }
-
             state.errorMessage?.let { error ->
                 ErrorBanner(error) { viewModel.clearMessages() }
             }
@@ -1698,7 +1691,6 @@ private fun ConsentScreen(
                     color = Color(0xFF2F7D4A),
                 )
             }
-
             when {
                 state.isLoading -> {
                     Box(
@@ -1928,11 +1920,9 @@ private fun MatchIntentScreen(
     onLogout: () -> Unit,
 ) {
     val state by viewModel.state
-
     LaunchedEffect(Unit) {
         viewModel.load(refresh = true)
     }
-
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = VibeBackground,
@@ -1969,7 +1959,6 @@ private fun MatchIntentScreen(
                     Text("Sair", color = VibePurple)
                 }
             }
-
             state.errorMessage?.let { error ->
                 ErrorBanner(error) { viewModel.clearMessages() }
             }
@@ -1980,7 +1969,6 @@ private fun MatchIntentScreen(
                     color = Color(0xFF2F7D4A),
                 )
             }
-
             when {
                 state.isLoading -> {
                     Box(
@@ -2148,6 +2136,7 @@ private fun MatchIntentBlockedCard(modifier: Modifier = Modifier) {
 @Composable
 private fun PhoneVerificationScreen(
     viewModel: PhoneVerificationViewModel,
+    accountDeletionViewModel: AccountDeletionViewModel,
     onLogout: () -> Unit,
 ) {
     val state by viewModel.state
@@ -2183,6 +2172,7 @@ private fun PhoneVerificationScreen(
                     Text("Sair", color = VibePurple)
                 }
             }
+            AccountDeletionAction(viewModel = accountDeletionViewModel)
 
             Spacer(modifier = Modifier.weight(1f))
             if (state.step == PhoneVerificationStep.PHONE_INPUT) {
@@ -2475,7 +2465,6 @@ private fun ProfileForm(
             enabled = !state.isSaving,
             shape = RoundedCornerShape(16.dp),
         )
-
         Text(
             text = "Seus interesses",
             style = MaterialTheme.typography.titleMedium,
@@ -2511,7 +2500,6 @@ private fun ProfileForm(
                 }
             }
         }
-
         state.errorMessage?.let { error ->
             ErrorBanner(error) { viewModel.clearError() }
         }
@@ -2544,7 +2532,6 @@ private fun ProfileForm(
         Spacer(modifier = Modifier.height(20.dp))
     }
 }
-
 
 @Composable
 private fun BillingScreen(
