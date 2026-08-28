@@ -1,10 +1,7 @@
 import type { AuthRateLimiter, AuthRateLimitScope } from '../../backend/src/auth/rate-limit';
 import type { AuthSession } from '../../backend/src/auth/repository';
 import type { GoogleLoginResult } from '../../backend/src/auth/service';
-import type {
-  SessionTokenClaims,
-  SessionTokenVerifier,
-} from '../../backend/src/shared/providers';
+import type { SessionTokenClaims, SessionTokenVerifier } from '../../backend/src/shared/providers';
 import { buildApp, type ActiveSessionStore } from '../../backend/src/http/app';
 
 class FakeRateLimiter implements AuthRateLimiter {
