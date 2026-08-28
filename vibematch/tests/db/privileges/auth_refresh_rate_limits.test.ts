@@ -4,7 +4,7 @@ import { closeAll, expectDbError, ownerPool, rolePools } from '../../helpers/db'
 
 afterAll(closeAll);
 
-describe('auth refresh distributed rate limits', () => {
+describe('auth distributed rate limits', () => {
   test('svc_auth atomically limits one refresh credential without storing the token', async () => {
     const token = `refresh-${randomUUID()}-${randomUUID()}`;
     const limiter = new PgAuthRateLimiter(rolePools.svc_auth, {
@@ -34,6 +34,30 @@ describe('auth refresh distributed rate limits', () => {
     await ownerPool.query(`DELETE FROM auth_rate_limits WHERE window_started_at = $1`, [
       new Date('2035-01-01T00:00:00.000Z'),
     ]);
+  });
+
+  test('phone scope is distributed and never stores the user id in cleartext', async () => {
+    const limiter = new PgAuthRateLimiter(rolePools.svc_auth, {
+      windowSeconds: 60,
+      globalLimit: 100,
+      credentialLimit: 1,
+    });
+    const userId = randomUUID();
+    const now = new Date('2039-01-01T00:00:10.000Z');
+
+    expect((await limiter.consume('PHONE_START', userId, now)).allowed).toBe(true);
+    expect((await limiter.consume('PHONE_START', userId, now)).allowed).toBe(false);
+
+    const window = new Date('2039-01-01T00:00:00.000Z');
+    const rows = await ownerPool.query<{ key_hash: string }>(
+      `SELECT key_hash FROM auth_rate_limits
+       WHERE scope = 'PHONE_START' AND window_started_at = $1`,
+      [window],
+    );
+    expect(rows.rows.some((row) => row.key_hash === userId)).toBe(false);
+    expect(rows.rows.some((row) => /^[0-9a-f]{64}$/.test(row.key_hash))).toBe(true);
+
+    await ownerPool.query(`DELETE FROM auth_rate_limits WHERE window_started_at = $1`, [window]);
   });
 
   test('global ceiling prevents token-spray cardinality growth and old windows are pruned', async () => {
