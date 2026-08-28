@@ -128,7 +128,7 @@ describe('critical protected HTTP path', () => {
         payload: { receiver_id: userB },
       });
       expect(createdIntent.statusCode).toBe(201);
-      intentId = (createdIntent.json() as DataResponse).data.id;
+      intentId = createdIntent.json<DataResponse>().data.id;
 
       const acceptedIntent = await app.inject({
         method: 'POST',
@@ -145,7 +145,7 @@ describe('critical protected HTTP path', () => {
         payload: { match_intent_id: intentId },
       });
       expect(createdConsent.statusCode).toBe(201);
-      consentId = (createdConsent.json() as DataResponse).data.id;
+      consentId = createdConsent.json<DataResponse>().data.id;
 
       const decisionA = await app.inject({
         method: 'POST',
@@ -162,7 +162,7 @@ describe('critical protected HTTP path', () => {
         payload: { decision: 'ACCEPTED', request_id: randomUUID() },
       });
       expect(decisionB.statusCode).toBe(200);
-      expect((decisionB.json() as DataResponse).data.status).toBe('ACCEPTED_BOTH');
+      expect(decisionB.json<DataResponse>().data.status).toBe('ACCEPTED_BOTH');
 
       const createdVideo = await app.inject({
         method: 'POST',
@@ -171,7 +171,7 @@ describe('critical protected HTTP path', () => {
         payload: { consent_id: consentId },
       });
       expect(createdVideo.statusCode).toBe(201);
-      videoSessionId = (createdVideo.json() as DataResponse).data.id;
+      videoSessionId = createdVideo.json<DataResponse>().data.id;
 
       const beforeBlock = await app.inject({
         method: 'POST',
@@ -179,7 +179,7 @@ describe('critical protected HTTP path', () => {
         headers: bearer(tokenA),
       });
       expect(beforeBlock.statusCode).toBe(200);
-      expect((beforeBlock.json() as DataResponse).data.token).toBeTruthy();
+      expect(beforeBlock.json<DataResponse>().data.token).toBeTruthy();
 
       const blocked = await app.inject({
         method: 'POST',
