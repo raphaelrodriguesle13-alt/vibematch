@@ -2,11 +2,7 @@ import { createHash } from 'node:crypto';
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
 
 export type AuthRateLimitScope =
-  | 'GOOGLE_LOGIN'
-  | 'PHONE_START'
-  | 'PHONE_CONFIRM'
-  | 'REFRESH'
-  | 'LOGOUT_REFRESH';
+  'GOOGLE_LOGIN' | 'PHONE_START' | 'PHONE_CONFIRM' | 'REFRESH' | 'LOGOUT_REFRESH';
 
 export type AuthRateLimitDecision = {
   allowed: boolean;
