@@ -1,7 +1,12 @@
 import { createHash } from 'node:crypto';
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
 
-export type AuthRateLimitScope = 'REFRESH' | 'LOGOUT_REFRESH';
+export type AuthRateLimitScope =
+  | 'GOOGLE_LOGIN'
+  | 'PHONE_START'
+  | 'PHONE_CONFIRM'
+  | 'REFRESH'
+  | 'LOGOUT_REFRESH';
 
 export type AuthRateLimitDecision = {
   allowed: boolean;
@@ -11,7 +16,7 @@ export type AuthRateLimitDecision = {
 export interface AuthRateLimiter {
   consume(
     scope: AuthRateLimitScope,
-    refreshToken: string | null,
+    keyMaterial: string | null,
     now: Date,
   ): Promise<AuthRateLimitDecision>;
 }
@@ -29,8 +34,8 @@ const positiveInteger = (name: string, value: number): number => {
   return value;
 };
 
-const fingerprint = (refreshToken: string): string =>
-  createHash('sha256').update(refreshToken, 'utf8').digest('hex');
+const fingerprint = (value: string): string =>
+  createHash('sha256').update(value, 'utf8').digest('hex');
 
 const windowStart = (now: Date, windowSeconds: number): Date => {
   const windowMs = windowSeconds * 1000;
@@ -53,7 +58,7 @@ export class PgAuthRateLimiter implements AuthRateLimiter {
 
   async consume(
     scope: AuthRateLimitScope,
-    refreshToken: string | null,
+    keyMaterial: string | null,
     now: Date,
   ): Promise<AuthRateLimitDecision> {
     const start = windowStart(now, this.windowSeconds);
@@ -70,15 +75,10 @@ export class PgAuthRateLimiter implements AuthRateLimiter {
       let allowed = globalCount <= this.globalLimit;
 
       // Once the global ceiling is exceeded, do not create attacker-controlled
-      // per-credential rows. This bounds table cardinality during token spray.
-      if (allowed && refreshToken) {
-        const credentialCount = await this.increment(
-          client,
-          scope,
-          fingerprint(refreshToken),
-          start,
-        );
-        allowed = credentialCount <= this.credentialLimit;
+      // per-key rows. This bounds table cardinality during credential spray.
+      if (allowed && keyMaterial) {
+        const keyCount = await this.increment(client, scope, fingerprint(keyMaterial), start);
+        allowed = keyCount <= this.credentialLimit;
       }
 
       await client.query('COMMIT');
