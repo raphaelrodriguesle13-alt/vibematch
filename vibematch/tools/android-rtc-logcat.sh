@@ -96,16 +96,20 @@ analyze() {
   local input="$1"
   mkdir -p "$RTC_ARTIFACT_DIR"
   sanitize_file "$input" "$SANITIZED_LOG"
+  if [[ "$input" == "$RAW_LOG" ]]; then
+    rm -f "$RAW_LOG"
+  fi
 
   local activity_count connected_count reconnecting_count reconnected_count
-  local connect_failure_count fatal_count remote_seen server_disconnect_count last_event
+  local connect_failure_count media_failure_count fatal_count remote_seen server_disconnect_count last_event
   activity_count="$(count_matches 'RTC_DIAG event=' "$SANITIZED_LOG")"
   connected_count="$(count_matches 'RTC_DIAG event=(CONNECTED|SDK_CONNECT_SUCCESS)' "$SANITIZED_LOG")"
   reconnecting_count="$(count_matches 'RTC_DIAG event=RECONNECTING' "$SANITIZED_LOG")"
   reconnected_count="$(count_matches 'RTC_DIAG event=RECONNECTED' "$SANITIZED_LOG")"
-  connect_failure_count="$(count_matches 'RTC_DIAG event=(CONNECT_EXCEPTION|FAILED_TO_CONNECT)' "$SANITIZED_LOG")"
+  connect_failure_count="$(count_matches 'RTC_DIAG event=(CONFIG_REJECTED|CONNECT_EXCEPTION|FAILED_TO_CONNECT)' "$SANITIZED_LOG")"
+  media_failure_count="$(count_matches 'RTC_DIAG event=(CAMERA_FAILURE|MICROPHONE_FAILURE)' "$SANITIZED_LOG")"
   fatal_count="$(count_matches 'FATAL EXCEPTION|Fatal signal|ANR in com\.vibematch\.app|Process: com\.vibematch\.app' "$SANITIZED_LOG")"
-  remote_seen="$(count_matches 'RTC_DIAG event=(PARTICIPANT_CONNECTED|REMOTE_VIDEO_SUBSCRIBED).*remote_count=[1-9][0-9]*|RTC_DIAG event=REMOTE_VIDEO_SUBSCRIBED' "$SANITIZED_LOG")"
+  remote_seen="$(count_matches 'RTC_DIAG event=(SDK_CONNECT_SUCCESS|PARTICIPANT_CONNECTED|REMOTE_VIDEO_SUBSCRIBED|REMOTE_VIDEO_EXISTING) remote_count=[1-9][0-9]*' "$SANITIZED_LOG")"
   server_disconnect_count="$(count_matches 'RTC_DIAG event=SERVER_DISCONNECTED' "$SANITIZED_LOG")"
   last_event="$(grep -Eo 'RTC_DIAG event=[A-Z0-9_]+' "$SANITIZED_LOG" 2>/dev/null | tail -n 1 | sed 's/.*event=//' || true)"
   last_event="${last_event:-NONE}"
@@ -121,6 +125,10 @@ analyze() {
   elif (( connect_failure_count > 0 )); then
     status="FAIL"
     reason="livekit_connect_failure"
+    exit_code=1
+  elif (( media_failure_count > 0 )); then
+    status="FAIL"
+    reason="rtc_media_failure"
     exit_code=1
   elif [[ "$last_event" == "RECONNECTING" ]]; then
     status="FAIL"
@@ -150,6 +158,7 @@ analyze() {
     echo "RTC_RECONNECTING_COUNT=$reconnecting_count"
     echo "RTC_RECONNECTED_COUNT=$reconnected_count"
     echo "RTC_CONNECT_FAILURE_COUNT=$connect_failure_count"
+    echo "RTC_MEDIA_FAILURE_COUNT=$media_failure_count"
     echo "RTC_SERVER_DISCONNECT_COUNT=$server_disconnect_count"
     echo "RTC_FATAL_COUNT=$fatal_count"
     echo "RTC_REMOTE_EVIDENCE_COUNT=$remote_seen"

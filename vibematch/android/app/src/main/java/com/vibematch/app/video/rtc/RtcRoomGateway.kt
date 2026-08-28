@@ -25,7 +25,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-
 enum class RtcRoomStatus {
     DISCONNECTED,
     CONNECTING,
@@ -79,15 +78,18 @@ class LiveKitRtcRoomGateway(
 
     override suspend fun connect(serverUrl: String, token: String) {
         if (serverUrl.isBlank() || token.isBlank()) {
+            RtcDiagnostics.error("CONFIG_REJECTED")
             mutableState.value = RtcRoomUiState(
                 status = RtcRoomStatus.FAILED,
                 errorMessage = "A configuração de vídeo ou a credencial JIT está ausente.",
             )
             return
         }
+        RtcDiagnostics.event("CONNECT_REQUESTED")
         disconnect()
         mutableState.value = RtcRoomUiState(status = RtcRoomStatus.CONNECTING)
         val newRoom = LiveKit.create(applicationContext)
+        RtcDiagnostics.event("ROOM_CREATED")
         room = newRoom
         localRenderer?.let(newRoom::initVideoRenderer)
         remoteRenderer?.let(newRoom::initVideoRenderer)
@@ -95,14 +97,17 @@ class LiveKitRtcRoomGateway(
             newRoom.events.collect { event -> handleEvent(event) }
         }
         try {
+            RtcDiagnostics.event("SDK_CONNECT_START")
             newRoom.connect(serverUrl, token)
+            RtcDiagnostics.event("SDK_CONNECT_SUCCESS", newRoom.remoteParticipants.size)
             mutableState.value = mutableState.value.copy(
                 status = RtcRoomStatus.CONNECTED,
                 errorMessage = null,
                 remoteParticipantCount = newRoom.remoteParticipants.size,
             )
             attachExistingRemoteVideo(newRoom)
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            RtcDiagnostics.error("CONNECT_EXCEPTION", error)
             disconnectNow()
             mutableState.value = RtcRoomUiState(
                 status = RtcRoomStatus.FAILED,
@@ -119,11 +124,13 @@ class LiveKitRtcRoomGateway(
         val currentRoom = room ?: return fail("A sala de vídeo não está conectada.")
         try {
             currentRoom.localParticipant.setMicrophoneEnabled(enabled)
+            RtcDiagnostics.event(if (enabled) "MICROPHONE_ENABLED" else "MICROPHONE_DISABLED")
             mutableState.value = mutableState.value.copy(
                 microphoneEnabled = enabled,
                 errorMessage = null,
             )
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            RtcDiagnostics.error("MICROPHONE_FAILURE", error)
             fail("Não foi possível alterar o microfone.")
         }
     }
@@ -140,11 +147,13 @@ class LiveKitRtcRoomGateway(
             if (enabled && track != null) {
                 localRenderer?.let(track::addRenderer)
             }
+            RtcDiagnostics.event(if (enabled) "CAMERA_ENABLED" else "CAMERA_DISABLED")
             mutableState.value = mutableState.value.copy(
                 localVideoEnabled = enabled,
                 errorMessage = null,
             )
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            RtcDiagnostics.error("CAMERA_FAILURE", error)
             fail("Não foi possível alterar a câmera.")
         }
     }
@@ -183,6 +192,7 @@ class LiveKitRtcRoomGateway(
 
     override fun disconnectNow() {
         if (!disconnecting.compareAndSet(false, true)) return
+        RtcDiagnostics.event("LOCAL_DISCONNECT_START")
         try {
             eventsJob?.cancel()
             eventsJob = null
@@ -194,6 +204,7 @@ class LiveKitRtcRoomGateway(
             room?.release()
             room = null
             mutableState.value = RtcRoomUiState(status = RtcRoomStatus.DISCONNECTED)
+            RtcDiagnostics.event("LOCAL_DISCONNECT_DONE")
         } finally {
             disconnecting.set(false)
         }
@@ -202,18 +213,21 @@ class LiveKitRtcRoomGateway(
     private fun handleEvent(event: RoomEvent) {
         when (event) {
             is RoomEvent.Connected -> {
+                RtcDiagnostics.event("CONNECTED", event.room.remoteParticipants.size)
                 mutableState.value = mutableState.value.copy(
                     status = RtcRoomStatus.CONNECTED,
                     errorMessage = null,
                 )
             }
             is RoomEvent.Reconnecting -> {
+                RtcDiagnostics.warning("RECONNECTING")
                 mutableState.value = mutableState.value.copy(
                     status = RtcRoomStatus.RECONNECTING,
                     errorMessage = "A conexão de vídeo está sendo restabelecida.",
                 )
             }
             is RoomEvent.Reconnected -> {
+                RtcDiagnostics.event("RECONNECTED", event.room.remoteParticipants.size)
                 mutableState.value = mutableState.value.copy(
                     status = RtcRoomStatus.CONNECTED,
                     errorMessage = null,
@@ -221,32 +235,40 @@ class LiveKitRtcRoomGateway(
                 updateParticipantCount(event.room)
             }
             is RoomEvent.FailedToConnect -> {
+                RtcDiagnostics.error("FAILED_TO_CONNECT")
                 disconnectNow()
                 mutableState.value = RtcRoomUiState(
                     status = RtcRoomStatus.FAILED,
                     errorMessage = "Não foi possível conectar à sala de vídeo.",
                 )
             }
-            is RoomEvent.ParticipantConnected -> updateParticipantCount(event.room)
+            is RoomEvent.ParticipantConnected -> {
+                updateParticipantCount(event.room)
+                RtcDiagnostics.event("PARTICIPANT_CONNECTED", event.room.remoteParticipants.size)
+            }
             is RoomEvent.ParticipantDisconnected -> {
                 remoteRenderer?.let { renderer -> remoteVideoTrack?.removeRenderer(renderer) }
                 remoteVideoTrack = null
                 updateParticipantCount(event.room)
+                RtcDiagnostics.event("PARTICIPANT_DISCONNECTED", event.room.remoteParticipants.size)
             }
             is RoomEvent.TrackSubscribed -> {
                 val track = event.track as? VideoTrack ?: return
                 remoteVideoTrack = track
                 remoteRenderer?.let(track::addRenderer)
                 updateParticipantCount(event.room)
+                RtcDiagnostics.event("REMOTE_VIDEO_SUBSCRIBED", event.room.remoteParticipants.size)
             }
             is RoomEvent.TrackUnsubscribed -> {
                 val track = event.track as? VideoTrack ?: return
                 remoteRenderer?.let(track::removeRenderer)
                 if (remoteVideoTrack === track) remoteVideoTrack = null
                 mutableState.value = mutableState.value.copy(remoteVideoAvailable = false)
+                RtcDiagnostics.event("REMOTE_VIDEO_UNSUBSCRIBED", event.room.remoteParticipants.size)
             }
             is RoomEvent.Disconnected -> {
                 if (disconnecting.get()) return
+                RtcDiagnostics.warning("SERVER_DISCONNECTED")
                 disconnectNow()
                 mutableState.value = RtcRoomUiState(
                     status = RtcRoomStatus.DISCONNECTED,
@@ -266,6 +288,7 @@ class LiveKitRtcRoomGateway(
                 remoteVideoTrack = track
                 remoteRenderer?.let(track::addRenderer)
                 mutableState.value = mutableState.value.copy(remoteVideoAvailable = true)
+                RtcDiagnostics.event("REMOTE_VIDEO_EXISTING", currentRoom.remoteParticipants.size)
             }
     }
 
