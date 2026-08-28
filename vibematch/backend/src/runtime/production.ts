@@ -112,6 +112,7 @@ export const createProductionRuntime = (): ProductionRuntime => {
     authService,
     sessionTokenVerifier: sessionTokens,
     activeSessionStore: authRepository,
+    authRateLimiter,
     phoneStateStore: authRepository,
     phoneVerificationService,
     profileService,

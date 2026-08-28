@@ -4,6 +4,7 @@ import { ChatRequestValidationError, type ChatRequest, type ChatService } from '
 import { ChatGptProviderError } from '../shared/providers/openai';
 import { AuthError, type AuthService } from '../auth/service';
 import type { AuthSession } from '../auth/repository';
+import type { AuthRateLimiter } from '../auth/rate-limit';
 import { PhoneVerificationError, type PhoneVerificationService } from '../auth/phone-service';
 import type { AgeAssuranceService } from '../profile/age-assurance';
 import {
@@ -43,6 +44,7 @@ export interface AuthHttpDependencies {
   authService: Pick<AuthService, 'loginWithGoogle' | 'logout'>;
   sessionTokenVerifier: SessionTokenVerifier;
   activeSessionStore: ActiveSessionStore;
+  authRateLimiter?: AuthRateLimiter;
   phoneStateStore?: PhoneStateStore;
   phoneVerificationService?: Pick<PhoneVerificationService, 'start' | 'confirm'>;
   profileService?: Pick<ProfileService, 'get' | 'update' | 'listInterests'>;
@@ -324,6 +326,19 @@ export const buildApp = (deps: AuthHttpDependencies): FastifyInstance => {
     const googleIdToken = request.body?.google_id_token;
     if (typeof googleIdToken !== 'string' || googleIdToken.trim() === '') {
       return reply.code(400).send({ error: 'INVALID_REQUEST' });
+    }
+
+    if (deps.authRateLimiter) {
+      try {
+        const decision = await deps.authRateLimiter.consume('GOOGLE_LOGIN', googleIdToken, now());
+        if (!decision.allowed) {
+          reply.header('Retry-After', decision.retryAfterSeconds.toString());
+          return reply.code(429).send({ error: 'RATE_LIMITED' });
+        }
+      } catch (error) {
+        request.log.error({ err: error }, 'auth/google rate limiter unavailable');
+        return reply.code(503).send({ error: 'AUTH_RATE_LIMIT_UNAVAILABLE' });
+      }
     }
 
     try {
