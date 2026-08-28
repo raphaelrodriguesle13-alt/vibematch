@@ -18,14 +18,14 @@ afterAll(async () => {
 describe('account deletion least privilege', () => {
   test('svc_account can only request deletion through the constrained function', async () => {
     const user = await ownerPool.query<IdRow>(
-      `INSERT INTO users (google_subject_id)
-       VALUES ($1)
+      `INSERT INTO users (google_subject_id, phone_verified, age_assurance_status)
+       VALUES ($1, TRUE, 'APPROVED')
        RETURNING id`,
       [`delete-${crypto.randomUUID()}`],
     );
     const other = await ownerPool.query<IdRow>(
-      `INSERT INTO users (google_subject_id)
-       VALUES ($1)
+      `INSERT INTO users (google_subject_id, phone_verified, age_assurance_status)
+       VALUES ($1, TRUE, 'APPROVED')
        RETURNING id`,
       [`delete-peer-${crypto.randomUUID()}`],
     );
