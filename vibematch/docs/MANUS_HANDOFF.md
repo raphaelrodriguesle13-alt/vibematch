@@ -13,7 +13,7 @@ O rebase obrigatório preservou os commits cooperativos publicados entre o HEAD 
 | Branch exclusiva                            | `continuity`                                                                                |
 | HEAD inicial histórico da continuidade      | `ad25840923e00663e83365b606bd5af8ec81942f` — `test: assert age assurance column privileges` |
 | HEAD inicial desta tarefa                   | `015d4b640a67718cbec51feaa8808b9c1e6c7773` — `test(android): add keystore refresh runner`   |
-| HEAD cooperativo final encontrado no rebase | `ec00b98` — `style(tests): align database concurrency formatting`                           |
+| HEAD cooperativo final encontrado no rebase | `446a2a3` — `ci: migrate actions to current runtimes`                                       |
 
 | Commit do plano E2E na ancestralidade atual | `6558d04` — `docs(android): add real e2e release plan` |
 | Commit do preflight E2E na ancestralidade atual | `4710982` — `test(android): add sanitized e2e preflight` |
@@ -25,11 +25,13 @@ O rebase obrigatório preservou os commits cooperativos publicados entre o HEAD 
 | Commit Android desta fase 1 | `97d1e43a` — `feat(android): harden refresh-token logout lifecycle` |
 | Commit Android desta fase 2 | `f3bdda4e` — `fix(android): revoke expired sessions with refresh snapshot` |
 | Commit backend desta fase | `ec00b98` — `style(tests): align database concurrency formatting` |
+| Commit CI desta fase | `446a2a3` — `ci: migrate actions to current runtimes` |
+
 | HEAD de código antes do handoff final | `f3bdda4e` — `fix(android): revoke expired sessions with refresh snapshot` |
 
 | Publicação permitida | Somente `origin/continuity`, sem force-push |
 
-Durante os rebases, `origin/continuity` avançou do HEAD inicial desta tarefa `015d4b6` até `ec00b98`, incluindo hardening cooperativo de JWT, rotação de `kid`, validação fail-closed de configuração de produção, observabilidade segura, readiness por privilégios mínimos, limites de conexão, smoke pós-deploy, documentação de timeouts/DB, refresh rotativo, revogação idempotente por refresh, bloqueio de entitlement para contas restritas, testes de Billing sob restrição, corridas de suspensão/login fail-closed, limpeza concorrente de testes e a correção de formatação dos testes de Billing/moderação.
+Durante os rebases, `origin/continuity` avançou do HEAD inicial desta tarefa `015d4b6` até `446a2a3`, incluindo hardening cooperativo de JWT, rotação de `kid`, validação fail-closed de configuração de produção, observabilidade segura, readiness por privilégios mínimos, limites de conexão, smoke pós-deploy, documentação de timeouts/DB, refresh rotativo, revogação idempotente por refresh, bloqueio de entitlement para contas restritas, testes de Billing sob restrição, corridas de suspensão/login fail-closed, limpeza concorrente de testes, correção de formatação dos testes de Billing/moderação e atualização das actions do CI para runtimes atuais.
 O trabalho Android e a matriz E2E foram preservados por `stash`, `rebase origin/continuity` e `stash pop`. A lógica de produção backend não foi reescrita nesta etapa; o único diff backend local adicional foi formatação e uma fixture de teste compatível com `exactOptionalPropertyTypes`.
 
 ## Commits desta entrega
@@ -132,6 +134,7 @@ Os gates foram executados no sandbox com Java 21 configurando toolchain Android 
 | `./gradlew :app:compileDebugAndroidTestKotlin` | Aprovado |
 | `./gradlew :app:assembleDebugAndroidTest` | Aprovado |
 | CI `33127396856` no commit `ec00b98` | Aprovado: verify e android; typecheck, lint, format, migrations, DB/privilege tests, unit tests, secret scan, Android unit tests e debug build |
+| CI `33155084399` no commit `446a2a3` | Aprovado: verify e android após `checkout@v5`, `setup-node@v5` e `setup-java@v5`; sem os avisos anteriores de runtime obsoleto |
 | `./gradlew :app:assembleDebug` | Aprovado |
 | `./gradlew :app:lintDebug` | Aprovado |
 | `./gradlew :app:bundleRelease` com API HTTPS, LiveKit WSS e produto público placeholder | Aprovado; AAB unsigned buildable |
@@ -196,7 +199,7 @@ O percentual é deliberadamente conservador. O cliente, os contratos de refresh/
 ## Próximo passo recomendado ao ChatGPT
 
 O próximo passo é usar um device lab ou máquina com KVM habilitado e ADB autorizado, além de publicar um AAB assinado em Play Internal Testing. O runner e a matriz devem então cobrir access expirado com refresh válido, rotação, reutilização do refresh antigo, `/auth/logout/refresh`, revogação, reinício e troca de conta. Depois, executar Didit real, SMS provider, LiveKit com duas contas e Play Billing/RTDN em ordem. Nesta sessão, o emulador nunca atingiu `sys.boot_completed=1`, portanto não houve login Google, OTP, Billing ou RTC real.
-O último gate cooperativo também confirmou o hardening de JWT/configuração de produção no backend; essa parte foi preservada sem reescrita Android.
+O último gate cooperativo também confirmou o hardening de JWT/configuração de produção no backend; essa parte foi preservada sem reescrita Android. A manutenção das actions do workflow foi publicada em `446a2a3` e validada pelo CI `33155084399`.
 Com o ambiente disponível, executar a matriz em `docs/ANDROID_E2E_RELEASE_PLAN.md`: Google login real, Age Assurance/Didit, telefone/Twilio, MatchIntent, Consent, RTC LiveKit de duas partes, Block/revogação e Billing/restore/revogação. Registrar apenas estados públicos e confirmações server-side, sem purchase token, token LiveKit, OTP ou PII.
 
 ## Referências técnicas
