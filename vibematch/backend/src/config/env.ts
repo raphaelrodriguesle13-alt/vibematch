@@ -125,6 +125,7 @@ export const env = {
 
   databaseUrl: () => required('DATABASE_URL'),
   authDatabaseUrl: () => required('DATABASE_URL_AUTH'),
+  accountDatabaseUrl: () => required('DATABASE_URL_ACCOUNT'),
   profileDatabaseUrl: () => required('DATABASE_URL_PROFILE'),
   matchmakingDatabaseUrl: () => required('DATABASE_URL_MATCHMAKING'),
   moderationDatabaseUrl: () => required('DATABASE_URL_MODERATION'),

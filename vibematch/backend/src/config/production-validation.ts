@@ -57,6 +57,7 @@ export function validateProductionConfig(): void {
   assertUrlProtocol('OPENAI_BASE_URL', env.openAiBaseUrl, ['https:']);
 
   assertPostgresUrl('DATABASE_URL_AUTH', env.authDatabaseUrl());
+  assertPostgresUrl('DATABASE_URL_ACCOUNT', env.accountDatabaseUrl());
   assertPostgresUrl('DATABASE_URL_PROFILE', env.profileDatabaseUrl());
   assertPostgresUrl('DATABASE_URL_MATCHMAKING', env.matchmakingDatabaseUrl());
   assertPostgresUrl('DATABASE_URL_MODERATION', env.moderationDatabaseUrl());

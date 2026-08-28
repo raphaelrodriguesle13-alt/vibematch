@@ -23,6 +23,7 @@ const REQUIRED: Readonly<Record<string, string>> = {
   GOOGLE_PLAY_PUBSUB_SERVICE_ACCOUNT_EMAIL: 'push@example.iam.gserviceaccount.com',
   OPENAI_API_KEY: 'openai-key-placeholder',
   DATABASE_URL_AUTH: 'postgres://svc_auth:test@localhost:5432/vibematch',
+  DATABASE_URL_ACCOUNT: 'postgres://svc_account:test@localhost:5432/vibematch',
   DATABASE_URL_PROFILE: 'postgres://svc_profile:test@localhost:5432/vibematch',
   DATABASE_URL_MATCHMAKING: 'postgres://svc_matchmaking:test@localhost:5432/vibematch',
   DATABASE_URL_MODERATION: 'postgres://svc_moderation:test@localhost:5432/vibematch',
@@ -63,6 +64,14 @@ describe('validateProductionConfig', () => {
 
     expect(() => validateProductionConfig()).toThrow(
       'Missing required environment variable: DIDIT_WEBHOOK_SECRET',
+    );
+  });
+
+  test('requires the dedicated account deletion database role', () => {
+    delete process.env.DATABASE_URL_ACCOUNT;
+
+    expect(() => validateProductionConfig()).toThrow(
+      'Missing required environment variable: DATABASE_URL_ACCOUNT',
     );
   });
 

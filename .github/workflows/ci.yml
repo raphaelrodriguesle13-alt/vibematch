@@ -36,6 +36,7 @@ jobs:
       DATABASE_URL: postgres://vibematch_owner:ci_local_only_not_a_real_secret@localhost:5432/vibematch
       DATABASE_URL_OWNER: postgres://vibematch_owner:ci_local_only_not_a_real_secret@localhost:5432/vibematch
       DATABASE_URL_AUTH: postgres://svc_auth:ci_local_only_not_a_real_secret@localhost:5432/vibematch
+      DATABASE_URL_ACCOUNT: postgres://svc_account:ci_local_only_not_a_real_secret@localhost:5432/vibematch
       DATABASE_URL_PROFILE: postgres://svc_profile:ci_local_only_not_a_real_secret@localhost:5432/vibematch
       DATABASE_URL_MATCHMAKING: postgres://svc_matchmaking:ci_local_only_not_a_real_secret@localhost:5432/vibematch
       DATABASE_URL_VIDEO: postgres://svc_video:ci_local_only_not_a_real_secret@localhost:5432/vibematch
@@ -76,7 +77,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for role in auth profile matchmaking video moderation billing; do
+          for role in auth account profile matchmaking video moderation billing; do
             psql "$DATABASE_URL_OWNER" -v ON_ERROR_STOP=1 \
               -c "ALTER ROLE svc_${role} WITH LOGIN PASSWORD 'ci_local_only_not_a_real_secret';"
           done
@@ -90,7 +91,7 @@ jobs:
           psql "$DATABASE_URL_OWNER" -v ON_ERROR_STOP=1 -c \
             "SELECT conname FROM pg_constraint WHERE contype IN ('c','f','u') ORDER BY conname;"
           psql "$DATABASE_URL_OWNER" -v ON_ERROR_STOP=1 -c \
-            "SELECT rolname FROM pg_roles WHERE rolname IN ('svc_auth','svc_profile','svc_matchmaking','svc_video','svc_moderation','svc_billing') ORDER BY rolname;"
+            "SELECT rolname FROM pg_roles WHERE rolname IN ('svc_auth','svc_account','svc_profile','svc_matchmaking','svc_video','svc_moderation','svc_billing') ORDER BY rolname;"
 
       - name: Database and privilege tests
         run: npm run test:db

@@ -1,5 +1,8 @@
 import { Pool } from 'pg';
 import type { FastifyInstance } from 'fastify';
+import { registerAccountDeletionRoute } from '../account/http';
+import { AccountDeletionRepository } from '../account/repository';
+import { AccountDeletionService } from '../account/service';
 import { PhoneVerificationService } from '../auth/phone-service';
 import { GoogleOidcProvider } from '../auth/providers/google';
 import { JwtSessionProvider } from '../auth/providers/jwt';
@@ -55,11 +58,15 @@ export const createProductionRuntime = (): ProductionRuntime => {
   validateProductionConfig();
 
   const authPool = createRuntimePool(env.authDatabaseUrl());
+  const accountPool = createRuntimePool(env.accountDatabaseUrl());
   const profilePool = createRuntimePool(env.profileDatabaseUrl());
   const matchmakingPool = createRuntimePool(env.matchmakingDatabaseUrl());
   const moderationPool = createRuntimePool(env.moderationDatabaseUrl());
 
   const authRepository = new AuthRepository(authPool);
+  const accountDeletionService = new AccountDeletionService(
+    new AccountDeletionRepository(accountPool),
+  );
   const authRateLimiter = new PgAuthRateLimiter(authPool, {
     windowSeconds: env.authRefreshRateWindowSeconds,
     globalLimit: env.authRefreshGlobalLimit,
@@ -126,6 +133,12 @@ export const createProductionRuntime = (): ProductionRuntime => {
 
   registerRefreshRoute(app, { authService, rateLimiter: authRateLimiter });
 
+  registerAccountDeletionRoute(app, {
+    service: accountDeletionService,
+    sessionTokenVerifier: sessionTokens,
+    activeSessionStore: authRepository,
+  });
+
   registerAgeAssuranceRoutes(app, {
     service: ageAssuranceService,
     sessionTokenVerifier: sessionTokens,
@@ -148,6 +161,7 @@ export const createProductionRuntime = (): ProductionRuntime => {
   const checkReady = async (): Promise<boolean> => {
     const checks = await Promise.allSettled([
       poolReady(authPool),
+      poolReady(accountPool),
       poolReady(profilePool),
       poolReady(matchmakingPool),
       poolReady(moderationPool),
@@ -174,6 +188,7 @@ export const createProductionRuntime = (): ProductionRuntime => {
       moderationPool.end(),
       matchmakingPool.end(),
       profilePool.end(),
+      accountPool.end(),
       authPool.end(),
     ]);
     const rejected = results.find(
