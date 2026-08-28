@@ -170,6 +170,9 @@ describe('critical protected HTTP path', () => {
         headers: bearer(tokenA),
         payload: { consent_id: consentId },
       });
+      if (createdVideo.statusCode !== 201) {
+        throw new Error(`Video session create failed: ${createdVideo.body}`);
+      }
       expect(createdVideo.statusCode).toBe(201);
       videoSessionId = createdVideo.json<DataResponse>().data.id;
 
