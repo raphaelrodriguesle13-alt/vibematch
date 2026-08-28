@@ -1,48 +1,45 @@
 # VibeMatch — Continuidade de Implementação
 
-Atualizado em 2026-08-26.
+Atualizado em 2026-08-28.
 
 ## Estado confirmado
 
-- O pacote original foi descompactado com sucesso no GitHub.
-- O projeto está disponível em `vibematch/`.
-- Node alvo: 22+.
-- Etapas 0–1 contêm configuração, migrations, scripts de banco, CI e testes.
-- O branch de continuidade já contém autenticação Google server-side, sessões revogáveis e verificação telefônica.
-- O backend possui chat autenticado e o módulo Android consome `POST /api/chat`.
-- O Android agora obtém o Google ID token via Credential Manager, troca-o por sessão backend e guarda a sessão com AndroidX Security Crypto.
-- Logout Android revoga a sessão no backend, limpa o estado de credencial Google e remove a sessão local.
-- O Android agora possui onboarding e edição de perfil, carregando interesses e salvando o perfil pelas rotas autenticadas do backend.
-- O backend também expõe Age Assurance, MatchIntent, Consent e Video; os recursos restritos falham fechado quando idade, telefone ou elegibilidade não estão aprovados.
-- O Android consulta `GET /api/age-assurance/status` e mantém o usuário no cartão de bloqueio para qualquer status não aprovado ou desconhecido.
-- O Android agora possui onboarding telefônico em duas etapas, com `POST /auth/phone/start` e `POST /auth/phone/confirm`, antes de exibir o chat.
-- A confirmação server-side atualiza apenas a dica local `phone_verified`; o JWT existente não é renovado pelo cliente.
-- O Android agora possui uma inbox de MatchIntent para `GET /api/match-intents/incoming` e respostas `ACCEPTED`/`DECLINED`, sempre depois de perfil, Age Assurance e telefone confirmados.
-- O backend reforçou os gates de telefone para MatchIntent, Consent e Video e revoga estados restritos quando a verificação é perdida.
-- O Android agora está integrando Consent sobre as rotas públicas do backend, mantendo `ACCEPTED_BOTH` separado de qualquer autorização de vídeo.
-- A próxima barreira legítima é validar SMS/OAuth/MatchIntent/Consent em dispositivo, renovar/expirar sessões e obter evidência verde de CI/migrations/testes.
+- O projeto está disponível em `vibematch/`; Node alvo 22+.
+- A branch operacional é `continuity`; `main` permanece fora do fluxo cooperativo até decisão explícita de release.
+- O backend é autoridade para Auth, sessão/refresh, Age Assurance, telefone, MatchIntent, Consent, Video Session, LiveKit, moderação, Block, Billing e entitlement.
+- Google Auth server-side emite access JWT + refresh opaco rotativo; logout por refresh é idempotente e fail-closed em falha de revogação.
+- `/auth/google`, `/auth/refresh`, `/auth/logout/refresh`, telefone e demais entradas críticas possuem rate limiting distribuído conforme os contratos atuais; `/auth/google` é limitado antes da verificação OIDC.
+- O Android usa Credential Manager para Google, armazenamento protegido para sessão, refresh single-flight, retry único e limpeza local antes da revogação de logout.
+- Perfil, Age Assurance hosted, telefone, MatchIntent, Consent, Video Session/LiveKit JIT, Block/Report e Billing server-authorized estão integrados no cliente conforme os contratos documentados.
+- Nenhum vídeo/token é autorizado pelo cliente; Consent `ACCEPTED_BOTH`, elegibilidade e JIT permanecem server-side.
+- O CI atual executa PostgreSQL 16, typecheck, lint, Prettier, migrations, validação de runtime roles/objetos de segurança, testes DB/privilégios, unit tests, secret scanning, testes Android e debug build.
+- A evidência mais recente antes desta atualização é o VibeMatch CI #462 no HEAD `4d9cafd3a56f9dab44ddf10c25d1a66813b7b832`, com `verify` e `android` concluídos com sucesso.
+- O próximo blocker legítimo de release é E2E externo em dispositivo/provedores reais, não falta conhecida de CI/backend.
 
-## Ordem de continuidade
+## Ordem atual de continuidade
 
-1. Validar CI e migrations Up/Down/Up.
-2. Corrigir qualquer falha das etapas 0–1.
-3. Validar telefone e MatchIntent com provedores/ambiente reais e tratar expiração/renovação de sessão.
-4. Consolidar o chat Android: HTTPS, rate limiting, persistência e observabilidade.
-5. Validar a UX Android de Consent e integrar Video Session somente por autorização JIT.
-6. Etapa 6: Consent mútuo operacional e notificações.
-7. Etapa 7: Video Session/LiveKit com revalidação JIT.
-8. Etapa 8: denúncia, bloqueio e moderação.
-9. Só depois: billing, exclusão, notificações, VibeOS, auditoria e hardening.
+1. Preservar CI verde e corrigir regressões cooperativas apenas com mudanças mínimas compatíveis.
+2. Executar Google OIDC real em device: login A → emissão de sessão → refresh/rotação → expiração → rejeição de refresh antigo → `/auth/logout/refresh` → troca para conta B.
+3. Executar Didit/Age Assurance real: hosted start, `PENDING`, reconcile/webhook, `APPROVED`, `REJECTED` e indisponibilidade fail-closed.
+4. Executar SMS/Twilio: start → OTP → confirm → `phone_verified` server-side, sem vazamento de OTP/token.
+5. Executar MatchIntent + Consent com contas A/B elegíveis; `ACCEPTED_BOTH` somente após ambas as decisões server-side.
+6. Executar LiveKit real com duas partes: JIT, mídia, lifecycle, retorno de background, Block/revogação e rejeição de token stale.
+7. Executar Block/Report e confirmar encerramento/revogação server-side sem ressurreição de sessão.
+8. Executar Play Billing sandbox/Internal Testing: compra, pending, restore, renovação, grace/account hold, cancelamento/reembolso e RTDN, sempre com entitlement server-authoritative.
+9. Somente depois desses E2E: assinatura final, políticas operacionais, privacidade, observabilidade de produção, backup/restauração e decisão de Release Candidate.
+
+A execução externa está rastreada na Issue #2 e em `docs/ANDROID_E2E_RELEASE_PLAN.md`. Casos sem device/credencial real permanecem `BLOCKED`; mocks, unit tests e builds não contam como E2E PASS.
 
 ## Invariantes
 
-- Nenhum vídeo/token sem `ACCEPTED_BOTH` válido.
-- Bloqueio, suspensão, exclusão e moderação devem impedir/revogar acesso em condição de corrida.
+- Nenhum vídeo/token sem `ACCEPTED_BOTH` válido e revalidação server-side.
+- Bloqueio, suspensão, exclusão e moderação impedem/revogam acesso inclusive em condição de corrida.
 - Runtime não pode desabilitar triggers críticos.
-- `audit_logs` permanece append-only.
-- Casos críticos de segurança exigem humano.
-- Nenhum segredo no repositório.
+- `audit_logs` permanece append-only/tamper-evident conforme o desenho vigente.
+- Premium só existe quando o backend confirma entitlement.
+- Nenhum segredo, OTP, purchase token, LiveKit token, Google ID token ou refresh token deve ser persistido em logs/documentação/repositório.
+- Casos críticos de segurança e moderação não podem ser aprovados por estado local do Android.
 
 ## Regra de pronto
 
-Não marcar Release Candidate até build, backend, autenticação, matchmaking, consentimento, vídeo, moderação, billing, exclusão, observabilidade, backup/restauração e gates críticos possuírem evidência de execução real.
+Não marcar Release Candidate até build, backend, autenticação, matchmaking, consentimento, vídeo, moderação, billing, exclusão, observabilidade, backup/restauração e gates críticos possuírem evidência de execução real. Para integrações externas, `PASS` exige device/provider real; ausência de pré-requisito deve permanecer `BLOCKED` com motivo objetivo.
