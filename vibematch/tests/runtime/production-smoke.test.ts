@@ -33,6 +33,7 @@ const RUNTIME_ENV: Readonly<Record<string, string>> = {
   GOOGLE_PLAY_PUBSUB_SERVICE_ACCOUNT_EMAIL: 'push@example.iam.gserviceaccount.com',
   OPENAI_API_KEY: 'openai-key-placeholder',
   DATABASE_URL_AUTH: 'postgres://svc_auth:test@127.0.0.1:1/vibematch',
+  DATABASE_URL_ACCOUNT: 'postgres://svc_account:test@127.0.0.1:1/vibematch',
   DATABASE_URL_PROFILE: 'postgres://svc_profile:test@127.0.0.1:1/vibematch',
   DATABASE_URL_MATCHMAKING: 'postgres://svc_matchmaking:test@127.0.0.1:1/vibematch',
   DATABASE_URL_MODERATION: 'postgres://svc_moderation:test@127.0.0.1:1/vibematch',
