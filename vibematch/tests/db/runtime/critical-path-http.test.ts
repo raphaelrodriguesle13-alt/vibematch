@@ -222,7 +222,13 @@ describe('critical protected HTTP path', () => {
         payload: { consent_id: consentId },
       });
       if (createdVideo.statusCode !== 201) {
-        throw new Error(`Video session create failed: ${createdVideo.body}`);
+        const persistedSession = await ownerPool.query<{ id: string }>(
+          'SELECT id FROM sessions WHERE consent_id = $1 LIMIT 1',
+          [consentId],
+        );
+        throw new Error(
+          `Video session create failed: ${createdVideo.body}; persisted=${persistedSession.rowCount === 1}`,
+        );
       }
       expect(createdVideo.statusCode).toBe(201);
       videoSessionId = createdVideo.json<DataResponse>().data.id;
