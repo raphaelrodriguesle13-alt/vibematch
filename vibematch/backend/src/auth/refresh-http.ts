@@ -1,10 +1,13 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { AuthRateLimiter, AuthRateLimitScope } from './rate-limit';
 import { AuthError, type AuthService } from './service';
 
 type RefreshBody = { refresh_token?: unknown };
 
 export type RefreshHttpDependencies = {
   authService: Pick<AuthService, 'refresh' | 'logoutWithRefresh'>;
+  rateLimiter?: AuthRateLimiter;
+  now?: () => Date;
 };
 
 const refreshTokenFromBody = (body: RefreshBody | undefined): string | null => {
@@ -12,9 +15,29 @@ const refreshTokenFromBody = (body: RefreshBody | undefined): string | null => {
   return typeof refreshToken === 'string' && refreshToken.trim() !== '' ? refreshToken : null;
 };
 
+const enforceRateLimit = async (
+  deps: RefreshHttpDependencies,
+  scope: AuthRateLimitScope,
+  refreshToken: string | null,
+  reply: FastifyReply,
+): Promise<boolean> => {
+  if (!deps.rateLimiter) return true;
+  try {
+    const decision = await deps.rateLimiter.consume(scope, refreshToken, (deps.now ?? (() => new Date()))());
+    if (decision.allowed) return true;
+    void reply.header('retry-after', String(decision.retryAfterSeconds));
+    await reply.code(429).send({ error: 'RATE_LIMITED' });
+    return false;
+  } catch {
+    await reply.code(503).send({ error: 'RATE_LIMIT_UNAVAILABLE' });
+    return false;
+  }
+};
+
 export const registerRefreshRoute = (app: FastifyInstance, deps: RefreshHttpDependencies): void => {
   app.post<{ Body: RefreshBody }>('/auth/refresh', async (request, reply) => {
     const refreshToken = refreshTokenFromBody(request.body);
+    if (!(await enforceRateLimit(deps, 'REFRESH', refreshToken, reply))) return;
     if (!refreshToken) {
       return reply.code(400).send({ error: 'INVALID_REQUEST' });
     }
@@ -43,6 +66,7 @@ export const registerRefreshRoute = (app: FastifyInstance, deps: RefreshHttpDepe
 
   app.post<{ Body: RefreshBody }>('/auth/logout/refresh', async (request, reply) => {
     const refreshToken = refreshTokenFromBody(request.body);
+    if (!(await enforceRateLimit(deps, 'LOGOUT_REFRESH', refreshToken, reply))) return;
     if (!refreshToken) {
       return reply.code(400).send({ error: 'INVALID_REQUEST' });
     }
