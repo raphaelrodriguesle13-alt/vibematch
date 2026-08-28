@@ -74,6 +74,35 @@ describe('auth refresh distributed rate limits', () => {
     ]);
   });
 
+  test('concurrent token spray cannot exceed the global allowance or fingerprint bound', async () => {
+    const limiter = new PgAuthRateLimiter(rolePools.svc_auth, {
+      windowSeconds: 60,
+      globalLimit: 5,
+      credentialLimit: 10,
+    });
+    const now = new Date('2038-01-01T00:00:10.000Z');
+    const decisions = await Promise.all(
+      Array.from({ length: 20 }, (_, index) =>
+        limiter.consume('LOGOUT_REFRESH', `spray-${index}-${randomUUID()}`, now),
+      ),
+    );
+
+    expect(decisions.filter((decision) => decision.allowed)).toHaveLength(5);
+
+    const currentWindow = new Date('2038-01-01T00:00:00.000Z');
+    const rows = await ownerPool.query<{ count: string }>(
+      `SELECT count(*)::text AS count
+       FROM auth_rate_limits
+       WHERE scope = 'LOGOUT_REFRESH' AND window_started_at = $1`,
+      [currentWindow],
+    );
+    expect(rows.rows[0]?.count).toBe('6'); // GLOBAL + five admitted credential fingerprints.
+
+    await ownerPool.query(`DELETE FROM auth_rate_limits WHERE window_started_at = $1`, [
+      currentWindow,
+    ]);
+  });
+
   test('non-auth runtime roles cannot write auth throttling state', async () => {
     const error = await expectDbError(
       rolePools.svc_profile,
