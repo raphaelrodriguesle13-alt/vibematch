@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { exportPKCS8, exportSPKI, generateKeyPair } from 'jose';
+import { JwtSessionProvider } from '../../../backend/src/auth/providers/jwt';
 import { AuthRepository } from '../../../backend/src/auth/repository';
 import { AuthService } from '../../../backend/src/auth/service';
-import { JwtSessionProvider } from '../../../backend/src/auth/providers/jwt';
 import { ConsentRepository } from '../../../backend/src/consent/repository';
 import { ConsentService } from '../../../backend/src/consent/service';
 import { buildApp } from '../../../backend/src/http/app';
@@ -24,7 +24,8 @@ type IdRow = { id: string };
 type DataResponse = { data: { id: string; status?: string; token?: string } };
 
 const googleProvider: GoogleIdentityProvider = {
-  verifyIdToken: () => Promise.reject(new Error('External Google verification is not used in this E2E')),
+  verifyIdToken: () =>
+    Promise.reject(new Error('External Google verification is not used in this E2E')),
 };
 
 const firstId = (rows: IdRow[]): string => {
@@ -69,9 +70,13 @@ describe('critical protected HTTP path', () => {
     });
 
     const authRepository = new AuthRepository(rolePools.svc_auth);
-    const authService = new AuthService(authRepository, googleProvider, tokenProvider);
+    const authService = new AuthService(authRepository, googleProvider, tokenProvider, {
+      sessionTtlSeconds: 15 * 60,
+    });
     const ageService = new AgeAssuranceService(new AgeAssuranceRepository(rolePools.svc_profile));
-    const matchService = new MatchIntentService(new MatchIntentRepository(rolePools.svc_matchmaking));
+    const matchService = new MatchIntentService(
+      new MatchIntentRepository(rolePools.svc_matchmaking),
+    );
     const consentService = new ConsentService(new ConsentRepository(rolePools.svc_matchmaking));
     const videoService = new VideoSessionService(
       new VideoSessionRepository(rolePools.svc_video),
@@ -196,7 +201,9 @@ describe('critical protected HTTP path', () => {
         status: string;
         end_reason: string | null;
         revocation_pending: boolean;
-      }>(`SELECT status, end_reason, revocation_pending FROM sessions WHERE id = $1`, [videoSessionId]);
+      }>('SELECT status, end_reason, revocation_pending FROM sessions WHERE id = $1', [
+        videoSessionId,
+      ]);
       expect(state.rows[0]).toEqual({
         status: 'ENDED',
         end_reason: 'BLOCK',
@@ -208,11 +215,17 @@ describe('critical protected HTTP path', () => {
         userA,
         userB,
       ]);
-      if (videoSessionId) await ownerPool.query('DELETE FROM sessions WHERE id = $1', [videoSessionId]);
+      if (videoSessionId) {
+        await ownerPool.query('DELETE FROM sessions WHERE id = $1', [videoSessionId]);
+      }
       if (consentId) await ownerPool.query('DELETE FROM consents WHERE id = $1', [consentId]);
       if (intentId) await ownerPool.query('DELETE FROM match_intents WHERE id = $1', [intentId]);
-      await ownerPool.query('DELETE FROM auth_sessions WHERE user_id = ANY($1::uuid[])', [[userA, userB]]);
-      await ownerPool.query('DELETE FROM profiles WHERE user_id = ANY($1::uuid[])', [[userA, userB]]);
+      await ownerPool.query('DELETE FROM auth_sessions WHERE user_id = ANY($1::uuid[])', [
+        [userA, userB],
+      ]);
+      await ownerPool.query('DELETE FROM profiles WHERE user_id = ANY($1::uuid[])', [
+        [userA, userB],
+      ]);
       await ownerPool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [[userA, userB]]);
     }
   });
