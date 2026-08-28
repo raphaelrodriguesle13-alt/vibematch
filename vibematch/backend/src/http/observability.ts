@@ -63,6 +63,9 @@ const safeErrorStatus = (error: unknown): number => {
   return typeof candidate === 'number' && candidate >= 400 && candidate < 500 ? candidate : 500;
 };
 
+const safeErrorName = (error: unknown): string =>
+  error instanceof Error && error.name.trim() !== '' ? error.name : 'UnknownError';
+
 const withTimeout = async <T>(operation: Promise<T>, timeoutMs: number): Promise<T> => {
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
     throw new Error('Timeout must be a positive finite number');
@@ -132,7 +135,7 @@ export const installHttpObservability = (
       method: request.method,
       path: safePath(request),
       status_code: safeErrorStatus(error),
-      error_name: error.name,
+      error_name: safeErrorName(error),
     });
   });
 
