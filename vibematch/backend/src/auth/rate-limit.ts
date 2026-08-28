@@ -61,12 +61,15 @@ export class PgAuthRateLimiter implements AuthRateLimiter {
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
+      await this.pruneOldWindows(client, start);
       const globalCount = await this.increment(client, scope, 'GLOBAL', start);
       let allowed = globalCount <= this.globalLimit;
 
-      if (refreshToken) {
+      // Once the global ceiling is exceeded, do not create attacker-controlled
+      // per-credential rows. This bounds table cardinality during token spray.
+      if (allowed && refreshToken) {
         const credentialCount = await this.increment(client, scope, fingerprint(refreshToken), start);
-        allowed = allowed && credentialCount <= this.credentialLimit;
+        allowed = credentialCount <= this.credentialLimit;
       }
 
       await client.query('COMMIT');
@@ -77,6 +80,13 @@ export class PgAuthRateLimiter implements AuthRateLimiter {
     } finally {
       client.release();
     }
+  }
+
+  private async pruneOldWindows(client: PoolClient, currentWindow: Date): Promise<void> {
+    const retentionMs = this.windowSeconds * 2 * 1000;
+    await client.query(`DELETE FROM auth_rate_limits WHERE window_started_at < $1`, [
+      new Date(currentWindow.getTime() - retentionMs),
+    ]);
   }
 
   private async increment(
