@@ -32,7 +32,11 @@ const authenticate = async (
   try {
     const claims = await deps.sessionTokenVerifier.verify(token);
     const now = (deps.now ?? (() => new Date()))();
-    const session = await deps.activeSessionStore.findActiveSession(claims.userId, claims.sessionId, now);
+    const session = await deps.activeSessionStore.findActiveSession(
+      claims.userId,
+      claims.sessionId,
+      now,
+    );
     if (!session) {
       await reply.code(401).send({ error: 'SESSION_REVOKED_OR_EXPIRED' });
       return null;
