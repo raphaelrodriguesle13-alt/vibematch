@@ -79,7 +79,7 @@ describe('critical protected HTTP path', () => {
     );
     const consentService = new ConsentService(new ConsentRepository(rolePools.svc_matchmaking));
     const videoRepository = new VideoSessionRepository(rolePools.svc_video);
-    const videoService = new VideoSessionService(
+    const videoServiceImplementation = new VideoSessionService(
       {
         consumeRateLimit: (...args) => videoRepository.consumeRateLimit(...args),
         createAuthorized: async (...args) => {
@@ -98,6 +98,22 @@ describe('critical protected HTTP path', () => {
       },
       new LiveKitTokenProvider({ apiKey: 'e2e-key', apiSecret: 'e2e-secret-not-production' }),
     );
+    const videoService = {
+      create: async (...args: Parameters<VideoSessionService['create']>) => {
+        try {
+          return await videoServiceImplementation.create(...args);
+        } catch (error) {
+          console.error('critical-path video service error', {
+            name: error instanceof Error ? error.name : typeof error,
+            message: error instanceof Error ? error.message : String(error),
+            code: typeof error === 'object' && error && 'code' in error ? error.code : undefined,
+          });
+          throw error;
+        }
+      },
+      issueToken: (...args: Parameters<VideoSessionService['issueToken']>) =>
+        videoServiceImplementation.issueToken(...args),
+    };
     const moderationService = new ModerationService(
       new ModerationRepository(rolePools.svc_moderation),
     );
