@@ -1,5 +1,6 @@
 import { createHmac } from 'node:crypto';
 import type { SmsVerificationProvider } from '../shared/providers';
+import type { AuthRateLimiter, AuthRateLimitScope } from './rate-limit';
 import type { PhoneVerification } from './repository';
 
 export type PhoneVerificationErrorCode =
@@ -44,6 +45,7 @@ export interface PhoneVerificationServiceOptions {
   phoneHashPepper: string;
   maxAttempts?: number;
   now?: () => Date;
+  rateLimiter?: AuthRateLimiter;
 }
 
 const E164 = /^\+[1-9]\d{7,14}$/;
@@ -79,6 +81,7 @@ export class PhoneVerificationService {
         'Phone verification unavailable',
       );
     }
+    await this.enforceRateLimit('PHONE_START', userId);
 
     let providerResult: Awaited<ReturnType<SmsVerificationProvider['start']>>;
     try {
@@ -117,6 +120,7 @@ export class PhoneVerificationService {
         'Phone verification unavailable',
       );
     }
+    await this.enforceRateLimit('PHONE_CONFIRM', userId);
 
     const verification = await this.repository.findPendingPhoneVerification(
       userId,
@@ -158,6 +162,22 @@ export class PhoneVerificationService {
     }
 
     return { ok: true, phoneVerified: true };
+  }
+
+  private async enforceRateLimit(scope: AuthRateLimitScope, userId: string): Promise<void> {
+    if (!this.options.rateLimiter) return;
+    try {
+      const decision = await this.options.rateLimiter.consume(scope, userId, this.now());
+      if (!decision.allowed) {
+        throw new PhoneVerificationError('TOO_MANY_ATTEMPTS', 'Phone verification is rate limited');
+      }
+    } catch (error) {
+      if (error instanceof PhoneVerificationError) throw error;
+      throw new PhoneVerificationError(
+        'SMS_PROVIDER_UNAVAILABLE',
+        'Phone verification rate limiter is unavailable',
+      );
+    }
   }
 
   private hashPhone(phoneE164: string): string {
