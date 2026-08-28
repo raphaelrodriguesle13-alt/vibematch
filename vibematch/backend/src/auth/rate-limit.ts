@@ -9,7 +9,11 @@ export type AuthRateLimitDecision = {
 };
 
 export interface AuthRateLimiter {
-  consume(scope: AuthRateLimitScope, refreshToken: string | null, now: Date): Promise<AuthRateLimitDecision>;
+  consume(
+    scope: AuthRateLimitScope,
+    refreshToken: string | null,
+    now: Date,
+  ): Promise<AuthRateLimitDecision>;
 }
 
 type CountRow = QueryResultRow & { request_count: number };
@@ -68,7 +72,12 @@ export class PgAuthRateLimiter implements AuthRateLimiter {
       // Once the global ceiling is exceeded, do not create attacker-controlled
       // per-credential rows. This bounds table cardinality during token spray.
       if (allowed && refreshToken) {
-        const credentialCount = await this.increment(client, scope, fingerprint(refreshToken), start);
+        const credentialCount = await this.increment(
+          client,
+          scope,
+          fingerprint(refreshToken),
+          start,
+        );
         allowed = credentialCount <= this.credentialLimit;
       }
 
