@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import fastify from 'fastify';
 import { registerAccountDeletionRoute } from '../../backend/src/account/http';
 import { AccountDeletionError } from '../../backend/src/account/service';
