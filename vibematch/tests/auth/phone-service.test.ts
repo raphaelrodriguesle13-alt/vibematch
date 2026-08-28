@@ -116,7 +116,11 @@ describe('PhoneVerificationService distributed provider rate limits', () => {
     await expect(service.start(userId, '+5511999999999')).rejects.toMatchObject({
       code: 'TOO_MANY_ATTEMPTS',
     } satisfies Partial<PhoneVerificationError>);
-    expect(consume).toHaveBeenCalledWith('PHONE_START', userId, new Date('2026-08-27T23:30:00.000Z'));
+    expect(consume).toHaveBeenCalledWith(
+      'PHONE_START',
+      userId,
+      new Date('2026-08-27T23:30:00.000Z'),
+    );
     expect(smsProvider.start).not.toHaveBeenCalled();
   });
 
