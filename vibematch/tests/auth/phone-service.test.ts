@@ -4,6 +4,7 @@ import {
   PhoneVerificationService,
   type PhoneVerificationRepositoryPort,
 } from '../../backend/src/auth/phone-service';
+import type { AuthRateLimiter } from '../../backend/src/auth/rate-limit';
 import type { PhoneVerification } from '../../backend/src/auth/repository';
 
 const userId = '11111111-1111-4111-8111-111111111111';
@@ -45,7 +46,7 @@ class FakePhoneRepository implements PhoneVerificationRepositoryPort {
   }
 }
 
-const buildService = (repository: FakePhoneRepository) => {
+const buildService = (repository: FakePhoneRepository, rateLimiter?: AuthRateLimiter) => {
   const smsProvider = {
     start: jest.fn(() =>
       Promise.resolve({ providerVerificationId: 'provider-verification', expiresAt }),
@@ -55,6 +56,7 @@ const buildService = (repository: FakePhoneRepository) => {
   const service = new PhoneVerificationService(repository, smsProvider, {
     phoneHashPepper: 'test-pepper-that-is-not-a-secret',
     now: () => new Date('2026-08-27T23:30:00.000Z'),
+    ...(rateLimiter ? { rateLimiter } : {}),
   });
   return { service, smsProvider };
 };
@@ -102,5 +104,46 @@ describe('PhoneVerificationService active-account boundary', () => {
       code: 'VERIFICATION_NOT_AVAILABLE',
     } satisfies Partial<PhoneVerificationError>);
     expect(smsProvider.confirm).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('PhoneVerificationService distributed provider rate limits', () => {
+  it('blocks SMS start before calling Twilio when the per-user limit is exceeded', async () => {
+    const repository = new FakePhoneRepository();
+    const consume = jest.fn(() => Promise.resolve({ allowed: false, retryAfterSeconds: 30 }));
+    const { service, smsProvider } = buildService(repository, { consume });
+
+    await expect(service.start(userId, '+5511999999999')).rejects.toMatchObject({
+      code: 'TOO_MANY_ATTEMPTS',
+    } satisfies Partial<PhoneVerificationError>);
+    expect(consume).toHaveBeenCalledWith('PHONE_START', userId, new Date('2026-08-27T23:30:00.000Z'));
+    expect(smsProvider.start).not.toHaveBeenCalled();
+  });
+
+  it('blocks provider confirm before code verification when the limit is exceeded', async () => {
+    const repository = new FakePhoneRepository();
+    const consume = jest.fn(() => Promise.resolve({ allowed: false, retryAfterSeconds: 30 }));
+    const { service, smsProvider } = buildService(repository, { consume });
+
+    await expect(service.confirm(userId, verificationId, '123456')).rejects.toMatchObject({
+      code: 'TOO_MANY_ATTEMPTS',
+    } satisfies Partial<PhoneVerificationError>);
+    expect(consume).toHaveBeenCalledWith(
+      'PHONE_CONFIRM',
+      userId,
+      new Date('2026-08-27T23:30:00.000Z'),
+    );
+    expect(smsProvider.confirm).not.toHaveBeenCalled();
+  });
+
+  it('fails closed before provider use when the distributed limiter is unavailable', async () => {
+    const repository = new FakePhoneRepository();
+    const consume = jest.fn(() => Promise.reject(new Error('database unavailable')));
+    const { service, smsProvider } = buildService(repository, { consume });
+
+    await expect(service.start(userId, '+5511999999999')).rejects.toMatchObject({
+      code: 'SMS_PROVIDER_UNAVAILABLE',
+    } satisfies Partial<PhoneVerificationError>);
+    expect(smsProvider.start).not.toHaveBeenCalled();
   });
 });
