@@ -32,6 +32,7 @@ status=$?
 set -e
 [[ "$status" -eq 1 ]]
 grep -Fxq 'REASON=livekit_connect_failure' "$tmp/fail/rtc-summary.env"
+grep -Fxq 'RTC_LAST_ERROR_CLASS=ConnectException' "$tmp/fail/rtc-summary.env"
 
 stuck_log="$tmp/stuck.log"
 cat > "$stuck_log" <<'LOG'
@@ -55,6 +56,45 @@ status=$?
 set -e
 [[ "$status" -eq 1 ]]
 grep -Fxq 'REASON=rtc_permission_denied' "$tmp/permission/rtc-summary.env"
+
+server_disconnect_log="$tmp/server-disconnect.log"
+cat > "$server_disconnect_log" <<'LOG'
+08-28 20:00:00.000 I/VibeMatchRtc: RTC_DIAG event=CONNECTED remote_count=1
+08-28 20:00:00.500 W/VibeMatchRtc: RTC_DIAG event=SERVER_DISCONNECTED
+LOG
+set +e
+RTC_ARTIFACT_DIR="$tmp/server-disconnect" EXPECT_RTC_CONNECTED=1 "$HARNESS" analyze-file "$server_disconnect_log" >/dev/null
+status=$?
+set -e
+[[ "$status" -eq 1 ]]
+grep -Fxq 'REASON=server_disconnected' "$tmp/server-disconnect/rtc-summary.env"
+
+remote_video_log="$tmp/remote-video.log"
+cat > "$remote_video_log" <<'LOG'
+08-28 20:00:00.000 I/VibeMatchRtc: RTC_DIAG event=CONNECTED remote_count=1
+08-28 20:00:00.100 I/VibeMatchRtc: RTC_DIAG event=PARTICIPANT_CONNECTED remote_count=1
+LOG
+set +e
+RTC_ARTIFACT_DIR="$tmp/remote-video" EXPECT_RTC_CONNECTED=1 EXPECT_REMOTE_PARTICIPANT=1 EXPECT_REMOTE_VIDEO=1 "$HARNESS" analyze-file "$remote_video_log" >/dev/null
+status=$?
+set -e
+[[ "$status" -eq 1 ]]
+grep -Fxq 'REASON=remote_video_not_observed' "$tmp/remote-video/rtc-summary.env"
+
+exit_info_log="$tmp/exit-info.log"
+cat > "$exit_info_log" <<'LOG'
+08-28 20:00:00.000 I/VibeMatchRtc: RTC_DIAG event=CONNECTED remote_count=0
+LOG
+mkdir -p "$tmp/exit-info"
+printf '1\n' > "$tmp/exit-info/.exit-info-baseline-cleared"
+printf 'ApplicationExitInfo timestamp=0 reason=4 (APP CRASH(EXCEPTION)) status=0\n' > "$tmp/exit-info/exit-info.txt"
+set +e
+RTC_ARTIFACT_DIR="$tmp/exit-info" EXPECT_RTC_CONNECTED=1 "$HARNESS" analyze-file "$exit_info_log" >/dev/null
+status=$?
+set -e
+[[ "$status" -eq 1 ]]
+grep -Fxq 'REASON=app_crash_or_anr' "$tmp/exit-info/rtc-summary.env"
+grep -Fxq 'RTC_EXIT_INFO_FATAL_COUNT=1' "$tmp/exit-info/rtc-summary.env"
 
 secret_log="$tmp/secret.log"
 cat > "$secret_log" <<'LOG'

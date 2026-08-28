@@ -100,7 +100,9 @@ jobs:
         run: npm run test:unit
 
       - name: RTC diagnostics harness self-test
-        run: ./tools/test-android-rtc-logcat.sh
+        run: |
+          ./tools/test-android-rtc-logcat.sh
+          ./tools/test-android-device-farm-rtc.sh
 
       - name: Secret scanning
         uses: gitleaks/gitleaks-action@v2

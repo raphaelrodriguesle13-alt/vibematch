@@ -8,6 +8,8 @@ MANUAL_WINDOW_SECONDS="${MANUAL_WINDOW_SECONDS:-180}"
 RTC_ARTIFACT_DIR="${RTC_ARTIFACT_DIR:-artifacts/rtc}"
 EXPECT_RTC_CONNECTED="${EXPECT_RTC_CONNECTED:-1}"
 EXPECT_REMOTE_PARTICIPANT="${EXPECT_REMOTE_PARTICIPANT:-1}"
+EXPECT_REMOTE_VIDEO="${EXPECT_REMOTE_VIDEO:-0}"
+ALLOW_SERVER_DISCONNECT="${ALLOW_SERVER_DISCONNECT:-0}"
 
 if [[ ! -x "$SESSION_RUNNER" || ! -x "$RTC_HARNESS" ]]; then
   echo "DEVICE_FARM_RTC=BLOCKED"
@@ -25,6 +27,8 @@ cleanup() {
     RTC_ARTIFACT_DIR="$RTC_ARTIFACT_DIR" \
       EXPECT_RTC_CONNECTED="$EXPECT_RTC_CONNECTED" \
       EXPECT_REMOTE_PARTICIPANT="$EXPECT_REMOTE_PARTICIPANT" \
+      EXPECT_REMOTE_VIDEO="$EXPECT_REMOTE_VIDEO" \
+      ALLOW_SERVER_DISCONNECT="$ALLOW_SERVER_DISCONNECT" \
       "$RTC_HARNESS" stop
     diagnostics_status=$?
     set -e
@@ -60,19 +64,28 @@ fi
 cleanup
 trap - EXIT INT TERM
 
+mkdir -p "$RTC_ARTIFACT_DIR"
+farm_summary="$RTC_ARTIFACT_DIR/device-farm-summary.env"
 if [[ "$flow_status" -ne 0 ]]; then
-  echo "DEVICE_FARM_RTC=FAIL"
-  echo "REASON=flow_command_failed"
-  echo "FLOW_EXIT_CODE=$flow_status"
-  echo "RTC_DIAGNOSTICS_EXIT_CODE=$diagnostics_status"
-  exit "$flow_status"
-fi
-if [[ "$diagnostics_status" -ne 0 ]]; then
-  echo "DEVICE_FARM_RTC=FAIL"
-  echo "REASON=rtc_diagnostics_failed"
-  echo "RTC_DIAGNOSTICS_EXIT_CODE=$diagnostics_status"
-  exit "$diagnostics_status"
+  farm_status="FAIL"
+  farm_reason="flow_command_failed"
+  final_status="$flow_status"
+elif [[ "$diagnostics_status" -ne 0 ]]; then
+  farm_status="FAIL"
+  farm_reason="rtc_diagnostics_failed"
+  final_status="$diagnostics_status"
+else
+  farm_status="PASS"
+  farm_reason="none"
+  final_status=0
 fi
 
-echo "DEVICE_FARM_RTC=PASS"
-echo "ARTIFACT_DIR=$RTC_ARTIFACT_DIR"
+{
+  echo "DEVICE_FARM_RTC=$farm_status"
+  echo "REASON=$farm_reason"
+  echo "FLOW_EXIT_CODE=$flow_status"
+  echo "RTC_DIAGNOSTICS_EXIT_CODE=$diagnostics_status"
+  echo "ARTIFACT_DIR=$RTC_ARTIFACT_DIR"
+} | tee "$farm_summary"
+
+exit "$final_status"

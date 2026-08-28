@@ -11,7 +11,10 @@ RTC_ARTIFACT_DIR="${RTC_ARTIFACT_DIR:-artifacts/rtc}"
 RTC_CAPTURE_SECONDS="${RTC_CAPTURE_SECONDS:-900}"
 EXPECT_RTC_CONNECTED="${EXPECT_RTC_CONNECTED:-1}"
 EXPECT_REMOTE_PARTICIPANT="${EXPECT_REMOTE_PARTICIPANT:-0}"
-RAW_LOG="$RTC_ARTIFACT_DIR/rtc-logcat.raw"
+EXPECT_REMOTE_VIDEO="${EXPECT_REMOTE_VIDEO:-0}"
+ALLOW_SERVER_DISCONNECT="${ALLOW_SERVER_DISCONNECT:-0}"
+RAW_PATH_FILE="$RTC_ARTIFACT_DIR/.raw-log-path"
+EXIT_INFO_BASELINE_FILE="$RTC_ARTIFACT_DIR/.exit-info-baseline-cleared"
 SANITIZED_LOG="$RTC_ARTIFACT_DIR/rtc-logcat.txt"
 SUMMARY_FILE="$RTC_ARTIFACT_DIR/rtc-summary.env"
 EXIT_INFO_RAW="$RTC_ARTIFACT_DIR/exit-info.raw"
@@ -30,7 +33,9 @@ Environment:
   RTC_ARTIFACT_DIR            Artifact directory (default: artifacts/rtc).
   RTC_CAPTURE_SECONDS         Hard collector timeout (default: 900).
   EXPECT_RTC_CONNECTED        Require a CONNECTED marker (default: 1).
-  EXPECT_REMOTE_PARTICIPANT   Require remote participant/video evidence (default: 0).
+  EXPECT_REMOTE_PARTICIPANT   Require a remote participant (default: 0).
+  EXPECT_REMOTE_VIDEO         Require remote video subscription/evidence (default: 0).
+  ALLOW_SERVER_DISCONNECT     Allow an unsolicited server disconnect (default: 0).
 USAGE
 }
 
@@ -96,12 +101,9 @@ analyze() {
   local input="$1"
   mkdir -p "$RTC_ARTIFACT_DIR"
   sanitize_file "$input" "$SANITIZED_LOG"
-  if [[ "$input" == "$RAW_LOG" ]]; then
-    rm -f "$RAW_LOG"
-  fi
-
   local activity_count connected_count reconnecting_count reconnected_count
-  local connect_failure_count media_failure_count permission_denied_count fatal_count remote_seen server_disconnect_count last_event
+  local connect_failure_count media_failure_count permission_denied_count log_fatal_count exit_info_fatal_count fatal_count
+  local remote_seen remote_video_seen server_disconnect_count last_event last_error_class exit_info_trusted
   activity_count="$(count_matches 'RTC_DIAG event=' "$SANITIZED_LOG")"
   connected_count="$(count_matches 'RTC_DIAG event=(CONNECTED|SDK_CONNECT_SUCCESS)' "$SANITIZED_LOG")"
   reconnecting_count="$(count_matches 'RTC_DIAG event=RECONNECTING' "$SANITIZED_LOG")"
@@ -109,11 +111,21 @@ analyze() {
   connect_failure_count="$(count_matches 'RTC_DIAG event=(CONFIG_REJECTED|JIT_OR_URL_MISSING|CONNECT_EXCEPTION|FAILED_TO_CONNECT)' "$SANITIZED_LOG")"
   media_failure_count="$(count_matches 'RTC_DIAG event=(CAMERA_FAILURE|MICROPHONE_FAILURE)' "$SANITIZED_LOG")"
   permission_denied_count="$(count_matches 'RTC_DIAG event=PERMISSION_DENIED' "$SANITIZED_LOG")"
-  fatal_count="$(count_matches 'FATAL EXCEPTION|Fatal signal|ANR in com\.vibematch\.app|Process: com\.vibematch\.app' "$SANITIZED_LOG")"
+  log_fatal_count="$(count_matches 'FATAL EXCEPTION|Fatal signal|ANR in com\.vibematch\.app|Process: com\.vibematch\.app' "$SANITIZED_LOG")"
+  exit_info_trusted="$(cat "$EXIT_INFO_BASELINE_FILE" 2>/dev/null || echo 0)"
+  if [[ "$exit_info_trusted" == "1" && -f "$EXIT_INFO" ]]; then
+    exit_info_fatal_count="$(count_matches 'APP CRASH\(EXCEPTION\)|APP CRASH\(NATIVE\)|ANR|INITIALIZATION FAILURE' "$EXIT_INFO")"
+  else
+    exit_info_fatal_count=0
+  fi
+  fatal_count=$((log_fatal_count + exit_info_fatal_count))
   remote_seen="$(count_matches 'RTC_DIAG event=(SDK_CONNECT_SUCCESS|PARTICIPANT_CONNECTED|REMOTE_VIDEO_SUBSCRIBED|REMOTE_VIDEO_EXISTING) remote_count=[1-9][0-9]*' "$SANITIZED_LOG")"
+  remote_video_seen="$(count_matches 'RTC_DIAG event=(REMOTE_VIDEO_SUBSCRIBED|REMOTE_VIDEO_EXISTING) remote_count=[1-9][0-9]*' "$SANITIZED_LOG")"
   server_disconnect_count="$(count_matches 'RTC_DIAG event=SERVER_DISCONNECTED' "$SANITIZED_LOG")"
   last_event="$(grep -Eo 'RTC_DIAG event=[A-Z0-9_]+' "$SANITIZED_LOG" 2>/dev/null | tail -n 1 | sed 's/.*event=//' || true)"
   last_event="${last_event:-NONE}"
+  last_error_class="$(grep -E 'RTC_DIAG event=.* error_class=[A-Za-z0-9_.$]+' "$SANITIZED_LOG" 2>/dev/null | tail -n 1 | sed -E 's/.* error_class=([A-Za-z0-9_.$]+).*/\1/' || true)"
+  last_error_class="${last_error_class:-NONE}"
 
   local status="PASS"
   local reason="none"
@@ -135,6 +147,10 @@ analyze() {
     status="FAIL"
     reason="rtc_permission_denied"
     exit_code=1
+  elif (( server_disconnect_count > 0 )) && [[ "$ALLOW_SERVER_DISCONNECT" != "1" ]]; then
+    status="FAIL"
+    reason="server_disconnected"
+    exit_code=1
   elif [[ "$last_event" == "RECONNECTING" ]]; then
     status="FAIL"
     reason="reconnect_not_recovered"
@@ -153,6 +169,10 @@ analyze() {
     status="FAIL"
     reason="remote_participant_not_observed"
     exit_code=1
+  elif [[ "$EXPECT_REMOTE_VIDEO" == "1" && "$remote_video_seen" -eq 0 ]]; then
+    status="FAIL"
+    reason="remote_video_not_observed"
+    exit_code=1
   fi
 
   {
@@ -166,9 +186,14 @@ analyze() {
     echo "RTC_MEDIA_FAILURE_COUNT=$media_failure_count"
     echo "RTC_PERMISSION_DENIED_COUNT=$permission_denied_count"
     echo "RTC_SERVER_DISCONNECT_COUNT=$server_disconnect_count"
+    echo "RTC_LOG_FATAL_COUNT=$log_fatal_count"
+    echo "RTC_EXIT_INFO_FATAL_COUNT=$exit_info_fatal_count"
     echo "RTC_FATAL_COUNT=$fatal_count"
     echo "RTC_REMOTE_EVIDENCE_COUNT=$remote_seen"
+    echo "RTC_REMOTE_VIDEO_EVIDENCE_COUNT=$remote_video_seen"
     echo "RTC_LAST_EVENT=$last_event"
+    echo "RTC_LAST_ERROR_CLASS=$last_error_class"
+    echo "EXIT_INFO_BASELINE_CLEARED=$exit_info_trusted"
     echo "SANITIZED_LOG=$SANITIZED_LOG"
     echo "TOKENS=redacted_or_not_collected"
     echo "CREDENTIALS=redacted_or_not_collected"
@@ -181,15 +206,22 @@ analyze() {
 start_capture() {
   resolve_device
   mkdir -p "$RTC_ARTIFACT_DIR"
-  rm -f "$RAW_LOG" "$SANITIZED_LOG" "$SUMMARY_FILE" "$EXIT_INFO_RAW" "$EXIT_INFO" "$PID_FILE"
+  rm -f "$SANITIZED_LOG" "$SUMMARY_FILE" "$EXIT_INFO_RAW" "$EXIT_INFO" "$PID_FILE" "$RAW_PATH_FILE" "$EXIT_INFO_BASELINE_FILE"
   "${ADB_CMD[@]}" logcat -c >/dev/null 2>&1 || true
+  if "${ADB_CMD[@]}" shell am clear-exit-info --user current "$PACKAGE_NAME" >/dev/null 2>&1; then
+    echo 1 > "$EXIT_INFO_BASELINE_FILE"
+  else
+    echo 0 > "$EXIT_INFO_BASELINE_FILE"
+  fi
+  raw_log="$(mktemp "${TMPDIR:-/tmp}/vibematch-rtc-logcat.XXXXXX")"
+  printf '%s\n' "$raw_log" > "$RAW_PATH_FILE"
 
-  # Capture only our sanitized lifecycle tag plus fatal Android/native crash tags.
-  # The collector has a hard timeout so a forgotten stop cannot run forever.
+  # Raw capture is staged outside the artifact directory. Only sanitized output
+  # is eligible for upload, even if the device disappears before stop.
   nohup timeout "$RTC_CAPTURE_SECONDS" \
     "${ADB_CMD[@]}" logcat -v threadtime \
       VibeMatchRtc:I AndroidRuntime:E libc:F DEBUG:F '*:S' \
-      >"$RAW_LOG" 2>&1 < /dev/null &
+      >"$raw_log" 2>&1 < /dev/null &
   echo "$!" > "$PID_FILE"
   echo "RTC_DIAGNOSTICS=CAPTURING"
   echo "ARTIFACT_DIR=$RTC_ARTIFACT_DIR"
@@ -216,7 +248,18 @@ stop_capture() {
     : > "$EXIT_INFO"
   fi
 
-  analyze "$RAW_LOG"
+  raw_log="$(cat "$RAW_PATH_FILE" 2>/dev/null || true)"
+  if [[ -z "$raw_log" || ! -f "$raw_log" ]]; then
+    echo "RTC_DIAGNOSTICS=BLOCKED"
+    echo "REASON=raw_capture_missing"
+    return 2
+  fi
+  set +e
+  analyze "$raw_log"
+  result=$?
+  set -e
+  rm -f "$raw_log" "$RAW_PATH_FILE" "$EXIT_INFO_BASELINE_FILE"
+  return "$result"
 }
 
 case "$MODE" in
