@@ -11,7 +11,7 @@ CREATE TABLE auth_rate_limits (
 );
 CREATE INDEX idx_auth_rate_limits_window ON auth_rate_limits(window_started_at);
 
-GRANT SELECT, INSERT ON auth_rate_limits TO svc_auth;
+GRANT SELECT, INSERT, DELETE ON auth_rate_limits TO svc_auth;
 GRANT UPDATE (request_count) ON auth_rate_limits TO svc_auth;
 
 -- Down Migration
