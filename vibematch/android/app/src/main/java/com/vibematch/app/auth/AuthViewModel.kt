@@ -67,6 +67,31 @@ class AuthViewModel(
         mutableState.value = mutableState.value.copy(session = updatedSession)
     }
 
+    fun completeAccountDeletion(onLocalRevocation: () -> Unit = {}) {
+        val generation = ++sessionGeneration
+        signOutInFlight = true
+
+        // The backend has already accepted deletion and revoked server-side authority.
+        // Clear local access/refresh credentials before any best-effort cleanup so a
+        // concurrent refresh cannot restore the deleted account.
+        sessionStore.clear()
+        mutableState.value = AuthUiState()
+        runCatching(onLocalRevocation)
+
+        viewModelScope.launch {
+            var errorMessage: String? = null
+            try {
+                googleOidcClient.signOut()
+            } catch (_: Exception) {
+                errorMessage = "A conta foi removida deste dispositivo, mas o estado do Google não pôde ser limpo."
+            }
+            if (generation == sessionGeneration) {
+                signOutInFlight = false
+                mutableState.value = AuthUiState(errorMessage = errorMessage)
+            }
+        }
+    }
+
     fun signOut(snapshotOverride: AuthLogoutSnapshot? = null) {
         if (signOutInFlight) return
         val generation = ++sessionGeneration

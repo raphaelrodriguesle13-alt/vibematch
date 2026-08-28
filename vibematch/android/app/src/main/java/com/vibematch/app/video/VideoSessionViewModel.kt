@@ -32,9 +32,11 @@ class VideoSessionViewModel(
     private val onTokenIssued: (token: String, session: VideoSession) -> Unit = { _, _ -> },
 ) : ViewModel() {
     private val mutableState: MutableState<VideoSessionUiState> = mutableStateOf(VideoSessionUiState())
+    private var operationGeneration = 0L
     val state: State<VideoSessionUiState> = mutableState
 
     fun reset() {
+        operationGeneration += 1
         mutableState.value = VideoSessionUiState()
     }
 
@@ -51,6 +53,7 @@ class VideoSessionViewModel(
             expireSession()
             return
         }
+        val generation = ++operationGeneration
         mutableState.value = VideoSessionUiState(
             consentId = consentId,
             isCreating = true,
@@ -58,6 +61,7 @@ class VideoSessionViewModel(
         viewModelScope.launch {
             try {
                 val session = gateway.create(token, consentId)
+                if (generation != operationGeneration) return@launch
                 mutableState.value = mutableState.value.copy(
                     session = session,
                     isCreating = false,
@@ -65,6 +69,7 @@ class VideoSessionViewModel(
                     infoMessage = "Sessão de vídeo autorizada pelo backend. A câmera ainda não foi iniciada.",
                 )
             } catch (error: Exception) {
+                if (generation != operationGeneration) return@launch
                 if (!handleEligibilityOrSessionError(error)) {
                     mutableState.value = mutableState.value.copy(
                         isCreating = false,
@@ -89,6 +94,7 @@ class VideoSessionViewModel(
             expireSession()
             return
         }
+        val generation = ++operationGeneration
         mutableState.value = mutableState.value.copy(
             isIssuingToken = true,
             errorMessage = null,
@@ -101,7 +107,9 @@ class VideoSessionViewModel(
         viewModelScope.launch {
             try {
                 val participantToken = gateway.issueToken(token, session.id)
+                if (generation != operationGeneration) return@launch
                 onTokenIssued(participantToken, session)
+                if (generation != operationGeneration) return@launch
                 mutableState.value = mutableState.value.copy(
                     isIssuingToken = false,
                     tokenIssued = true,
@@ -109,6 +117,7 @@ class VideoSessionViewModel(
                     errorMessage = null,
                 )
             } catch (error: Exception) {
+                if (generation != operationGeneration) return@launch
                 if (!handleEligibilityOrSessionError(error)) {
                     mutableState.value = mutableState.value.copy(
                         isIssuingToken = false,
@@ -180,6 +189,7 @@ class VideoSessionViewModel(
     }
 
     private fun expireSession() {
+        operationGeneration += 1
         mutableState.value = mutableState.value.copy(
             isCreating = false,
             isIssuingToken = false,
@@ -208,6 +218,7 @@ class VideoSessionViewModelFactory(
                 onSessionExpired = onSessionExpired,
                 onPhoneVerificationRequired = onPhoneVerificationRequired,
                 onAgeAssuranceRequired = onAgeAssuranceRequired,
+                onAuthorizationRevoked = onAuthorizationRevoked,
                 onTokenIssued = onTokenIssued,
             ) as T
         }
