@@ -164,6 +164,41 @@ describe('critical protected HTTP path', () => {
       expect(decisionB.statusCode).toBe(200);
       expect(decisionB.json<DataResponse>().data.status).toBe('ACCEPTED_BOTH');
 
+      const authorizationState = await ownerPool.query<{
+        consent_status: string;
+        video_deadline: Date | null;
+        user_a_status: string;
+        user_b_status: string;
+        user_a_phone_verified: boolean;
+        user_b_phone_verified: boolean;
+        user_a_age_status: string;
+        user_b_age_status: string;
+      }>(
+        `SELECT c.status AS consent_status,
+                c.video_deadline,
+                ua.status AS user_a_status,
+                ub.status AS user_b_status,
+                ua.phone_verified AS user_a_phone_verified,
+                ub.phone_verified AS user_b_phone_verified,
+                ua.age_assurance_status AS user_a_age_status,
+                ub.age_assurance_status AS user_b_age_status
+           FROM consents c
+           JOIN users ua ON ua.id = c.user_a_id
+           JOIN users ub ON ub.id = c.user_b_id
+          WHERE c.id = $1`,
+        [consentId],
+      );
+      expect(authorizationState.rows[0]).toMatchObject({
+        consent_status: 'ACCEPTED_BOTH',
+        user_a_status: 'ACTIVE',
+        user_b_status: 'ACTIVE',
+        user_a_phone_verified: true,
+        user_b_phone_verified: true,
+        user_a_age_status: 'APPROVED',
+        user_b_age_status: 'APPROVED',
+      });
+      expect(authorizationState.rows[0]?.video_deadline?.getTime()).toBeGreaterThan(Date.now());
+
       const createdVideo = await app.inject({
         method: 'POST',
         url: '/api/video/sessions',
