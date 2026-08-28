@@ -54,6 +54,7 @@
 - Logout Android captura o snapshot access/refresh atomicamente, limpa o armazenamento antes da rede, usa refresh para revogação quando disponível, mantém fallback Bearer somente sem refresh, bloqueia clique duplicado e descarta resposta tardia após troca de conta.
 - `SecureSessionStoreInstrumentedTest` também cobre captura do par após recriação do store; a execução física continua condicionada a device ADB autorizado.
 - Correção do `format check` backend que falhava no CI por dois testes de concorrência não formatados (`billing_rtdn_atomicity.test.ts` e `moderation_decision_enforcement.test.ts`); o commit `ec00b98` passou typecheck, lint, migrations, database/privilege tests, unit tests, secret scan e Android CI.
+- Atualização de `actions/checkout`, `actions/setup-node` e `actions/setup-java` para as versões atuais `@v5`, removendo os avisos de runtime Node 20/setup-java observados no CI; o workflow `33155084399` passou nos jobs backend e Android.
 - Tentativa de validação no AVD Google Play API 35 e variante leve sem KVM: ADB chegou a anunciar `emulator-5554`, mas `sys.boot_completed` permaneceu ausente e o sistema alternou para `offline`; os runners e `connectedDebugAndroidTest` permaneceram bloqueados, sem coletar credenciais.
 
 ### Limitações conhecidas
@@ -61,6 +62,7 @@
 - A validação OAuth Google em dispositivo, rate limiting, persistência de conversas e observabilidade ainda estão pendentes.
 - A falha backend observada no CI foi corrigida por formatação dos dois testes de concorrência e publicada em `continuity`; o CI seguinte passou. Não há falha backend reproduzível no HEAD atual.
 - O emulador Play API 35 não conclui o boot sem `/dev/kvm`; a tentativa com `-no-accel`, GPU off, AVD leve e TCG/CPU max também não atingiu `sys.boot_completed=1`, portanto nenhum E2E Android real foi declarado.
+- Os avisos de actions obsoletas foram eliminados no workflow `446a2a3`; o CI `33155084399` passou integralmente. Permanecem apenas avisos informativos emitidos por dependências de terceiros quando aplicável.
 - A revogação por refresh está implementada no contrato cooperativo e coberta por testes locais, mas o E2E físico ainda depende de device, duas contas e backend/DB reais; falhas `503 REVOCATION_UNAVAILABLE` permanecem fail-closed e não são convertidas em sucesso local.
 - A configuração real do Web client ID e a validação OAuth em dispositivo dependem do ambiente Google do projeto.
 - A chamada RTC real depende de um backend com LiveKit configurado, URL pública `wss://`, credenciais server-side e pelo menos dois usuários autenticados; nenhum segredo LiveKit é distribuído no APK.
