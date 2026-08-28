@@ -4,6 +4,7 @@ import { PhoneVerificationService } from '../auth/phone-service';
 import { GoogleOidcProvider } from '../auth/providers/google';
 import { JwtSessionProvider } from '../auth/providers/jwt';
 import { TwilioVerifyProvider } from '../auth/providers/twilio-verify';
+import { PgAuthRateLimiter } from '../auth/rate-limit';
 import { registerRefreshRoute } from '../auth/refresh-http';
 import { AuthRepository } from '../auth/repository';
 import { AuthService } from '../auth/service';
@@ -59,6 +60,11 @@ export const createProductionRuntime = (): ProductionRuntime => {
   const moderationPool = createRuntimePool(env.moderationDatabaseUrl());
 
   const authRepository = new AuthRepository(authPool);
+  const authRateLimiter = new PgAuthRateLimiter(authPool, {
+    windowSeconds: env.authRefreshRateWindowSeconds,
+    globalLimit: env.authRefreshGlobalLimit,
+    credentialLimit: env.authRefreshCredentialLimit,
+  });
   const sessionTokens = new JwtSessionProvider({
     privateKeyPem: env.jwtPrivateKeyPem(),
     publicKeyPem: env.jwtPublicKeyPem(),
@@ -117,7 +123,7 @@ export const createProductionRuntime = (): ProductionRuntime => {
     chatService,
   });
 
-  registerRefreshRoute(app, { authService });
+  registerRefreshRoute(app, { authService, rateLimiter: authRateLimiter });
 
   registerAgeAssuranceRoutes(app, {
     service: ageAssuranceService,
