@@ -36,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -74,6 +75,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.vibematch.app.account.AccountDeletionApiClient
+import com.vibematch.app.account.AccountDeletionViewModel
+import com.vibematch.app.account.AccountDeletionViewModelFactory
 import com.vibematch.app.auth.AuthApiClient
 import com.vibematch.app.auth.AuthLogoutSnapshot
 import com.vibematch.app.consent.Consent
@@ -268,6 +272,23 @@ class MainActivity : ComponentActivity() {
                         },
                     ),
                 )
+                val accountDeletionViewModel: AccountDeletionViewModel = viewModel(
+                    factory = AccountDeletionViewModelFactory(
+                        gateway = AccountDeletionApiClient(
+                            BuildConfig.API_BASE_URL,
+                            httpClient = sessionHttpClient,
+                        ),
+                        accessTokenProvider = sessionStore::readAccessToken,
+                        onSessionExpired = expireCurrentSession,
+                        onAccountDeleted = {
+                            authViewModel.completeAccountDeletion {
+                                videoViewModel.reset()
+                                rtcRoomViewModel.disconnect()
+                                rtcRoomViewModel.discardPendingJitToken()
+                            }
+                        },
+                    ),
+                )
                 val moderationViewModel: ModerationViewModel = viewModel(
                     factory = ModerationViewModelFactory(
                         gateway = ModerationApiClient(
@@ -282,6 +303,7 @@ class MainActivity : ComponentActivity() {
                 VibeMatchApp(
                     activity = this@MainActivity,
                     authViewModel = authViewModel,
+                    accountDeletionViewModel = accountDeletionViewModel,
                     chatViewModel = chatViewModel,
                     billingViewModel = billingViewModel,
                     profileViewModel = profileViewModel,
@@ -314,6 +336,7 @@ private fun VibeMatchTheme(content: @Composable () -> Unit) {
 private fun VibeMatchApp(
     activity: Activity,
     authViewModel: AuthViewModel,
+    accountDeletionViewModel: AccountDeletionViewModel,
     chatViewModel: ChatViewModel,
     billingViewModel: BillingViewModel,
     profileViewModel: ProfileViewModel,
@@ -359,6 +382,7 @@ private fun VibeMatchApp(
     }
 
     LaunchedEffect(sessionId) {
+        accountDeletionViewModel.reset()
         profileViewModel.reset()
         phoneViewModel.reset()
         matchIntentViewModel.reset()
@@ -568,6 +592,7 @@ private fun VibeMatchApp(
             else -> {
                 ChatScreen(
                     viewModel = chatViewModel,
+                    accountDeletionViewModel = accountDeletionViewModel,
                     isSigningOut = authState.isLoading,
 
                     onLogout = {
@@ -659,6 +684,7 @@ private fun LoginScreen(activity: Activity, viewModel: AuthViewModel) {
 @Composable
 private fun ChatScreen(
     viewModel: ChatViewModel,
+    accountDeletionViewModel: AccountDeletionViewModel,
     isSigningOut: Boolean,
     onLogout: () -> Unit,
     onOpenProfile: () -> Unit,
@@ -666,6 +692,7 @@ private fun ChatScreen(
     onOpenMatchIntents: () -> Unit,
 ) {
     val state by viewModel.state
+    val deletionState by accountDeletionViewModel.state
     var draft by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
@@ -682,7 +709,9 @@ private fun ChatScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             ChatHeader(
                 isSigningOut = isSigningOut,
+                isDeletingAccount = deletionState.isDeleting,
                 onLogout = onLogout,
+                onDeleteAccount = accountDeletionViewModel::requestDeletion,
                 onOpenProfile = onOpenProfile,
                 onOpenBilling = onOpenBilling,
                 onOpenMatchIntents = onOpenMatchIntents,
@@ -711,10 +740,13 @@ private fun ChatScreen(
             state.errorMessage?.let { error ->
                 ErrorBanner(error) { viewModel.clearError() }
             }
+            deletionState.errorMessage?.let { error ->
+                ErrorBanner(error) { accountDeletionViewModel.clearError() }
+            }
             Composer(
                 draft = draft,
                 isSending = state.isSending,
-                enabled = !isSigningOut,
+                enabled = !isSigningOut && !deletionState.isDeleting,
                 onDraftChange = { draft = it },
                 onSend = {
                     viewModel.send(draft)
@@ -728,12 +760,15 @@ private fun ChatScreen(
 @Composable
 private fun ChatHeader(
     isSigningOut: Boolean,
+    isDeletingAccount: Boolean,
     onLogout: () -> Unit,
+    onDeleteAccount: () -> Unit,
     onOpenProfile: () -> Unit,
     onOpenBilling: () -> Unit,
     onOpenMatchIntents: () -> Unit,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -762,7 +797,7 @@ private fun ChatHeader(
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = "Sessão segura ativa",
+                text = if (isDeletingAccount) "Solicitando exclusão da conta…" else "Sessão segura ativa",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color(0xFF72717D),
             )
@@ -770,7 +805,7 @@ private fun ChatHeader(
         Box {
             IconButton(
                 onClick = { menuExpanded = true },
-                enabled = !isSigningOut,
+                enabled = !isSigningOut && !isDeletingAccount,
             ) {
                 Icon(
                     imageVector = Icons.Default.MoreVert,
@@ -803,11 +838,51 @@ private fun ChatHeader(
                         onOpenMatchIntents()
                     },
                 )
+                DropdownMenuItem(
+                    text = { Text("Excluir conta", color = Color(0xFF9E2D2D)) },
+                    onClick = {
+                        menuExpanded = false
+                        showDeleteConfirmation = true
+                    },
+                )
             }
         }
-        TextButton(onClick = onLogout, enabled = !isSigningOut) {
+        TextButton(onClick = onLogout, enabled = !isSigningOut && !isDeletingAccount) {
             Text("Sair", color = VibePurple)
         }
+    }
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isDeletingAccount) showDeleteConfirmation = false
+            },
+            title = { Text("Excluir sua conta?") },
+            text = {
+                Text(
+                    "O servidor encerrará sua sessão e iniciará a exclusão da conta. " +
+                        "Solicitações, consentimentos e vídeo ativos serão revogados imediatamente.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirmation = false
+                        onDeleteAccount()
+                    },
+                    enabled = !isDeletingAccount,
+                ) {
+                    Text("Excluir conta", color = Color(0xFF9E2D2D))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDeleteConfirmation = false },
+                    enabled = !isDeletingAccount,
+                ) {
+                    Text("Cancelar")
+                }
+            },
+        )
     }
 }
 
