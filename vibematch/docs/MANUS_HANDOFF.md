@@ -1,6 +1,6 @@
 # Handoff Manus → ChatGPT — VibeMatch Android
 
-Atualizado em **2026-08-27** após a continuação exclusiva na branch `continuity`. Esta entrega manteve o backend como autoridade para Auth, Age Assurance, telefone, MatchIntent, Consent, Video Session, LiveKit, moderação, Block, Billing e entitlement.
+Atualizado em **2026-08-28** após a continuação exclusiva na branch `continuity`. Esta entrega manteve o backend como autoridade para Auth, Age Assurance, telefone, MatchIntent, Consent, Video Session, LiveKit, moderação, Block, Billing e entitlement.
 
 ## Escopo e estado do Git
 
@@ -59,6 +59,8 @@ O trabalho Android e a matriz E2E foram preservados por `stash`, `rebase origin/
 | `ec00b98`  | `style(tests): align database concurrency formatting`          |
 
 | HEAD final de código desta fase | `f3bdda4e` — `fix(android): revoke expired sessions with refresh snapshot` |
+| Commit de diagnóstico CI | `f6ae34c` — `test(e2e): expose video authorization exception` |
+| Commit da correção desta fase | `ab1ef7a` — `fix(db): run session authorization triggers as definer` |
 | Commit backend final desta fase | `ec00b98` — `style(tests): align database concurrency formatting` |
 | Commit documental final anterior | `6054a87` — `docs(android): record adb e2e blocker` |
 
@@ -135,6 +137,7 @@ Os gates foram executados no sandbox com Java 21 configurando toolchain Android 
 | `./gradlew :app:assembleDebugAndroidTest` | Aprovado |
 | CI `33127396856` no commit `ec00b98` | Aprovado: verify e android; typecheck, lint, format, migrations, DB/privilege tests, unit tests, secret scan, Android unit tests e debug build |
 | CI `33155084399` no commit `446a2a3` | Aprovado: verify e android após `checkout@v5`, `setup-node@v5` e `setup-java@v5`; sem os avisos anteriores de runtime obsoleto |
+| CI `33160438683` no commit `ab1ef7a` | Aprovado: verify e android; migration 023, critical path HTTP, DB/privilege tests, unit tests, secret scan e Android unit/debug build |
 | `./gradlew :app:assembleDebug` | Aprovado |
 | `./gradlew :app:lintDebug` | Aprovado |
 | `./gradlew :app:bundleRelease` com API HTTPS, LiveKit WSS e produto público placeholder | Aprovado; AAB unsigned buildable |
@@ -155,6 +158,14 @@ Os gates foram executados no sandbox com Java 21 configurando toolchain Android 
 | AVD Google Play API 35 headless | Tentativas Play original, AVD leve e TCG/CPU max; ADB chegou a `emulator-5554`, mas `sys.boot_completed` permaneceu ausente, depois ficou offline; `/dev/kvm` ausente |
 
 A implementação de segurança de release aceita placeholders públicos apenas para demonstrar o build. Isso não configura API real, produto real, endpoint LiveKit real ou credencial de assinatura.
+
+## Diagnóstico e correção do critical path HTTP
+
+O CI `33159575949` do commit diagnóstico `f6ae34c` mostrou que o fixture já tinha `ACTIVE`, telefone verificado, idade `APPROVED` e consentimento aceito, mas a criação de sessão retornava `500 INTERNAL_ERROR`. A exceção sanitizada pela rota era `permission denied for table consents` (`SQLSTATE 42501`). Portanto, não era uma negação de regra de negócio nem um precondition ausente: o `INSERT` legítimo do papel mínimo `svc_video` disparava os triggers de elegibilidade no contexto do chamador e falhava ao ler `consents`.
+
+A migration incremental `023_session_trigger_security_definer.sql`, publicada no commit `ab1ef7a`, redefine os três triggers de autorização de inserção de sessão como `SECURITY DEFINER`, fixa `search_path = pg_catalog, public` e mantém `EXECUTE` revogado para `PUBLIC`. A correção altera somente o contexto privilegiado das leituras necessárias; não concede autoridade ao Android, não relaxa as predicates de `ACTIVE`, telefone, idade, consentimento, janela ou Block e não altera a emissão JIT do LiveKit. O diagnóstico temporário foi removido de `critical-path-http.test.ts`.
+
+O CI `33160438683` terminou verde em `verify` e `android`, incluindo migrations, validação de objetos de segurança, 207 testes DB/unitários, secret scan, testes Android e debug build. Permanece apenas o aviso não bloqueante de `gitleaks/gitleaks-action@v2` forçar Node 24 por depreciação do Node 20; `checkout`, `setup-node` e `setup-java` já estão em `@v5`.
 
 ## Artefatos e hashes
 
