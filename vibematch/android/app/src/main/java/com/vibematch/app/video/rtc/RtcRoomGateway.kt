@@ -235,7 +235,7 @@ class LiveKitRtcRoomGateway(
                 updateParticipantCount(event.room)
             }
             is RoomEvent.FailedToConnect -> {
-                RtcDiagnostics.error("FAILED_TO_CONNECT")
+                RtcDiagnostics.error("FAILED_TO_CONNECT", event.error)
                 disconnectNow()
                 mutableState.value = RtcRoomUiState(
                     status = RtcRoomStatus.FAILED,
@@ -336,6 +336,11 @@ class RtcRoomViewModel(
     fun setPendingJitToken(token: String) {
         pendingJitToken = token.takeIf { it.isNotBlank() }
         mutableState.value = mutableState.value.copy(jitTokenReady = pendingJitToken != null)
+        if (pendingJitToken != null) {
+            RtcDiagnostics.event("JIT_TOKEN_READY")
+        } else {
+            RtcDiagnostics.warning("JIT_TOKEN_EMPTY")
+        }
     }
 
     fun connectWithPendingJitToken(serverUrl: String): Boolean {
@@ -343,29 +348,37 @@ class RtcRoomViewModel(
         pendingJitToken = null
         mutableState.value = mutableState.value.copy(jitTokenReady = false)
         if (serverUrl.isBlank() || token.isNullOrBlank()) {
+            RtcDiagnostics.error("JIT_OR_URL_MISSING")
             mutableState.value = RtcRoomUiState(
                 status = RtcRoomStatus.FAILED,
                 errorMessage = "A credencial JIT ou a URL pública do vídeo está ausente.",
             )
             return false
         }
+        RtcDiagnostics.event("JIT_TOKEN_CONSUMED")
         connect(serverUrl, token)
         return true
     }
 
     fun discardPendingJitToken() {
+        val hadToken = pendingJitToken != null
         pendingJitToken = null
         mutableState.value = mutableState.value.copy(jitTokenReady = false)
+        if (hadToken) RtcDiagnostics.event("JIT_TOKEN_DISCARDED")
     }
 
     fun disconnect() {
+        val hadToken = pendingJitToken != null
         pendingJitToken = null
         mutableState.value = mutableState.value.copy(jitTokenReady = false)
+        if (hadToken) RtcDiagnostics.event("JIT_TOKEN_DISCARDED")
+        RtcDiagnostics.event("VIEWMODEL_DISCONNECT")
         viewModelScope.launch { gateway.disconnect() }
     }
 
     fun markPermissionDenied() {
         pendingJitToken = null
+        RtcDiagnostics.warning("PERMISSION_DENIED")
         mutableState.value = RtcRoomUiState(
             status = RtcRoomStatus.PERMISSION_DENIED,
             errorMessage = "A câmera e o microfone são necessários para entrar na chamada. Solicite uma nova credencial JIT após permitir o acesso.",
@@ -401,6 +414,7 @@ class RtcRoomViewModel(
     override fun onCleared() {
         stateJob?.cancel()
         pendingJitToken = null
+        RtcDiagnostics.event("VIEWMODEL_CLEARED")
         gateway.disconnectNow()
         super.onCleared()
     }

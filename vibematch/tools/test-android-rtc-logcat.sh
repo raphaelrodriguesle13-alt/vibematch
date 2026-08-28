@@ -45,6 +45,17 @@ set -e
 [[ "$status" -eq 1 ]]
 grep -Fxq 'REASON=reconnect_not_recovered' "$tmp/stuck/rtc-summary.env"
 
+permission_log="$tmp/permission.log"
+cat > "$permission_log" <<'LOG'
+08-28 20:00:00.000 W/VibeMatchRtc: RTC_DIAG event=PERMISSION_DENIED
+LOG
+set +e
+RTC_ARTIFACT_DIR="$tmp/permission" EXPECT_RTC_CONNECTED=1 "$HARNESS" analyze-file "$permission_log" >/dev/null
+status=$?
+set -e
+[[ "$status" -eq 1 ]]
+grep -Fxq 'REASON=rtc_permission_denied' "$tmp/permission/rtc-summary.env"
+
 secret_log="$tmp/secret.log"
 cat > "$secret_log" <<'LOG'
 08-28 20:00:00.000 E/AndroidRuntime: wss://rtc.secret.example/room token=abc123 Authorization=Bearer.secret user@example.com +5511999999999 123e4567-e89b-12d3-a456-426614174000

@@ -46,6 +46,7 @@ internal object RtcDiagnostics {
                 append(it.replace(safeLabel, "_"))
             }
         }
-        Log.println(priority, TAG, message)
+        // Local JVM unit tests use Android stubs; logging must never affect behavior.
+        runCatching { Log.println(priority, TAG, message) }
     }
 }
