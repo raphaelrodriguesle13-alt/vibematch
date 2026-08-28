@@ -78,6 +78,8 @@ describe('critical protected HTTP path', () => {
       new MatchIntentRepository(rolePools.svc_matchmaking),
     );
     const consentService = new ConsentService(new ConsentRepository(rolePools.svc_matchmaking));
+    let videoRepositoryError: string | null = null;
+    let videoServiceError: string | null = null;
     const videoRepository = new VideoSessionRepository(rolePools.svc_video);
     const videoServiceImplementation = new VideoSessionService(
       {
@@ -86,7 +88,7 @@ describe('critical protected HTTP path', () => {
           try {
             return await videoRepository.createAuthorized(...args);
           } catch (error) {
-            console.error('critical-path video repository error', {
+            videoRepositoryError = JSON.stringify({
               name: error instanceof Error ? error.name : typeof error,
               message: error instanceof Error ? error.message : String(error),
               code: typeof error === 'object' && error && 'code' in error ? error.code : undefined,
@@ -103,7 +105,7 @@ describe('critical protected HTTP path', () => {
         try {
           return await videoServiceImplementation.create(...args);
         } catch (error) {
-          console.error('critical-path video service error', {
+          videoServiceError = JSON.stringify({
             name: error instanceof Error ? error.name : typeof error,
             message: error instanceof Error ? error.message : String(error),
             code: typeof error === 'object' && error && 'code' in error ? error.code : undefined,
@@ -243,7 +245,7 @@ describe('critical protected HTTP path', () => {
           [consentId],
         );
         throw new Error(
-          `Video session create failed: ${createdVideo.body}; persisted=${persistedSession.rowCount === 1}`,
+          `Video session create failed: ${createdVideo.body}; persisted=${persistedSession.rowCount === 1}; repository=${videoRepositoryError}; service=${videoServiceError}`,
         );
       }
       expect(createdVideo.statusCode).toBe(201);
