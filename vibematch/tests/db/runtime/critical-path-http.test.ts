@@ -218,7 +218,10 @@ describe('critical protected HTTP path', () => {
       if (videoSessionId) {
         await ownerPool.query('DELETE FROM sessions WHERE id = $1', [videoSessionId]);
       }
-      if (consentId) await ownerPool.query('DELETE FROM consents WHERE id = $1', [consentId]);
+      if (consentId) {
+        await ownerPool.query('DELETE FROM consent_decisions WHERE consent_id = $1', [consentId]);
+        await ownerPool.query('DELETE FROM consents WHERE id = $1', [consentId]);
+      }
       if (intentId) await ownerPool.query('DELETE FROM match_intents WHERE id = $1', [intentId]);
       await ownerPool.query('DELETE FROM auth_sessions WHERE user_id = ANY($1::uuid[])', [
         [userA, userB],
