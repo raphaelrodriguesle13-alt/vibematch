@@ -6,7 +6,6 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
-    <!-- Apenas para desenvolvimento local com o backend em HTTP. Remover em produção. -->
     <application
         android:allowBackup="false"
         android:icon="@drawable/vibematch_logo"
@@ -16,6 +15,9 @@
         android:theme="@style/Theme.VibeMatch">
         <activity
             android:name=".MainActivity"
+            android:exported="false" />
+        <activity
+            android:name=".EntryActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
