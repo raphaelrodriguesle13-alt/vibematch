@@ -2,7 +2,12 @@ import { createHash } from 'node:crypto';
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
 
 export type AuthRateLimitScope =
-  'GOOGLE_LOGIN' | 'PHONE_START' | 'PHONE_CONFIRM' | 'REFRESH' | 'LOGOUT_REFRESH';
+  | 'GOOGLE_LOGIN'
+  | 'FACEBOOK_LOGIN'
+  | 'PHONE_START'
+  | 'PHONE_CONFIRM'
+  | 'REFRESH'
+  | 'LOGOUT_REFRESH';
 
 export type AuthRateLimitDecision = {
   allowed: boolean;
@@ -70,8 +75,6 @@ export class PgAuthRateLimiter implements AuthRateLimiter {
       const globalCount = await this.increment(client, scope, 'GLOBAL', start);
       let allowed = globalCount <= this.globalLimit;
 
-      // Once the global ceiling is exceeded, do not create attacker-controlled
-      // per-key rows. This bounds table cardinality during credential spray.
       if (allowed && keyMaterial) {
         const keyCount = await this.increment(client, scope, fingerprint(keyMaterial), start);
         allowed = keyCount <= this.credentialLimit;
