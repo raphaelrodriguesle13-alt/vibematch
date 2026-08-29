@@ -121,11 +121,10 @@ export const createProductionRuntime = (): ProductionRuntime => {
     serviceSid: env.twilioVerifyServiceSid(),
     baseUrl: env.twilioVerifyBaseUrl(),
   });
-  const phoneVerificationService = new PhoneVerificationService(
-    authRepository,
-    smsProvider,
-    { phoneHashPepper: env.phoneHashPepper(), rateLimiter: authRateLimiter },
-  );
+  const phoneVerificationService = new PhoneVerificationService(authRepository, smsProvider, {
+    phoneHashPepper: env.phoneHashPepper(),
+    rateLimiter: authRateLimiter,
+  });
   const phoneSessionIssuer = new ProviderAuthService(
     'PHONE',
     null,
