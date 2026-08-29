@@ -89,12 +89,16 @@ describe('Phone verification/account restriction boundary', () => {
       await restrictClient.query("UPDATE users SET status = 'SUSPENDED' WHERE id = $1", [userId]);
 
       let insertSettled = false;
-      const insertPromise = verificationClient
+      const insertOutcomePromise = verificationClient
         .query(
           `INSERT INTO phone_verifications
              (user_id, provider_verification_id, phone_hash, expires_at)
            VALUES ($1, $2, repeat('b', 64), clock_timestamp() + interval '10 minutes')`,
           [userId, `provider-${randomUUID()}`],
+        )
+        .then(
+          () => ({ ok: true as const, error: null }),
+          (error: unknown) => ({ ok: false as const, error }),
         )
         .finally(() => {
           insertSettled = true;
@@ -105,7 +109,9 @@ describe('Phone verification/account restriction boundary', () => {
 
       await restrictClient.query('COMMIT');
       restrictCommitted = true;
-      await expect(insertPromise).rejects.toThrow(/account must be ACTIVE/);
+      const insertOutcome = await insertOutcomePromise;
+      expect(insertOutcome.ok).toBe(false);
+      expect((insertOutcome.error as Error).message).toMatch(/account must be ACTIVE/);
       await verificationClient.query('ROLLBACK');
       verificationRolledBack = true;
 
