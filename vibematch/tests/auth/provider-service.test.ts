@@ -1,7 +1,3 @@
-import type {
-  SessionTokenClaims,
-  SessionTokenProvider,
-} from '../../backend/src/shared/providers';
 import type { IdentityUser } from '../../backend/src/auth/identity-repository';
 import {
   ProviderAuthService,
@@ -10,6 +6,10 @@ import {
   type ProviderSessionRepositoryPort,
 } from '../../backend/src/auth/provider-service';
 import type { AuthSession } from '../../backend/src/auth/repository';
+import type {
+  SessionTokenClaims,
+  SessionTokenProvider,
+} from '../../backend/src/shared/providers';
 
 class FakeVerifier implements ExternalIdentityVerifier {
   subject = 'facebook-subject';
@@ -30,7 +30,10 @@ class FakeIdentityRepository implements ProviderIdentityRepositoryPort {
   };
   lookup: { provider: string; subject: string } | null = null;
 
-  findOrCreateUser(provider: 'GOOGLE' | 'FACEBOOK' | 'PHONE', subject: string): Promise<IdentityUser> {
+  findOrCreateUser(
+    provider: 'GOOGLE' | 'FACEBOOK' | 'PHONE',
+    subject: string,
+  ): Promise<IdentityUser> {
     this.lookup = { provider, subject };
     return Promise.resolve(this.user);
   }
@@ -41,8 +44,8 @@ class FakeSessionRepository implements ProviderSessionRepositoryPort {
     | {
         userId: string;
         expiresAt: Date;
-        refreshTokenHash?: string;
-        refreshExpiresAt?: Date;
+        refreshTokenHash: string | undefined;
+        refreshExpiresAt: Date | undefined;
       }
     | null = null;
   revoked: { userId: string; sessionId: string; revokedAt: Date } | null = null;
