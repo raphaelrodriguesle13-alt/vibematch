@@ -62,8 +62,8 @@ class EntryActivity : ComponentActivity() {
     private lateinit var googleClient: GoogleOidcClient
     private lateinit var googleApi: AuthApiClient
     private lateinit var providerApi: ProviderLoginApiClient
-    private val callbackManager = CallbackManager.Factory.create()
-    private val facebookLoginManager = LoginManager.getInstance()
+    private var callbackManager: CallbackManager? = null
+    private var facebookLoginManager: LoginManager? = null
 
     private var uiState by mutableStateOf(EntryUiState())
 
@@ -114,7 +114,7 @@ class EntryActivity : ComponentActivity() {
     @Deprecated("Facebook SDK callback bridge")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        callbackManager.onActivityResult(requestCode, resultCode, data)
+        callbackManager?.onActivityResult(requestCode, resultCode, data)
     }
 
     private fun loginGoogle() {
@@ -135,8 +135,9 @@ class EntryActivity : ComponentActivity() {
 
     private fun loginFacebook() {
         if (uiState.loading || !isFacebookConfigured()) return
+        val loginManager = facebookLoginManager ?: return
         uiState = uiState.copy(loading = true, errorMessage = null)
-        facebookLoginManager.logInWithReadPermissions(this, listOf("public_profile"))
+        loginManager.logInWithReadPermissions(this, listOf("public_profile"))
     }
 
     private fun startPhone() {
@@ -192,8 +193,14 @@ class EntryActivity : ComponentActivity() {
         FacebookSdk.setApplicationId(BuildConfig.FACEBOOK_APP_ID)
         FacebookSdk.setClientToken(BuildConfig.FACEBOOK_CLIENT_TOKEN)
         FacebookSdk.sdkInitialize(applicationContext)
-        facebookLoginManager.registerCallback(
-            callbackManager,
+
+        val manager = LoginManager.getInstance()
+        val callbacks = CallbackManager.Factory.create()
+        facebookLoginManager = manager
+        callbackManager = callbacks
+
+        manager.registerCallback(
+            callbacks,
             object : FacebookCallback<LoginResult> {
                 override fun onSuccess(result: LoginResult) {
                     val token = result.accessToken.token
