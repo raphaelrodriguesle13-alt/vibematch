@@ -91,6 +91,7 @@ import com.vibematch.app.consent.ConsentViewModelFactory
 import com.vibematch.app.auth.AuthViewModel
 import com.vibematch.app.auth.AuthViewModelFactory
 import com.vibematch.app.auth.GoogleOidcClient
+import com.vibematch.app.auth.isGoogleServerClientIdConfigured
 import com.vibematch.app.auth.PhoneVerificationApiClient
 import com.vibematch.app.auth.PhoneVerificationStep
 import com.vibematch.app.auth.PhoneVerificationViewModel
@@ -404,7 +405,11 @@ private fun VibeMatchApp(
     }
 
     if (session == null) {
-        LoginScreen(activity, authViewModel)
+        LoginScreen(
+            activity = activity,
+            viewModel = authViewModel,
+            googleSignInConfigured = isGoogleServerClientIdConfigured(BuildConfig.GOOGLE_SERVER_CLIENT_ID),
+        )
     } else {
         val profileState by profileViewModel.state
         val consentState by consentViewModel.state
@@ -608,7 +613,11 @@ private fun VibeMatchApp(
 }
 
 @Composable
-private fun LoginScreen(activity: Activity, viewModel: AuthViewModel) {
+private fun LoginScreen(
+    activity: Activity,
+    viewModel: AuthViewModel,
+    googleSignInConfigured: Boolean,
+) {
     val state by viewModel.state
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -652,7 +661,7 @@ private fun LoginScreen(activity: Activity, viewModel: AuthViewModel) {
             Spacer(modifier = Modifier.height(28.dp))
             Button(
                 onClick = { viewModel.signIn(activity) },
-                enabled = !state.isLoading,
+                enabled = googleSignInConfigured && !state.isLoading,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = VibePurple),
                 shape = RoundedCornerShape(16.dp),
@@ -666,6 +675,12 @@ private fun LoginScreen(activity: Activity, viewModel: AuthViewModel) {
                 } else {
                     Text("Entrar com Google")
                 }
+            }
+            if (!googleSignInConfigured && state.errorMessage == null) {
+                Spacer(modifier = Modifier.height(16.dp))
+                ErrorBanner(
+                    "Login Google indisponível neste build. Configure GOOGLE_SERVER_CLIENT_ID e gere o APK novamente.",
+                ) {}
             }
             state.errorMessage?.let { error ->
                 Spacer(modifier = Modifier.height(16.dp))

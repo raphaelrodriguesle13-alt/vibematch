@@ -173,6 +173,27 @@ Após o boot, validar `adb devices -l`, `adb shell getprop ro.build.version.sdk`
 
 Se uma máquina controlada pelo usuário possuir virtualização habilitada, o desbloqueio recomendado é habilitar Intel VT-x/AMD-V no firmware, expor `/dev/kvm` ao processo e confirmar `ls -l /dev/kvm` antes de iniciar o AVD. Sem KVM, aumentar timeout ou trocar intents não corrige a limitação estrutural; usar um dispositivo físico ou device farm com Google Play é a alternativa correta.
 
+## Google Sign-In: configuração e prevenção de erro
+
+O erro visual `Google server client ID is not configured` ocorre quando o APK é gerado sem a propriedade pública `GOOGLE_SERVER_CLIENT_ID`. O cliente não deve inventar esse valor nem usar um ID de teste embutido: o ID precisa ser o **Web client ID OAuth real** do projeto Google configurado para o backend, com package/certificado Android e contas de teste correspondentes.
+
+A tela agora detecta client ID vazio ou placeholder antes de permitir o clique, exibe uma mensagem em português com a ação necessária e mantém o login bloqueado. O `GoogleOidcClient` também valida a configuração em runtime e falha com mensagem sanitizada. Essa correção evita uma tentativa inevitavelmente falha, mas não concede autenticação local nem substitui a validação server-side do ID token.
+
+Para gerar um APK de teste com a configuração fornecida por canal seguro, sem gravá-la no repositório:
+
+```bash
+cd android
+./gradlew :app:assembleDebug \\
+  -PGOOGLE_SERVER_CLIENT_ID='<WEB_CLIENT_ID_OAUTH>' \\
+  -PAPI_BASE_URL='https://<backend-host>' \\
+  -PLIVEKIT_URL='wss://<livekit-host>' \\
+  -PBILLING_PRODUCT_ID='<public-subscription-id>'
+```
+
+O valor do client ID não é um segredo de API, mas deve ser tratado como configuração do ambiente; o ID token, refresh token e demais credenciais continuam proibidos no APK, logs e documentação. Builds sem o valor permanecem instaláveis para UI/preflight, porém exibem o estado `Login Google indisponível neste build` e não permitem iniciar o fluxo.
+
+A mesma regra deve ser aplicada a futuras configurações obrigatórias: detectar ausência na inicialização, mostrar estado público acionável, impedir a ação que não pode funcionar e falhar novamente no boundary de rede ou provedor. Nunca criar fallback que aprove idade, telefone, sessão, entitlement, room, identity ou moderação localmente.
+
 ## Próximas entradas necessárias
 
 Para continuar a execução real, é necessário disponibilizar um dispositivo Android físico ou emulador com Google Play conectado ao ambiente de execução, um AAB assinado/publicável, Web client ID e contas Google de teste, ambiente backend HTTPS com Didit/Twilio/LiveKit/Billing configurados, produto Play SUBS em internal testing e canal administrativo sanitizado para confirmar entitlement/RTDN. Credenciais devem ser fornecidas por canal seguro e nunca commitar ou inserir em `BuildConfig`, APK, logs ou este plano.

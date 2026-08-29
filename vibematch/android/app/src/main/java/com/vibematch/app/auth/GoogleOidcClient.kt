@@ -15,6 +15,9 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingExcept
 
 class GoogleAuthException(message: String) : Exception(message)
 
+fun isGoogleServerClientIdConfigured(serverClientId: String): Boolean =
+    serverClientId.isNotBlank() && !serverClientId.startsWith("MISSING_")
+
 interface GoogleSignInGateway {
     suspend fun signIn(activity: Activity): String
     suspend fun signOut()
@@ -26,8 +29,10 @@ class GoogleOidcClient(
     private val credentialManager: CredentialManager = CredentialManager.create(context),
 ) : GoogleSignInGateway {
     override suspend fun signIn(activity: Activity): String {
-        if (serverClientId.isBlank()) {
-            throw GoogleAuthException("Google server client ID is not configured")
+        if (!isGoogleServerClientIdConfigured(serverClientId)) {
+            throw GoogleAuthException(
+                "Login Google indisponível: configure GOOGLE_SERVER_CLIENT_ID no build.",
+            )
         }
 
         val authorizedOption = GetGoogleIdOption.Builder()
