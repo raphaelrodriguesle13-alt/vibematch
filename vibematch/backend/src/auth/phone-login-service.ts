@@ -106,10 +106,7 @@ export class PhoneLoginService {
 
     let accepted: boolean;
     try {
-      accepted = await this.smsProvider.confirm(
-        challenge.providerVerificationId,
-        normalizedCode,
-      );
+      accepted = await this.smsProvider.confirm(challenge.providerVerificationId, normalizedCode);
     } catch {
       throw new PhoneLoginError('SMS_PROVIDER_UNAVAILABLE', 'SMS provider is unavailable');
     }
