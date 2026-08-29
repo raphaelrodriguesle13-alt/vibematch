@@ -21,7 +21,10 @@ type UserIdRow = QueryResultRow & { id: string };
 export class AuthIdentityRepository {
   constructor(private readonly pool: Pool) {}
 
-  async findOrCreateUser(provider: AuthIdentityProvider, externalSubject: string): Promise<IdentityUser> {
+  async findOrCreateUser(
+    provider: AuthIdentityProvider,
+    externalSubject: string,
+  ): Promise<IdentityUser> {
     const subject = externalSubject.trim();
     if (!subject) throw new Error('External identity subject is required');
     const existing = await this.find(provider, subject);
@@ -52,7 +55,12 @@ export class AuthIdentityRepository {
       );
       if (identity.rows[0]) {
         await client.query('COMMIT');
-        return { id: user.id, phoneVerified: user.phone_verified, status: user.status, isNewUser: true };
+        return {
+          id: user.id,
+          phoneVerified: user.phone_verified,
+          status: user.status,
+          isNewUser: true,
+        };
       }
       await client.query('ROLLBACK');
       const winner = await this.find(provider, subject);
@@ -66,7 +74,10 @@ export class AuthIdentityRepository {
     }
   }
 
-  private async find(provider: AuthIdentityProvider, subject: string): Promise<Omit<IdentityUser, 'isNewUser'> | null> {
+  private async find(
+    provider: AuthIdentityProvider,
+    subject: string,
+  ): Promise<Omit<IdentityUser, 'isNewUser'> | null> {
     const result = await this.pool.query<IdentityRow>(
       `SELECT u.id, u.phone_verified, u.status
        FROM auth_identities i JOIN users u ON u.id = i.user_id
@@ -77,7 +88,11 @@ export class AuthIdentityRepository {
     return row ? { id: row.id, phoneVerified: row.phone_verified, status: row.status } : null;
   }
 
-  private async findWithClient(client: PoolClient, provider: AuthIdentityProvider, subject: string): Promise<Omit<IdentityUser, 'isNewUser'> | null> {
+  private async findWithClient(
+    client: PoolClient,
+    provider: AuthIdentityProvider,
+    subject: string,
+  ): Promise<Omit<IdentityUser, 'isNewUser'> | null> {
     const result = await client.query<IdentityRow>(
       `SELECT u.id, u.phone_verified, u.status
        FROM auth_identities i JOIN users u ON u.id = i.user_id
