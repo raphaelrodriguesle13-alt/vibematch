@@ -3,10 +3,14 @@ import type { FastifyInstance } from 'fastify';
 import { registerAccountDeletionRoute } from '../account/http';
 import { AccountDeletionRepository } from '../account/repository';
 import { AccountDeletionService } from '../account/service';
+import { registerFacebookLoginRoute } from '../auth/facebook-http';
+import { AuthIdentityRepository } from '../auth/identity-repository';
 import { PhoneVerificationService } from '../auth/phone-service';
+import { MetaFacebookIdentityProvider } from '../auth/providers/facebook';
 import { GoogleOidcProvider } from '../auth/providers/google';
 import { JwtSessionProvider } from '../auth/providers/jwt';
 import { TwilioVerifyProvider } from '../auth/providers/twilio-verify';
+import { ProviderAuthService } from '../auth/provider-service';
 import { PgAuthRateLimiter } from '../auth/rate-limit';
 import { registerRefreshRoute } from '../auth/refresh-http';
 import { AuthRepository } from '../auth/repository';
@@ -64,6 +68,7 @@ export const createProductionRuntime = (): ProductionRuntime => {
   const moderationPool = createRuntimePool(env.moderationDatabaseUrl());
 
   const authRepository = new AuthRepository(authPool);
+  const identityRepository = new AuthIdentityRepository(authPool);
   const accountDeletionService = new AccountDeletionService(
     new AccountDeletionRepository(accountPool),
   );
@@ -86,6 +91,27 @@ export const createProductionRuntime = (): ProductionRuntime => {
     sessionTokens,
     { sessionTtlSeconds: env.authSessionTtlSeconds },
   );
+
+  const facebookAppId = process.env.FACEBOOK_APP_ID?.trim();
+  const facebookAppSecret = process.env.FACEBOOK_APP_SECRET?.trim();
+  const facebookAuthService =
+    facebookAppId && facebookAppSecret
+      ? new ProviderAuthService(
+          'FACEBOOK',
+          {
+            verifyCredential: async (credential) =>
+              new MetaFacebookIdentityProvider({
+                appId: facebookAppId,
+                appSecret: facebookAppSecret,
+              }).verifyAccessToken(credential),
+          },
+          identityRepository,
+          authRepository,
+          sessionTokens,
+          { sessionTtlSeconds: env.authSessionTtlSeconds },
+        )
+      : null;
+
   const phoneVerificationService = new PhoneVerificationService(
     authRepository,
     new TwilioVerifyProvider({
@@ -132,6 +158,12 @@ export const createProductionRuntime = (): ProductionRuntime => {
   });
 
   registerRefreshRoute(app, { authService, rateLimiter: authRateLimiter });
+  if (facebookAuthService) {
+    registerFacebookLoginRoute(app, {
+      service: facebookAuthService,
+      rateLimiter: authRateLimiter,
+    });
+  }
 
   registerAccountDeletionRoute(app, {
     service: accountDeletionService,
