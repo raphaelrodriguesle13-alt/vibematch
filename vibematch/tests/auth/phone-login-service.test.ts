@@ -110,7 +110,7 @@ describe('PhoneLoginService', () => {
     await expect(service.confirm(verificationId, '000000')).rejects.toMatchObject({
       code: 'INVALID_CODE',
     } satisfies Partial<PhoneLoginError>);
-    expect(repository.incrementAttempts.mock.calls).toContainEqual([[verificationId, now][0], [verificationId, now][1]]);
+    expect(repository.incrementAttempts.mock.calls).toContainEqual([verificationId, now]);
     expect(issueVerifiedIdentity).not.toHaveBeenCalled();
   });
 
