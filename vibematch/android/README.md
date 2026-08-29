@@ -6,6 +6,20 @@ O módulo Android usa **Kotlin + Jetpack Compose** e entrega autenticação Goog
 
 É necessário Android Studio com Android SDK 35 e Java 17 ou superior. O repositório não versiona credenciais, tokens de sessão, chaves LiveKit ou chaves de provedores.
 
+## Configurar o login Google
+
+O login só funciona quando `GOOGLE_SERVER_CLIENT_ID` contém o **Web client ID OAuth real** do mesmo projeto Google cujo valor `GOOGLE_OIDC_AUDIENCE` está configurado no backend. O aplicativo não pode descobrir ou fabricar esse valor. O client ID é público, mas o ID token recebido durante o login continua transitório e nunca deve ser salvo ou enviado a logs.
+
+É possível configurar pelo parâmetro Gradle, que tem precedência, ou pela variável de ambiente — útil para Android Studio, device farm e CI:
+
+```bash
+export GOOGLE_SERVER_CLIENT_ID='<WEB_CLIENT_ID_OAUTH_REAL>'
+export API_BASE_URL='https://<backend-host>'
+./gradlew :app:assembleDebug
+```
+
+Para o emulador local, use `API_BASE_URL=http://10.0.2.2:3000` somente em debug. Para aparelho físico ou device farm, use uma URL HTTPS acessível pelo dispositivo. Sem o client ID, o build debug continua útil para UI/preflight, mas o botão de login fica desabilitado e a tela informa exatamente a configuração ausente; isso evita confundir falha de configuração com falha do Google.
+
 ## Executar contra o backend local
 
 Inicie o backend na porta 3000 e, dentro deste diretório, execute:
@@ -17,7 +31,7 @@ Inicie o backend na porta 3000 e, dentro deste diretório, execute:
   -PGOOGLE_SERVER_CLIENT_ID=seu-web-client-id.apps.googleusercontent.com
 ```
 
-`10.0.2.2` aponta do emulador Android para o `localhost` da máquina hospedeira. Para um dispositivo físico, substitua a URL pelo endereço acessível da máquina na rede local. A aplicação usa HTTP claro somente no debug local; o Manifest de release força `android:usesCleartextTraffic="false"`, e o build release exige uma `API_BASE_URL` com HTTPS.
+`10.0.2.2` aponta do emulador Android para o `localhost` da máquina hospedeira. Para um dispositivo físico, substitua a URL pelo endereço acessível da máquina na rede local ou por um backend HTTPS. A aplicação usa HTTP claro somente no debug local; o Manifest de release força `android:usesCleartextTraffic="false"`, e o build release exige uma `API_BASE_URL` com HTTPS.
 
 Para testar o RTC em um ambiente configurado, forneça somente a URL pública do servidor LiveKit, nunca a chave ou o segredo de assinatura:
 

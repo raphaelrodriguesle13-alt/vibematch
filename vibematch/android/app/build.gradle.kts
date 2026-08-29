@@ -30,15 +30,19 @@ android {
     buildTypes {
         debug {
             val debugApiBaseUrl = providers.gradleProperty("API_BASE_URL")
+                .orElse(providers.environmentVariable("API_BASE_URL"))
                 .orElse("http://10.0.2.2:3000")
                 .get()
             val debugGoogleClientId = providers.gradleProperty("GOOGLE_SERVER_CLIENT_ID")
+                .orElse(providers.environmentVariable("GOOGLE_SERVER_CLIENT_ID"))
                 .orElse("")
                 .get()
             val debugLiveKitUrl = providers.gradleProperty("LIVEKIT_URL")
+                .orElse(providers.environmentVariable("LIVEKIT_URL"))
                 .orElse("")
                 .get()
             val debugBillingProductId = providers.gradleProperty("BILLING_PRODUCT_ID")
+                .orElse(providers.environmentVariable("BILLING_PRODUCT_ID"))
                 .orElse("")
                 .get()
             val debugBillingValidationPath = providers.gradleProperty("BILLING_VALIDATION_PATH")
@@ -52,15 +56,19 @@ android {
         }
         release {
             val releaseApiBaseUrl = providers.gradleProperty("API_BASE_URL")
+                .orElse(providers.environmentVariable("API_BASE_URL"))
                 .orElse("https://api.vibematch.example")
                 .get()
             val releaseGoogleClientId = providers.gradleProperty("GOOGLE_SERVER_CLIENT_ID")
+                .orElse(providers.environmentVariable("GOOGLE_SERVER_CLIENT_ID"))
                 .orElse("MISSING_GOOGLE_SERVER_CLIENT_ID")
                 .get()
             val releaseLiveKitUrl = providers.gradleProperty("LIVEKIT_URL")
+                .orElse(providers.environmentVariable("LIVEKIT_URL"))
                 .orElse("MISSING_LIVEKIT_URL")
                 .get()
             val releaseBillingProductId = providers.gradleProperty("BILLING_PRODUCT_ID")
+                .orElse(providers.environmentVariable("BILLING_PRODUCT_ID"))
                 .orElse("MISSING_BILLING_PRODUCT_ID")
                 .get()
             val releaseBillingValidationPath = providers.gradleProperty("BILLING_VALIDATION_PATH")
@@ -78,8 +86,11 @@ android {
                 require(releaseApiHost != null && releaseApiHost !in localHosts) {
                     "Release API_BASE_URL must not use a local host"
                 }
-                require(releaseGoogleClientId != "MISSING_GOOGLE_SERVER_CLIENT_ID") {
-                    "Release GOOGLE_SERVER_CLIENT_ID must be configured"
+                require(
+                    releaseGoogleClientId.endsWith(".apps.googleusercontent.com") &&
+                        !releaseGoogleClientId.startsWith("MISSING_")
+                ) {
+                    "Release GOOGLE_SERVER_CLIENT_ID must be a Google Web OAuth client ID"
                 }
                 require(releaseLiveKitUrl.startsWith("wss://")) {
                     "Release LIVEKIT_URL must use wss://"

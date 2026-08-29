@@ -13,8 +13,9 @@ class GoogleOidcClientTest {
     }
 
     @Test
-    fun `missing build placeholder is not configured`() {
+    fun `missing build placeholders are not configured`() {
         assertFalse(isGoogleServerClientIdConfigured("MISSING_GOOGLE_SERVER_CLIENT_ID"))
+        assertFalse(isGoogleServerClientIdConfigured("seu-web-client-id.apps.googleusercontent.com"))
     }
 
     @Test

@@ -16,7 +16,9 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingExcept
 class GoogleAuthException(message: String) : Exception(message)
 
 fun isGoogleServerClientIdConfigured(serverClientId: String): Boolean =
-    serverClientId.isNotBlank() && !serverClientId.startsWith("MISSING_")
+    serverClientId.endsWith(".apps.googleusercontent.com") &&
+        !serverClientId.startsWith("MISSING_") &&
+        !serverClientId.startsWith("seu-")
 
 interface GoogleSignInGateway {
     suspend fun signIn(activity: Activity): String
