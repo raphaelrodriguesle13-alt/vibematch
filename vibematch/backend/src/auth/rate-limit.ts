@@ -6,6 +6,8 @@ export type AuthRateLimitScope =
   | 'FACEBOOK_LOGIN'
   | 'PHONE_START'
   | 'PHONE_CONFIRM'
+  | 'PHONE_LOGIN_START'
+  | 'PHONE_LOGIN_CONFIRM'
   | 'REFRESH'
   | 'LOGOUT_REFRESH';
 
