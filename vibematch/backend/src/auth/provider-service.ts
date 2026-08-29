@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import type { SessionTokenProvider } from '../shared/providers';
-import type { AuthSession } from './repository';
 import type { AuthIdentityProvider, IdentityUser } from './identity-repository';
+import type { AuthSession } from './repository';
 
 export type ProviderAuthErrorCode =
   'INVALID_PROVIDER_TOKEN' | 'ACCOUNT_UNAVAILABLE' | 'SESSION_ISSUANCE_FAILED';
@@ -93,6 +93,15 @@ export class ProviderAuthService {
     } catch {
       throw new ProviderAuthError('INVALID_PROVIDER_TOKEN', 'Provider credential is invalid');
     }
+    if (!subject) {
+      throw new ProviderAuthError('INVALID_PROVIDER_TOKEN', 'Provider identity is invalid');
+    }
+
+    return this.issueVerifiedIdentity(subject);
+  }
+
+  async issueVerifiedIdentity(externalSubject: string): Promise<ProviderLoginResult> {
+    const subject = externalSubject.trim();
     if (!subject) {
       throw new ProviderAuthError('INVALID_PROVIDER_TOKEN', 'Provider identity is invalid');
     }
