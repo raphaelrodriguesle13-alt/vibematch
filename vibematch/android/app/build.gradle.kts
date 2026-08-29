@@ -37,6 +37,14 @@ android {
                 .orElse(providers.environmentVariable("GOOGLE_SERVER_CLIENT_ID"))
                 .orElse("")
                 .get()
+            val debugFacebookAppId = providers.gradleProperty("FACEBOOK_APP_ID")
+                .orElse(providers.environmentVariable("FACEBOOK_APP_ID"))
+                .orElse("")
+                .get()
+            val debugFacebookClientToken = providers.gradleProperty("FACEBOOK_CLIENT_TOKEN")
+                .orElse(providers.environmentVariable("FACEBOOK_CLIENT_TOKEN"))
+                .orElse("")
+                .get()
             val debugLiveKitUrl = providers.gradleProperty("LIVEKIT_URL")
                 .orElse(providers.environmentVariable("LIVEKIT_URL"))
                 .orElse("")
@@ -50,6 +58,8 @@ android {
                 .get()
             buildConfigField("String", "API_BASE_URL", debugApiBaseUrl.toBuildConfigString())
             buildConfigField("String", "GOOGLE_SERVER_CLIENT_ID", debugGoogleClientId.toBuildConfigString())
+            buildConfigField("String", "FACEBOOK_APP_ID", debugFacebookAppId.toBuildConfigString())
+            buildConfigField("String", "FACEBOOK_CLIENT_TOKEN", debugFacebookClientToken.toBuildConfigString())
             buildConfigField("String", "LIVEKIT_URL", debugLiveKitUrl.toBuildConfigString())
             buildConfigField("String", "BILLING_PRODUCT_ID", debugBillingProductId.toBuildConfigString())
             buildConfigField("String", "BILLING_VALIDATION_PATH", debugBillingValidationPath.toBuildConfigString())
@@ -62,6 +72,14 @@ android {
             val releaseGoogleClientId = providers.gradleProperty("GOOGLE_SERVER_CLIENT_ID")
                 .orElse(providers.environmentVariable("GOOGLE_SERVER_CLIENT_ID"))
                 .orElse("MISSING_GOOGLE_SERVER_CLIENT_ID")
+                .get()
+            val releaseFacebookAppId = providers.gradleProperty("FACEBOOK_APP_ID")
+                .orElse(providers.environmentVariable("FACEBOOK_APP_ID"))
+                .orElse("MISSING_FACEBOOK_APP_ID")
+                .get()
+            val releaseFacebookClientToken = providers.gradleProperty("FACEBOOK_CLIENT_TOKEN")
+                .orElse(providers.environmentVariable("FACEBOOK_CLIENT_TOKEN"))
+                .orElse("MISSING_FACEBOOK_CLIENT_TOKEN")
                 .get()
             val releaseLiveKitUrl = providers.gradleProperty("LIVEKIT_URL")
                 .orElse(providers.environmentVariable("LIVEKIT_URL"))
@@ -92,6 +110,18 @@ android {
                 ) {
                     "Release GOOGLE_SERVER_CLIENT_ID must be a Google Web OAuth client ID"
                 }
+                require(
+                    releaseFacebookAppId.isNotBlank() &&
+                        !releaseFacebookAppId.startsWith("MISSING_")
+                ) {
+                    "Release FACEBOOK_APP_ID must be configured"
+                }
+                require(
+                    releaseFacebookClientToken.isNotBlank() &&
+                        !releaseFacebookClientToken.startsWith("MISSING_")
+                ) {
+                    "Release FACEBOOK_CLIENT_TOKEN must be configured"
+                }
                 require(releaseLiveKitUrl.startsWith("wss://")) {
                     "Release LIVEKIT_URL must use wss://"
                 }
@@ -109,6 +139,8 @@ android {
             }
             buildConfigField("String", "API_BASE_URL", releaseApiBaseUrl.toBuildConfigString())
             buildConfigField("String", "GOOGLE_SERVER_CLIENT_ID", releaseGoogleClientId.toBuildConfigString())
+            buildConfigField("String", "FACEBOOK_APP_ID", releaseFacebookAppId.toBuildConfigString())
+            buildConfigField("String", "FACEBOOK_CLIENT_TOKEN", releaseFacebookClientToken.toBuildConfigString())
             buildConfigField("String", "LIVEKIT_URL", releaseLiveKitUrl.toBuildConfigString())
             buildConfigField("String", "BILLING_PRODUCT_ID", releaseBillingProductId.toBuildConfigString())
             buildConfigField("String", "BILLING_VALIDATION_PATH", releaseBillingValidationPath.toBuildConfigString())
@@ -140,6 +172,7 @@ dependencies {
     implementation("androidx.credentials:credentials:1.6.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.2.0")
+    implementation("com.facebook.android:facebook-login:18.3.0")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui")
