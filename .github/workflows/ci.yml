@@ -144,6 +144,8 @@ jobs:
         run: ./gradlew test --no-daemon
 
       - name: Android debug build
+        env:
+          API_BASE_URL: http://127.0.0.1:3000
         run: ./gradlew :app:assembleDebug --no-daemon
 
       - name: Record Android signing fingerprint
