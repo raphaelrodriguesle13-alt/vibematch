@@ -12,7 +12,9 @@ const response = (data: unknown, status = 200): Response =>
   });
 
 const providerWith = (payload: unknown, status = 200) => {
-  const fetchImpl = jest.fn(() => Promise.resolve(response(payload, status))) as unknown as typeof fetch;
+  const fetchImpl = jest.fn(() =>
+    Promise.resolve(response(payload, status)),
+  ) as unknown as typeof fetch;
   const provider = new MetaFacebookIdentityProvider({
     appId,
     appSecret,
