@@ -1,7 +1,5 @@
 import fastify from 'fastify';
-import {
-  registerPhoneLoginRoutes,
-} from '../../backend/src/auth/phone-login-http';
+import { registerPhoneLoginRoutes } from '../../backend/src/auth/phone-login-http';
 import { PhoneLoginError } from '../../backend/src/auth/phone-login-service';
 import type { ProviderLoginResult } from '../../backend/src/auth/provider-service';
 
