@@ -6,10 +6,7 @@ import {
   type ProviderSessionRepositoryPort,
 } from '../../backend/src/auth/provider-service';
 import type { AuthSession } from '../../backend/src/auth/repository';
-import type {
-  SessionTokenClaims,
-  SessionTokenProvider,
-} from '../../backend/src/shared/providers';
+import type { SessionTokenClaims, SessionTokenProvider } from '../../backend/src/shared/providers';
 
 class FakeVerifier implements ExternalIdentityVerifier {
   subject = 'facebook-subject';
@@ -40,14 +37,12 @@ class FakeIdentityRepository implements ProviderIdentityRepositoryPort {
 }
 
 class FakeSessionRepository implements ProviderSessionRepositoryPort {
-  created:
-    | {
-        userId: string;
-        expiresAt: Date;
-        refreshTokenHash: string | undefined;
-        refreshExpiresAt: Date | undefined;
-      }
-    | null = null;
+  created: {
+    userId: string;
+    expiresAt: Date;
+    refreshTokenHash: string | undefined;
+    refreshExpiresAt: Date | undefined;
+  } | null = null;
   revoked: { userId: string; sessionId: string; revokedAt: Date } | null = null;
 
   createSession(
