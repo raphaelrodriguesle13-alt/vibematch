@@ -4,9 +4,7 @@ import type { AuthSession } from './repository';
 import type { AuthIdentityProvider, IdentityUser } from './identity-repository';
 
 export type ProviderAuthErrorCode =
-  | 'INVALID_PROVIDER_TOKEN'
-  | 'ACCOUNT_UNAVAILABLE'
-  | 'SESSION_ISSUANCE_FAILED';
+  'INVALID_PROVIDER_TOKEN' | 'ACCOUNT_UNAVAILABLE' | 'SESSION_ISSUANCE_FAILED';
 
 export class ProviderAuthError extends Error {
   constructor(
@@ -109,7 +107,10 @@ export class ProviderAuthService {
     const refreshExpiresAt = new Date(now.getTime() + this.refreshTtlSeconds * 1000);
     const refreshToken = this.refreshToken();
     if (refreshToken.length < 32) {
-      throw new ProviderAuthError('SESSION_ISSUANCE_FAILED', 'Refresh token generator returned weak output');
+      throw new ProviderAuthError(
+        'SESSION_ISSUANCE_FAILED',
+        'Refresh token generator returned weak output',
+      );
     }
 
     const session = await this.sessions.createSession(
