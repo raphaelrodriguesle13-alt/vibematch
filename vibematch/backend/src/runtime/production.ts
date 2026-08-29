@@ -1,10 +1,13 @@
-import { Pool } from 'pg';
 import type { FastifyInstance } from 'fastify';
+import { Pool } from 'pg';
 import { registerAccountDeletionRoute } from '../account/http';
 import { AccountDeletionRepository } from '../account/repository';
 import { AccountDeletionService } from '../account/service';
 import { registerFacebookLoginRoute } from '../auth/facebook-http';
 import { AuthIdentityRepository } from '../auth/identity-repository';
+import { registerPhoneLoginRoutes } from '../auth/phone-login-http';
+import { PhoneLoginRepository } from '../auth/phone-login-repository';
+import { PhoneLoginService } from '../auth/phone-login-service';
 import { PhoneVerificationService } from '../auth/phone-service';
 import { MetaFacebookIdentityProvider } from '../auth/providers/facebook';
 import { GoogleOidcProvider } from '../auth/providers/google';
@@ -31,8 +34,8 @@ import { ModerationService } from '../moderation/service';
 import { registerAgeAssuranceRoutes } from '../profile/age-http';
 import { AgeAssuranceRepository } from '../profile/age-assurance-repository';
 import { AgeAssuranceService } from '../profile/age-assurance';
-import { AgeWebhookReconciler } from '../profile/age-webhook-reconciler';
 import { registerAgeWebhookRoute } from '../profile/age-webhook-http';
+import { AgeWebhookReconciler } from '../profile/age-webhook-reconciler';
 import { DiditAgeAssuranceProvider } from '../profile/providers/didit';
 import { ProfileRepository } from '../profile/repository';
 import { ProfileService } from '../profile/service';
@@ -94,32 +97,47 @@ export const createProductionRuntime = (): ProductionRuntime => {
 
   const facebookAppId = process.env.FACEBOOK_APP_ID?.trim();
   const facebookAppSecret = process.env.FACEBOOK_APP_SECRET?.trim();
-  const facebookAuthService =
+  const facebookProvider =
     facebookAppId && facebookAppSecret
-      ? new ProviderAuthService(
-          'FACEBOOK',
-          {
-            verifyCredential: async (credential) =>
-              new MetaFacebookIdentityProvider({
-                appId: facebookAppId,
-                appSecret: facebookAppSecret,
-              }).verifyAccessToken(credential),
-          },
-          identityRepository,
-          authRepository,
-          sessionTokens,
-          { sessionTtlSeconds: env.authSessionTtlSeconds },
-        )
+      ? new MetaFacebookIdentityProvider({
+          appId: facebookAppId,
+          appSecret: facebookAppSecret,
+        })
       : null;
+  const facebookAuthService = facebookProvider
+    ? new ProviderAuthService(
+        'FACEBOOK',
+        { verifyCredential: (credential) => facebookProvider.verifyAccessToken(credential) },
+        identityRepository,
+        authRepository,
+        sessionTokens,
+        { sessionTtlSeconds: env.authSessionTtlSeconds },
+      )
+    : null;
 
+  const smsProvider = new TwilioVerifyProvider({
+    accountSid: env.twilioAccountSid(),
+    authToken: env.twilioAuthToken(),
+    serviceSid: env.twilioVerifyServiceSid(),
+    baseUrl: env.twilioVerifyBaseUrl(),
+  });
   const phoneVerificationService = new PhoneVerificationService(
     authRepository,
-    new TwilioVerifyProvider({
-      accountSid: env.twilioAccountSid(),
-      authToken: env.twilioAuthToken(),
-      serviceSid: env.twilioVerifyServiceSid(),
-      baseUrl: env.twilioVerifyBaseUrl(),
-    }),
+    smsProvider,
+    { phoneHashPepper: env.phoneHashPepper(), rateLimiter: authRateLimiter },
+  );
+  const phoneSessionIssuer = new ProviderAuthService(
+    'PHONE',
+    null,
+    identityRepository,
+    authRepository,
+    sessionTokens,
+    { sessionTtlSeconds: env.authSessionTtlSeconds },
+  );
+  const phoneLoginService = new PhoneLoginService(
+    new PhoneLoginRepository(authPool),
+    smsProvider,
+    phoneSessionIssuer,
     { phoneHashPepper: env.phoneHashPepper(), rateLimiter: authRateLimiter },
   );
 
@@ -158,6 +176,7 @@ export const createProductionRuntime = (): ProductionRuntime => {
   });
 
   registerRefreshRoute(app, { authService, rateLimiter: authRateLimiter });
+  registerPhoneLoginRoutes(app, phoneLoginService);
   if (facebookAuthService) {
     registerFacebookLoginRoute(app, {
       service: facebookAuthService,
