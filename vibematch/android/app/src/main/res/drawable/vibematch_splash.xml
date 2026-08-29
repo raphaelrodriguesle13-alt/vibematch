@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/vibematch_brand_gradient" />
+    <item
+        android:width="196dp"
+        android:height="196dp"
+        android:gravity="center"
+        android:drawable="@drawable/vibematch_logo" />
+</layer-list>

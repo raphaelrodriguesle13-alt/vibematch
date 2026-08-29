@@ -9,6 +9,8 @@
     <!-- Apenas para desenvolvimento local com o backend em HTTP. Remover em produção. -->
     <application
         android:allowBackup="false"
+        android:icon="@drawable/vibematch_logo"
+        android:roundIcon="@drawable/vibematch_logo"
         android:label="VibeMatch"
         android:supportsRtl="true"
         android:theme="@style/Theme.VibeMatch">
