@@ -61,15 +61,14 @@ const buildService = (params?: {
     ),
     confirm: jest.fn(() => Promise.resolve(params?.accepted ?? true)),
   };
-  const sessionIssuer: VerifiedPhoneSessionIssuer = {
-    issueVerifiedIdentity: jest.fn(() => Promise.resolve(loginResult)),
-  };
+  const issueVerifiedIdentity = jest.fn(() => Promise.resolve(loginResult));
+  const sessionIssuer: VerifiedPhoneSessionIssuer = { issueVerifiedIdentity };
   const service = new PhoneLoginService(repository, smsProvider, sessionIssuer, {
     phoneHashPepper: 'test-pepper-that-is-not-a-production-secret',
     now: () => now,
     ...(params?.rateLimiter ? { rateLimiter: params.rateLimiter } : {}),
   });
-  return { service, repository, smsProvider, sessionIssuer };
+  return { service, repository, smsProvider, issueVerifiedIdentity };
 };
 
 describe('PhoneLoginService', () => {
@@ -89,9 +88,9 @@ describe('PhoneLoginService', () => {
     await service.start(phone);
 
     expect(smsProvider.start).toHaveBeenCalledWith('phone-login', phone);
-    const params = repository.createChallenge.mock.calls[0]?.[0];
-    expect(params?.phoneHash).toHaveLength(64);
-    expect(params?.phoneHash).not.toBe(phone);
+    const challengeParams = repository.createChallenge.mock.calls[0]?.[0];
+    expect(challengeParams?.phoneHash).toHaveLength(64);
+    expect(challengeParams?.phoneHash).not.toBe(phone);
   });
 
   it('rate limits SMS start before provider use', async () => {
@@ -106,34 +105,34 @@ describe('PhoneLoginService', () => {
   });
 
   it('increments attempts and never issues a session for an invalid OTP', async () => {
-    const { service, repository, sessionIssuer } = buildService({ accepted: false });
+    const { service, repository, issueVerifiedIdentity } = buildService({ accepted: false });
 
     await expect(service.confirm(verificationId, '000000')).rejects.toMatchObject({
       code: 'INVALID_CODE',
     } satisfies Partial<PhoneLoginError>);
-    expect(repository.incrementAttempts).toHaveBeenCalledWith(verificationId, now);
-    expect(sessionIssuer.issueVerifiedIdentity).not.toHaveBeenCalled();
+    expect(repository.incrementAttempts.mock.calls).toContainEqual([[verificationId, now][0], [verificationId, now][1]]);
+    expect(issueVerifiedIdentity).not.toHaveBeenCalled();
   });
 
   it('atomically consumes a valid challenge before issuing a phone session', async () => {
-    const { service, repository, sessionIssuer } = buildService();
+    const { service, repository, issueVerifiedIdentity } = buildService();
 
     const result = await service.confirm(verificationId, '123456');
 
-    expect(repository.consumeChallenge).toHaveBeenCalledWith(verificationId, 5, now);
-    expect(sessionIssuer.issueVerifiedIdentity).toHaveBeenCalledWith('server-side-phone-hash');
+    expect(repository.consumeChallenge.mock.calls).toContainEqual([verificationId, 5, now]);
+    expect(issueVerifiedIdentity).toHaveBeenCalledWith('server-side-phone-hash');
     expect(result.phoneVerified).toBe(true);
   });
 
   it('does not issue a session when another confirmation already consumed the challenge', async () => {
     const repository = new FakePhoneLoginRepository();
     repository.consumeResult = null;
-    const { service, sessionIssuer } = buildService({ repository });
+    const { service, issueVerifiedIdentity } = buildService({ repository });
 
     await expect(service.confirm(verificationId, '123456')).rejects.toMatchObject({
       code: 'LOGIN_NOT_AVAILABLE',
     } satisfies Partial<PhoneLoginError>);
-    expect(sessionIssuer.issueVerifiedIdentity).not.toHaveBeenCalled();
+    expect(issueVerifiedIdentity).not.toHaveBeenCalled();
   });
 
   it('locks a challenge after the configured attempt ceiling', async () => {
