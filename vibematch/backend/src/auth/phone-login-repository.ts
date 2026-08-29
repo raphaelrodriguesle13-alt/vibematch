@@ -64,7 +64,11 @@ export class PhoneLoginRepository {
     );
   }
 
-  async consumeChallenge(id: string, maxAttempts: number, consumedAt: Date): Promise<string | null> {
+  async consumeChallenge(
+    id: string,
+    maxAttempts: number,
+    consumedAt: Date,
+  ): Promise<string | null> {
     const result = await this.pool.query<PhoneHashRow>(
       `UPDATE phone_login_challenges
        SET consumed_at = $3,
