@@ -653,7 +653,7 @@ private fun LoginScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Entre com sua conta Google para conversar com segurança.",
+                text = "Escolha uma forma segura de entrar e conversar.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = Color(0xFF72717D),
                 textAlign = TextAlign.Center,
@@ -673,13 +673,31 @@ private fun LoginScreen(
                         strokeWidth = 2.dp,
                     )
                 } else {
-                    Text("Entrar com Google")
+                    Text("Continuar com Google")
                 }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = {},
+                enabled = false,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Text("Continuar com Facebook")
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(
+                onClick = {},
+                enabled = false,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Text("Continuar com celular")
             }
             if (!googleSignInConfigured && state.errorMessage == null) {
                 Spacer(modifier = Modifier.height(16.dp))
                 ErrorBanner(
-                    "Login Google indisponível neste build. Configure GOOGLE_SERVER_CLIENT_ID e gere o APK novamente.",
+                    "O acesso com Google está temporariamente indisponível. Tente novamente mais tarde.",
                 ) {}
             }
             state.errorMessage?.let { error ->
