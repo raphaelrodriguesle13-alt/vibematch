@@ -62,7 +62,7 @@ export class ProviderAuthService {
 
   constructor(
     private readonly provider: AuthIdentityProvider,
-    private readonly verifier: ExternalIdentityVerifier,
+    private readonly verifier: ExternalIdentityVerifier | null,
     private readonly identities: ProviderIdentityRepositoryPort,
     private readonly sessions: ProviderSessionRepositoryPort,
     private readonly sessionTokenProvider: SessionTokenProvider,
@@ -82,7 +82,7 @@ export class ProviderAuthService {
 
   async login(credential: string): Promise<ProviderLoginResult> {
     const presented = credential.trim();
-    if (!presented) {
+    if (!presented || !this.verifier) {
       throw new ProviderAuthError('INVALID_PROVIDER_TOKEN', 'Provider credential is required');
     }
 
