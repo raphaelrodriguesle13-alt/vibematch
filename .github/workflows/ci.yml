@@ -137,8 +137,8 @@ jobs:
       - name: Restore stable debug signing keystore
         uses: actions/cache@v4
         with:
-          path: ~/.android/debug.keystore
-          key: vibematch-android-debug-keystore-v1
+          path: ~/.config/.android/debug.keystore
+          key: vibematch-android-debug-keystore-v2
 
       - name: Android unit tests
         run: ./gradlew test --no-daemon
