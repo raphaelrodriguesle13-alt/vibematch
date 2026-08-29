@@ -88,7 +88,7 @@ class ProviderLoginApiClient(
 
     private fun parseSessionBundle(statusCode: Int, responseBody: String): AuthSessionBundle {
         val payload = try {
-            json.decodeFromString<AuthSessionResponse>(responseBody)
+            json.decodeFromString<ProviderAuthSessionResponse>(responseBody)
         } catch (_: Exception) {
             throw ProviderLoginException(statusCode, "A resposta de autenticação foi inválida.")
         }
@@ -184,7 +184,7 @@ private data class PhoneLoginStartResponse(
 )
 
 @Serializable
-private data class AuthSessionResponse(
+private data class ProviderAuthSessionResponse(
     @SerialName("session_jwt") val sessionJwt: String,
     @SerialName("refresh_token") val refreshToken: String,
     @SerialName("user_id") val userId: String,
