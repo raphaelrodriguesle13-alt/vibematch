@@ -1,11 +1,11 @@
 import type { FastifyInstance } from 'fastify';
-import type { AuthRateLimiter } from './rate-limit';
 import { ProviderAuthError, type ProviderAuthService } from './provider-service';
+import type { AuthRateLimiter } from './rate-limit';
 
 type FacebookLoginBody = { access_token?: unknown };
 
 type FacebookHttpDependencies = {
-  service: Pick<ProviderAuthService, 'login'>;
+  service: Pick<ProviderAuthService, 'login'> | null;
   rateLimiter?: AuthRateLimiter;
   now?: () => Date;
 };
@@ -17,6 +17,10 @@ export const registerFacebookLoginRoute = (
   const now = deps.now ?? (() => new Date());
 
   app.post<{ Body: FacebookLoginBody }>('/auth/facebook', async (request, reply) => {
+    if (!deps.service) {
+      return reply.code(503).send({ error: 'FACEBOOK_NOT_CONFIGURED' });
+    }
+
     const accessToken = request.body?.access_token;
     if (typeof accessToken !== 'string' || accessToken.trim() === '') {
       return reply.code(400).send({ error: 'INVALID_REQUEST' });
