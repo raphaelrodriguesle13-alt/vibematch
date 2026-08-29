@@ -177,12 +177,10 @@ export const createProductionRuntime = (): ProductionRuntime => {
 
   registerRefreshRoute(app, { authService, rateLimiter: authRateLimiter });
   registerPhoneLoginRoutes(app, phoneLoginService);
-  if (facebookAuthService) {
-    registerFacebookLoginRoute(app, {
-      service: facebookAuthService,
-      rateLimiter: authRateLimiter,
-    });
-  }
+  registerFacebookLoginRoute(app, {
+    service: facebookAuthService,
+    rateLimiter: authRateLimiter,
+  });
 
   registerAccountDeletionRoute(app, {
     service: accountDeletionService,
