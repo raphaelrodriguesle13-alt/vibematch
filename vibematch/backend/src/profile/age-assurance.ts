@@ -39,6 +39,9 @@ export interface AgeAssuranceRepositoryPort {
   ): Promise<AgeAssuranceStatus | null>;
 }
 
+const providerFailureMessage = (error: unknown): string =>
+  error instanceof Error && error.message.trim() ? error.message : 'Age assurance provider unavailable';
+
 export class AgeAssuranceService {
   constructor(
     private readonly repository: AgeAssuranceRepositoryPort,
@@ -77,8 +80,8 @@ export class AgeAssuranceService {
     let started: Awaited<ReturnType<AgeAssuranceProvider['start']>>;
     try {
       started = await this.provider.start(userId);
-    } catch {
-      throw new AgeAssuranceError('AGE_PROVIDER_UNAVAILABLE', 'Age assurance provider unavailable');
+    } catch (error) {
+      throw new AgeAssuranceError('AGE_PROVIDER_UNAVAILABLE', providerFailureMessage(error));
     }
 
     const saved = await this.repository.savePendingSession(
@@ -105,8 +108,8 @@ export class AgeAssuranceService {
     let result: Awaited<ReturnType<AgeAssuranceProvider['getResult']>>;
     try {
       result = await this.provider.getResult(session.providerSessionRef);
-    } catch {
-      throw new AgeAssuranceError('AGE_PROVIDER_UNAVAILABLE', 'Age assurance provider unavailable');
+    } catch (error) {
+      throw new AgeAssuranceError('AGE_PROVIDER_UNAVAILABLE', providerFailureMessage(error));
     }
 
     const status: 'PENDING' | 'APPROVED' | 'REJECTED' = result.decision;
