@@ -89,11 +89,23 @@ class ProfileViewModel(
                 if (!handleSessionOrGateError(error)) {
                     mutableState.value = mutableState.value.copy(
                         isLoading = false,
+                        hasLoaded = true,
+                        profileIncomplete = mutableState.value.profile == null,
                         errorMessage = publicError(error),
                     )
                 }
             }
         }
+    }
+
+    fun retryLoad() {
+        if (mutableState.value.isLoading) return
+        mutableState.value = mutableState.value.copy(
+            hasLoaded = false,
+            errorMessage = null,
+            infoMessage = null,
+        )
+        load()
     }
 
     fun updateDisplayName(value: String) {
@@ -298,6 +310,7 @@ class ProfileViewModel(
             mutableState.value = mutableState.value.copy(
                 isLoading = false,
                 isSaving = false,
+                hasLoaded = true,
                 gate = gate,
                 errorMessage = null,
             )
