@@ -61,7 +61,11 @@ const statusCode = (error: AgeAssuranceError): number => {
   }
 };
 
-const logProviderFailure = (request: FastifyRequest, error: AgeAssuranceError, action: string): void => {
+const logProviderFailure = (
+  request: FastifyRequest,
+  error: AgeAssuranceError,
+  action: string,
+): void => {
   if (error.code !== 'AGE_PROVIDER_UNAVAILABLE') return;
   request.log.error(
     { provider_error: error.message, action },
