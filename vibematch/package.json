@@ -8,6 +8,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "postbuild": "node scripts/render-postbuild.mjs",
     "start:backend": "npm run build && node dist/backend/src/server.js",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write \"**/*.{ts,json,md}\"",
