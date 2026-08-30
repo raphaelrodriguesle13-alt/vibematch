@@ -10,6 +10,9 @@ import { buildApp } from '../http/app';
 import { registerAgeAssuranceRoutes } from '../profile/age-http';
 import { AgeAssuranceRepository } from '../profile/age-assurance-repository';
 import { AgeAssuranceService } from '../profile/age-assurance';
+import { registerAgeWebhookRoute } from '../profile/age-webhook-http';
+import { AgeWebhookReconciler } from '../profile/age-webhook-reconciler';
+import { DiditAgeAssuranceProvider } from '../profile/providers/didit';
 import { ProfileRepository } from '../profile/repository';
 import { ProfileService } from '../profile/service';
 
@@ -27,10 +30,21 @@ export const createAuthOnlyRuntime = (): AuthOnlyRuntime => {
 
   const repository = new AuthRepository(pool);
   const profileService = new ProfileService(new ProfileRepository(pool));
-  // Render's auth-only runtime still exposes the authoritative age status from
-  // PostgreSQL. No provider is injected here, so starting/refreshing an external
-  // verification remains fail-closed until Didit is configured.
-  const ageAssuranceService = new AgeAssuranceService(new AgeAssuranceRepository(pool));
+
+  const diditApiKey = process.env.DIDIT_API_KEY?.trim();
+  const diditWorkflowId = process.env.DIDIT_WORKFLOW_ID?.trim();
+  const diditWebhookSecret = process.env.DIDIT_WEBHOOK_SECRET?.trim();
+  const diditProvider = diditApiKey
+    ? new DiditAgeAssuranceProvider({
+        apiKey: diditApiKey,
+        workflowId: diditWorkflowId || undefined,
+        baseUrl: env.diditApiBaseUrl(),
+      })
+    : undefined;
+  const ageAssuranceService = new AgeAssuranceService(
+    new AgeAssuranceRepository(pool),
+    diditProvider,
+  );
   const sessionTokens = new JwtSessionProvider({
     privateKeyPem: env.jwtPrivateKeyPem(),
     publicKeyPem: env.jwtPublicKeyPem(),
@@ -67,6 +81,13 @@ export const createAuthOnlyRuntime = (): AuthOnlyRuntime => {
     sessionTokenVerifier: sessionTokens,
     activeSessionStore: repository,
   });
+
+  if (diditProvider && diditWebhookSecret) {
+    registerAgeWebhookRoute(app, {
+      webhookSecret: diditWebhookSecret,
+      reconciler: new AgeWebhookReconciler(pool, diditProvider),
+    });
+  }
 
   let closed = false;
   return {
