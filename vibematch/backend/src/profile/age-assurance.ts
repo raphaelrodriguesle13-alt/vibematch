@@ -58,8 +58,20 @@ export class AgeAssuranceService {
     if (!this.provider) {
       throw new AgeAssuranceError('AGE_PROVIDER_UNAVAILABLE', 'Age assurance is not configured');
     }
-    if ((await this.repository.getStatus(userId)) === null) {
+
+    const currentStatus = await this.repository.getStatus(userId);
+    if (currentStatus === null) {
       throw new AgeAssuranceError('ACCOUNT_UNAVAILABLE', 'Account is unavailable');
+    }
+
+    // Starting a provider session can be billable. If the user already has a
+    // pending hosted session, return that same URL instead of creating another
+    // external session on repeated taps/retries.
+    if (currentStatus === 'PENDING') {
+      const existing = await this.repository.getSession(userId);
+      if (existing?.status === 'PENDING' && existing.verificationUrl) {
+        return { verificationUrl: existing.verificationUrl, status: 'PENDING' };
+      }
     }
 
     let started: Awaited<ReturnType<AgeAssuranceProvider['start']>>;
