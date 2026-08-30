@@ -77,7 +77,9 @@ export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
     }
 
     if (!selected || typeof selected.uuid !== 'string' || !selected.uuid.trim()) {
-      throw new Error('Didit workflow id must be configured when KYC workflow selection is ambiguous');
+      throw new Error(
+        'Didit workflow id must be configured when KYC workflow selection is ambiguous',
+      );
     }
 
     const discovered = selected.uuid.trim();
