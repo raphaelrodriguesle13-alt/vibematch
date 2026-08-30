@@ -45,7 +45,9 @@ describe('DiditAgeAssuranceProvider', () => {
       sessionRef: 'session-123',
       verificationUrl: 'https://verify.didit.me/session/session-123',
     });
-    expect(fetchImpl).toHaveBeenNthCalledWith(2, 'https://verification.didit.me/v3/session/',
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      'https://verification.didit.me/v3/session/',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ workflow_id: WORKFLOW_A, vendor_data: 'user-1' }),
@@ -112,8 +114,8 @@ describe('DiditAgeAssuranceProvider', () => {
     );
   });
 
-  test('accepts the public workflow URL as an operator-friendly selector', async () => {
-    const publicUrl = 'https://verify.didit.me/u/E2MfLNonSAu3b9sKxm9hTQ';
+  test('accepts a public workflow URL as an operator-friendly selector', async () => {
+    const publicUrl = 'https://verify.didit.me/u/example-public-workflow';
     const fetchImpl: typeof fetch = jest
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
