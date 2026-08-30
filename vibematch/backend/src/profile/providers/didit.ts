@@ -121,8 +121,7 @@ export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
     }
 
     const activeKyc = published.filter(
-      (row) =>
-        typeof row.workflow_type === 'string' && row.workflow_type.toLowerCase() === 'kyc',
+      (row) => typeof row.workflow_type === 'string' && row.workflow_type.toLowerCase() === 'kyc',
     );
 
     let selected: DiditWorkflow | undefined;
