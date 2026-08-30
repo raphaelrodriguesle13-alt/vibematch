@@ -30,19 +30,18 @@ describe('DiditAgeAssuranceProvider', () => {
     );
   });
 
-  test('auto-discovers the only published workflow when no id is configured', async () => {
+  test('auto-discovers the only active KYC workflow when no id is configured', async () => {
     const fetchImpl: typeof fetch = jest
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
-        response({
-          results: [
-            {
-              workflow_id: 'workflow-live',
-              status: 'published',
-              is_archived: false,
-            },
-          ],
-        }),
+        response([
+          {
+            uuid: 'workflow-live',
+            workflow_type: 'kyc',
+            is_default: true,
+            is_archived: false,
+          },
+        ]),
       )
       .mockResolvedValueOnce(
         response({
@@ -75,21 +74,48 @@ describe('DiditAgeAssuranceProvider', () => {
     );
   });
 
-  test('fails closed when workflow discovery is ambiguous', async () => {
+  test('prefers the single default KYC workflow when multiple active KYC workflows exist', async () => {
+    const fetchImpl: typeof fetch = jest
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        response([
+          { uuid: 'workflow-a', workflow_type: 'kyc', is_default: false, is_archived: false },
+          { uuid: 'workflow-b', workflow_type: 'kyc', is_default: true, is_archived: false },
+          { uuid: 'workflow-kyb', workflow_type: 'kyb', is_default: true, is_archived: false },
+        ]),
+      )
+      .mockResolvedValueOnce(
+        response({
+          session_id: 'session-123',
+          url: 'https://verify.didit.me/session/session-123',
+        }),
+      );
+    const provider = new DiditAgeAssuranceProvider({ apiKey: 'server-only-key', fetchImpl });
+
+    await provider.start('user-1');
+
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      'https://verification.didit.me/v3/session/',
+      expect.objectContaining({
+        body: JSON.stringify({ workflow_id: 'workflow-b', vendor_data: 'user-1' }),
+      }),
+    );
+  });
+
+  test('fails closed when KYC workflow discovery is ambiguous', async () => {
     const fetchImpl: typeof fetch = jest.fn(() =>
       Promise.resolve(
-        response({
-          results: [
-            { workflow_id: 'workflow-a', status: 'published', is_archived: false },
-            { workflow_id: 'workflow-b', status: 'published', is_archived: false },
-          ],
-        }),
+        response([
+          { uuid: 'workflow-a', workflow_type: 'kyc', is_default: false, is_archived: false },
+          { uuid: 'workflow-b', workflow_type: 'kyc', is_default: false, is_archived: false },
+        ]),
       ),
     );
     const provider = new DiditAgeAssuranceProvider({ apiKey: 'server-only-key', fetchImpl });
 
     await expect(provider.start('user-1')).rejects.toThrow(
-      'workflow id must be configured when published workflow count is not one',
+      'workflow id must be configured when KYC workflow selection is ambiguous',
     );
   });
 
