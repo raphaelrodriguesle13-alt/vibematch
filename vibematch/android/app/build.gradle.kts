@@ -31,11 +31,11 @@ android {
         debug {
             val debugApiBaseUrl = providers.gradleProperty("API_BASE_URL")
                 .orElse(providers.environmentVariable("API_BASE_URL"))
-                .orElse("http://10.0.2.2:3000")
+                .orElse("https://vibematch-api-1kif.onrender.com")
                 .get()
             val debugGoogleClientId = providers.gradleProperty("GOOGLE_SERVER_CLIENT_ID")
                 .orElse(providers.environmentVariable("GOOGLE_SERVER_CLIENT_ID"))
-                .orElse("")
+                .orElse("168732259124-fjs6bcd5gldtk6caj4efkqtehqrn00q1.apps.googleusercontent.com")
                 .get()
             val debugFacebookAppId = providers.gradleProperty("FACEBOOK_APP_ID")
                 .orElse(providers.environmentVariable("FACEBOOK_APP_ID"))
