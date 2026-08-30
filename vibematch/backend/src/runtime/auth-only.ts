@@ -37,7 +37,7 @@ export const createAuthOnlyRuntime = (): AuthOnlyRuntime => {
   const diditProvider = diditApiKey
     ? new DiditAgeAssuranceProvider({
         apiKey: diditApiKey,
-        workflowId: diditWorkflowId || undefined,
+        ...(diditWorkflowId ? { workflowId: diditWorkflowId } : {}),
         baseUrl: env.diditApiBaseUrl(),
       })
     : undefined;
