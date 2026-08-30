@@ -71,16 +71,20 @@ export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
     }
 
     const selected = published[0];
+    if (!selected) {
+      throw new Error('Didit workflow discovery returned no published workflow');
+    }
     const id =
       typeof selected.workflow_id === 'string'
         ? selected.workflow_id
         : typeof selected.uuid === 'string'
           ? selected.uuid
           : '';
-    if (!id.trim()) throw new Error('Didit workflow discovery returned an invalid workflow id');
+    const discovered = id.trim();
+    if (!discovered) throw new Error('Didit workflow discovery returned an invalid workflow id');
 
-    this.discoveredWorkflowId = id.trim();
-    return this.discoveredWorkflowId;
+    this.discoveredWorkflowId = discovered;
+    return discovered;
   }
 
   async start(userId: string): Promise<{ sessionRef: string; verificationUrl: string }> {
