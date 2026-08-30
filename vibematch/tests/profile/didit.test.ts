@@ -9,32 +9,15 @@ const WORKFLOW_B = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 const WORKFLOW_KYB = '12345678-1234-1234-1234-123456789abc';
 
 describe('DiditAgeAssuranceProvider', () => {
-  test('creates a hosted verification session using a configured workflow id', async () => {
-    const fetchImpl: typeof fetch = jest
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        response({
-          count: 1,
-          next: null,
-          previous: null,
-          results: [
-            {
-              uuid: WORKFLOW_A,
-              workflow_id: WORKFLOW_A,
-              workflow_type: 'kyc',
-              status: 'published',
-              is_default: true,
-              is_archived: false,
-            },
-          ],
-        }),
-      )
-      .mockResolvedValueOnce(
+  test('creates a hosted verification session directly when a workflow UUID is configured', async () => {
+    const fetchImpl: typeof fetch = jest.fn(() =>
+      Promise.resolve(
         response({
           session_id: 'session-123',
           url: 'https://verify.didit.me/session/session-123',
         }),
-      );
+      ),
+    );
     const provider = new DiditAgeAssuranceProvider({
       apiKey: 'server-only-key',
       workflowId: WORKFLOW_A,
@@ -45,8 +28,8 @@ describe('DiditAgeAssuranceProvider', () => {
       sessionRef: 'session-123',
       verificationUrl: 'https://verify.didit.me/session/session-123',
     });
-    expect(fetchImpl).toHaveBeenNthCalledWith(
-      2,
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledWith(
       'https://verification.didit.me/v3/session/',
       expect.objectContaining({
         method: 'POST',
@@ -55,33 +38,24 @@ describe('DiditAgeAssuranceProvider', () => {
     );
   });
 
-  test('auto-discovers the only published KYC workflow from the current paginated API', async () => {
+  test('auto-discovers the only published KYC workflow from the current list API', async () => {
     const fetchImpl: typeof fetch = jest
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
-        response({
-          count: 2,
-          next: null,
-          previous: null,
-          results: [
-            {
-              uuid: WORKFLOW_A,
-              workflow_id: WORKFLOW_A,
-              workflow_type: 'kyc',
-              status: 'published',
-              is_default: true,
-              is_archived: false,
-            },
-            {
-              uuid: WORKFLOW_B,
-              workflow_id: WORKFLOW_B,
-              workflow_type: 'kyc',
-              status: 'draft',
-              is_default: false,
-              is_archived: false,
-            },
-          ],
-        }),
+        response([
+          {
+            uuid: WORKFLOW_A,
+            workflow_type: 'kyc',
+            is_default: true,
+            is_archived: false,
+          },
+          {
+            uuid: WORKFLOW_KYB,
+            workflow_type: 'kyb',
+            is_default: true,
+            is_archived: false,
+          },
+        ]),
       )
       .mockResolvedValueOnce(
         response({
@@ -89,15 +63,10 @@ describe('DiditAgeAssuranceProvider', () => {
           url: 'https://verify.didit.me/session/session-123',
         }),
       );
-    const provider = new DiditAgeAssuranceProvider({
-      apiKey: 'server-only-key',
-      fetchImpl,
-    });
+    const provider = new DiditAgeAssuranceProvider({ apiKey: 'server-only-key', fetchImpl });
 
-    await expect(provider.start('user-1')).resolves.toEqual({
-      sessionRef: 'session-123',
-      verificationUrl: 'https://verify.didit.me/session/session-123',
-    });
+    await provider.start('user-1');
+
     expect(fetchImpl).toHaveBeenNthCalledWith(1, 'https://verification.didit.me/v3/workflows/', {
       headers: {
         accept: 'application/json',
@@ -108,8 +77,45 @@ describe('DiditAgeAssuranceProvider', () => {
       2,
       'https://verification.didit.me/v3/session/',
       expect.objectContaining({
-        method: 'POST',
         body: JSON.stringify({ workflow_id: WORKFLOW_A, vendor_data: 'user-1' }),
+      }),
+    );
+  });
+
+  test('prefers adaptive age verification when both age and KYC workflows are published', async () => {
+    const fetchImpl: typeof fetch = jest
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        response([
+          {
+            uuid: WORKFLOW_A,
+            workflow_type: 'kyc',
+            is_default: true,
+            is_archived: false,
+          },
+          {
+            uuid: WORKFLOW_B,
+            workflow_type: 'adaptive_age_verification',
+            is_default: true,
+            is_archived: false,
+          },
+        ]),
+      )
+      .mockResolvedValueOnce(
+        response({
+          session_id: 'session-123',
+          url: 'https://verify.didit.me/session/session-123',
+        }),
+      );
+    const provider = new DiditAgeAssuranceProvider({ apiKey: 'server-only-key', fetchImpl });
+
+    await provider.start('user-1');
+
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      2,
+      'https://verification.didit.me/v3/session/',
+      expect.objectContaining({
+        body: JSON.stringify({ workflow_id: WORKFLOW_B, vendor_data: 'user-1' }),
       }),
     );
   });
@@ -119,22 +125,15 @@ describe('DiditAgeAssuranceProvider', () => {
     const fetchImpl: typeof fetch = jest
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
-        response({
-          count: 1,
-          next: null,
-          previous: null,
-          results: [
-            {
-              uuid: WORKFLOW_A,
-              workflow_id: WORKFLOW_A,
-              workflow_url: publicUrl,
-              workflow_type: 'kyc',
-              status: 'published',
-              is_default: true,
-              is_archived: false,
-            },
-          ],
-        }),
+        response([
+          {
+            uuid: WORKFLOW_A,
+            workflow_url: publicUrl,
+            workflow_type: 'kyc',
+            is_default: true,
+            is_archived: false,
+          },
+        ]),
       )
       .mockResolvedValueOnce(
         response({
@@ -159,100 +158,38 @@ describe('DiditAgeAssuranceProvider', () => {
     );
   });
 
-  test('prefers the single default published KYC workflow when multiple exist', async () => {
-    const fetchImpl: typeof fetch = jest
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        response({
-          count: 3,
-          next: null,
-          previous: null,
-          results: [
-            {
-              uuid: WORKFLOW_A,
-              workflow_id: WORKFLOW_A,
-              workflow_type: 'kyc',
-              status: 'published',
-              is_default: false,
-              is_archived: false,
-            },
-            {
-              uuid: WORKFLOW_B,
-              workflow_id: WORKFLOW_B,
-              workflow_type: 'kyc',
-              status: 'published',
-              is_default: true,
-              is_archived: false,
-            },
-            {
-              uuid: WORKFLOW_KYB,
-              workflow_id: WORKFLOW_KYB,
-              workflow_type: 'kyb',
-              status: 'published',
-              is_default: true,
-              is_archived: false,
-            },
-          ],
-        }),
-      )
-      .mockResolvedValueOnce(
-        response({
-          session_id: 'session-123',
-          url: 'https://verify.didit.me/session/session-123',
-        }),
-      );
-    const provider = new DiditAgeAssuranceProvider({ apiKey: 'server-only-key', fetchImpl });
-
-    await provider.start('user-1');
-
-    expect(fetchImpl).toHaveBeenNthCalledWith(
-      2,
-      'https://verification.didit.me/v3/session/',
-      expect.objectContaining({
-        body: JSON.stringify({ workflow_id: WORKFLOW_B, vendor_data: 'user-1' }),
-      }),
-    );
-  });
-
-  test('fails closed when published KYC workflow discovery is ambiguous', async () => {
+  test('fails closed when eligible workflow discovery is ambiguous', async () => {
     const fetchImpl: typeof fetch = jest.fn(() =>
       Promise.resolve(
-        response({
-          count: 2,
-          next: null,
-          previous: null,
-          results: [
-            {
-              uuid: WORKFLOW_A,
-              workflow_id: WORKFLOW_A,
-              workflow_type: 'kyc',
-              status: 'published',
-              is_default: false,
-              is_archived: false,
-            },
-            {
-              uuid: WORKFLOW_B,
-              workflow_id: WORKFLOW_B,
-              workflow_type: 'kyc',
-              status: 'published',
-              is_default: false,
-              is_archived: false,
-            },
-          ],
-        }),
+        response([
+          {
+            uuid: WORKFLOW_A,
+            workflow_type: 'kyc',
+            is_default: false,
+            is_archived: false,
+          },
+          {
+            uuid: WORKFLOW_B,
+            workflow_type: 'kyc',
+            is_default: false,
+            is_archived: false,
+          },
+        ]),
       ),
     );
     const provider = new DiditAgeAssuranceProvider({ apiKey: 'server-only-key', fetchImpl });
 
-    await expect(provider.start('user-1')).rejects.toThrow(
-      'workflow id must be configured when published KYC workflow selection is ambiguous',
-    );
+    await expect(provider.start('user-1')).rejects.toThrow('Didit workflow_selection failed');
   });
 
   test.each([
     ['Approved', 'APPROVED'],
     ['Declined', 'REJECTED'],
+    ['Abandoned', 'REJECTED'],
+    ['Expired', 'REJECTED'],
+    ['Kyc Expired', 'REJECTED'],
     ['In Progress', 'PENDING'],
+    ['In Review', 'PENDING'],
   ] as const)('maps provider status %s to %s', async (providerStatus, expected) => {
     const fetchImpl: typeof fetch = jest.fn(() =>
       Promise.resolve(response({ session_id: 'session-123', status: providerStatus })),
@@ -266,29 +203,19 @@ describe('DiditAgeAssuranceProvider', () => {
     await expect(provider.getResult('session-123')).resolves.toMatchObject({ decision: expected });
   });
 
+  test('surfaces the safe HTTP status for workflow authentication failures', async () => {
+    const fetchImpl: typeof fetch = jest.fn(() => Promise.resolve(response({}, false, 401)));
+    const provider = new DiditAgeAssuranceProvider({ apiKey: 'server-only-key', fetchImpl });
+
+    await expect(provider.start('user-1')).rejects.toThrow(
+      'Didit workflow_discovery failed with 401',
+    );
+  });
+
   test('rejects an insecure hosted verification URL', async () => {
-    const fetchImpl: typeof fetch = jest
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(
-        response({
-          count: 1,
-          next: null,
-          previous: null,
-          results: [
-            {
-              uuid: WORKFLOW_A,
-              workflow_id: WORKFLOW_A,
-              workflow_type: 'kyc',
-              status: 'published',
-              is_default: true,
-              is_archived: false,
-            },
-          ],
-        }),
-      )
-      .mockResolvedValueOnce(
-        response({ session_id: 'session-123', url: 'http://unsafe.example/session' }),
-      );
+    const fetchImpl: typeof fetch = jest.fn(() =>
+      Promise.resolve(response({ session_id: 'session-123', url: 'http://unsafe.example/session' })),
+    );
     const provider = new DiditAgeAssuranceProvider({
       apiKey: 'server-only-key',
       workflowId: WORKFLOW_A,
