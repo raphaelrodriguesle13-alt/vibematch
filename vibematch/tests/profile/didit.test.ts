@@ -4,9 +4,9 @@ import { DiditAgeAssuranceProvider } from '../../backend/src/profile/providers/d
 const response = (payload: unknown, ok = true, status = 200): Response =>
   ({ ok, status, json: () => Promise.resolve(payload) }) as Response;
 
-const WORKFLOW_A = '11111111-2222-3333-4444-555555555555';
-const WORKFLOW_B = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
-const WORKFLOW_KYB = '12345678-1234-1234-1234-123456789abc';
+const WORKFLOW_A = '11111111-2222-4333-8444-555555555555';
+const WORKFLOW_B = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+const WORKFLOW_KYB = '12345678-1234-4234-8234-123456789abc';
 
 describe('DiditAgeAssuranceProvider', () => {
   test('creates a hosted verification session directly when a workflow UUID is configured', async () => {
