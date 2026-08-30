@@ -143,10 +143,20 @@ jobs:
       - name: Android unit tests
         run: ./gradlew test --no-daemon
 
-      - name: Android debug build
+      - name: Android debug build for physical-device testing
         env:
-          API_BASE_URL: http://127.0.0.1:3000
+          API_BASE_URL: https://vibematch-api-1kif.onrender.com
+          GOOGLE_SERVER_CLIENT_ID: 168732259124-fjs6bcd5gldtk6caj4efkqtehqrn00q1.apps.googleusercontent.com
         run: ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Verify packaged auth configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          GENERATED="app/build/generated/source/buildConfig/debug/com/vibematch/app/BuildConfig.java"
+          test -f "$GENERATED"
+          grep -F 'https://vibematch-api-1kif.onrender.com' "$GENERATED"
+          grep -F '168732259124-fjs6bcd5gldtk6caj4efkqtehqrn00q1.apps.googleusercontent.com' "$GENERATED"
 
       - name: Record Android signing fingerprint
         shell: bash
@@ -157,7 +167,7 @@ jobs:
       - name: Upload Android debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: vibematch-debug-${{ github.sha }}
+          name: vibematch-device-debug-${{ github.sha }}
           path: |
             vibematch/android/app/build/outputs/apk/debug/app-debug.apk
             vibematch/android/app/build/outputs/apk/debug/signing-report.txt
