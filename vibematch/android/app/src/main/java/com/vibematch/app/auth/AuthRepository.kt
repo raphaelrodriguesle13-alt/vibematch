@@ -217,6 +217,19 @@ class AuthApiClient(
     private val baseUrl = baseUrl.trimEnd('/')
     private val json = Json { ignoreUnknownKeys = true }
 
+    suspend fun warmUp(): Boolean {
+        val request = Request.Builder()
+            .url("$baseUrl/health")
+            .header("Accept", "application/json")
+            .get()
+            .build()
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                httpClient.newCall(request).execute().use { response -> response.isSuccessful }
+            }.getOrDefault(false)
+        }
+    }
+
     override suspend fun loginWithGoogle(googleIdToken: String): AuthSessionBundle {
         val body = buildGoogleLoginRequestBody(json, googleIdToken)
             .toRequestBody("application/json; charset=utf-8".toMediaType())
@@ -337,6 +350,8 @@ class AuthApiClient(
     private fun publicLoginError(statusCode: Int): String = when (statusCode) {
         401 -> "O login Google não foi aceito. Tente novamente."
         403 -> "Esta conta não pode acessar o VibeMatch."
+        429 -> "Muitas tentativas de login. Aguarde um instante e tente novamente."
+        503 -> "O servidor está iniciando. Aguarde alguns segundos e tente novamente."
         else -> "Não foi possível concluir o login agora."
     }
 
@@ -347,9 +362,10 @@ class AuthApiClient(
 
     private companion object {
         fun defaultHttpClient(): OkHttpClient = OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
-            .writeTimeout(10, TimeUnit.SECONDS)
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .readTimeout(75, TimeUnit.SECONDS)
+            .writeTimeout(20, TimeUnit.SECONDS)
+            .callTimeout(90, TimeUnit.SECONDS)
             .build()
     }
 }
