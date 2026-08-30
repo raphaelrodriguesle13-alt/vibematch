@@ -21,13 +21,53 @@ type DiditDecisionResponse = {
 
 type DiditWorkflow = {
   uuid?: unknown;
+  workflow_id?: unknown;
+  workflow_url?: unknown;
   workflow_type?: unknown;
   is_default?: unknown;
   is_archived?: unknown;
+  status?: unknown;
 };
 
-const isDiditWorkflow = (value: unknown): value is DiditWorkflow =>
+type DiditWorkflowPage = {
+  results?: unknown;
+};
+
+const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
+
+const isDiditWorkflow = (value: unknown): value is DiditWorkflow => isObject(value);
+
+const workflowIdentifier = (workflow: DiditWorkflow): string | undefined => {
+  if (typeof workflow.workflow_id === 'string' && workflow.workflow_id.trim()) {
+    return workflow.workflow_id.trim();
+  }
+  if (typeof workflow.uuid === 'string' && workflow.uuid.trim()) return workflow.uuid.trim();
+  return undefined;
+};
+
+const publicWorkflowToken = (value: string): string | undefined => {
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== 'https:' || parsed.hostname !== 'verify.didit.me') return undefined;
+    const parts = parsed.pathname.split('/').filter(Boolean);
+    return parts.length >= 2 && parts[0] === 'u' ? parts[1] : undefined;
+  } catch {
+    return value.includes('/') ? undefined : value;
+  }
+};
+
+const workflowMatchesSelector = (workflow: DiditWorkflow, selector: string): boolean => {
+  const identifier = workflowIdentifier(workflow);
+  if (identifier === selector) return true;
+  if (typeof workflow.uuid === 'string' && workflow.uuid.trim() === selector) return true;
+  if (typeof workflow.workflow_url !== 'string') return false;
+  if (workflow.workflow_url.trim() === selector) return true;
+
+  const selectorToken = publicWorkflowToken(selector);
+  const workflowToken = publicWorkflowToken(workflow.workflow_url.trim());
+  return Boolean(selectorToken && workflowToken && selectorToken === workflowToken);
+};
 
 export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
   private readonly baseUrl: string;
@@ -44,11 +84,7 @@ export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
     this.fetchImpl = options.fetchImpl ?? fetch;
   }
 
-  private async resolveWorkflowId(): Promise<string> {
-    const configured = this.options.workflowId?.trim();
-    if (configured) return configured;
-    if (this.discoveredWorkflowId) return this.discoveredWorkflowId;
-
+  private async listWorkflows(): Promise<DiditWorkflow[]> {
     const response = await this.fetchImpl(`${this.baseUrl}/v3/workflows/`, {
       headers: {
         accept: 'application/json',
@@ -58,14 +94,38 @@ export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
     if (!response.ok) throw new Error(`Didit workflow discovery failed with ${response.status}`);
 
     const payload: unknown = await response.json();
-    const rows = Array.isArray(payload) ? payload.filter(isDiditWorkflow) : [];
-    const activeKyc = rows.filter(
+    const rawRows = Array.isArray(payload)
+      ? payload
+      : isObject(payload) && Array.isArray((payload as DiditWorkflowPage).results)
+        ? (payload as DiditWorkflowPage).results
+        : [];
+    return rawRows.filter(isDiditWorkflow);
+  }
+
+  private async resolveWorkflowId(): Promise<string> {
+    if (this.discoveredWorkflowId) return this.discoveredWorkflowId;
+
+    const configured = this.options.workflowId?.trim();
+    const rows = await this.listWorkflows();
+    const published = rows.filter(
       (row) =>
         row.is_archived !== true &&
-        typeof row.workflow_type === 'string' &&
-        row.workflow_type.toLowerCase() === 'kyc' &&
-        typeof row.uuid === 'string' &&
-        row.uuid.trim() !== '',
+        (typeof row.status !== 'string' || row.status.toLowerCase() === 'published') &&
+        workflowIdentifier(row),
+    );
+
+    if (configured) {
+      const configuredMatch = published.find((row) => workflowMatchesSelector(row, configured));
+      const configuredId = configuredMatch ? workflowIdentifier(configuredMatch) : undefined;
+      if (configuredId) {
+        this.discoveredWorkflowId = configuredId;
+        return configuredId;
+      }
+    }
+
+    const activeKyc = published.filter(
+      (row) =>
+        typeof row.workflow_type === 'string' && row.workflow_type.toLowerCase() === 'kyc',
     );
 
     let selected: DiditWorkflow | undefined;
@@ -76,13 +136,13 @@ export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
       if (defaults.length === 1) selected = defaults[0];
     }
 
-    if (!selected || typeof selected.uuid !== 'string' || !selected.uuid.trim()) {
+    const discovered = selected ? workflowIdentifier(selected) : undefined;
+    if (!discovered) {
       throw new Error(
-        'Didit workflow id must be configured when KYC workflow selection is ambiguous',
+        'Didit workflow id must be configured when published KYC workflow selection is ambiguous',
       );
     }
 
-    const discovered = selected.uuid.trim();
     this.discoveredWorkflowId = discovered;
     return discovered;
   }
