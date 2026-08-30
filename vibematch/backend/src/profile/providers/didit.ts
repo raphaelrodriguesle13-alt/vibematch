@@ -29,6 +29,9 @@ type DiditWorkflow = {
   status?: unknown;
 };
 
+const DIDIT_WORKFLOW_UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
@@ -63,6 +66,20 @@ const workflowMatchesSelector = (workflow: DiditWorkflow, selector: string): boo
   const selectorToken = publicWorkflowToken(selector);
   const workflowToken = publicWorkflowToken(workflow.workflow_url.trim());
   return Boolean(selectorToken && workflowToken && selectorToken === workflowToken);
+};
+
+const decisionFromStatus = (status: unknown): AgeAssuranceResult['decision'] => {
+  const normalized = typeof status === 'string' ? status.trim().toUpperCase() : '';
+  if (normalized === 'APPROVED') return 'APPROVED';
+  if (
+    normalized === 'DECLINED' ||
+    normalized === 'ABANDONED' ||
+    normalized === 'EXPIRED' ||
+    normalized === 'KYC EXPIRED'
+  ) {
+    return 'REJECTED';
+  }
+  return 'PENDING';
 };
 
 export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
@@ -103,6 +120,11 @@ export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
     if (this.discoveredWorkflowId) return this.discoveredWorkflowId;
 
     const configured = this.options.workflowId?.trim();
+    if (configured && DIDIT_WORKFLOW_UUID.test(configured)) {
+      this.discoveredWorkflowId = configured;
+      return configured;
+    }
+
     const rows = await this.listWorkflows();
     const published = rows.filter(
       (row) =>
@@ -175,11 +197,8 @@ export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
     );
     if (!response.ok) throw new Error(`Didit decision request failed with ${response.status}`);
     const payload = (await response.json()) as DiditDecisionResponse;
-    const status = typeof payload.status === 'string' ? payload.status.toUpperCase() : '';
-    const decision: AgeAssuranceResult['decision'] =
-      status === 'APPROVED' ? 'APPROVED' : status === 'DECLINED' ? 'REJECTED' : 'PENDING';
     return {
-      decision,
+      decision: decisionFromStatus(payload.status),
       providerTransactionId:
         typeof payload.session_id === 'string' ? payload.session_id : sessionRef,
     };
