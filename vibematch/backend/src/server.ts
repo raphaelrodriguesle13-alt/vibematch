@@ -14,15 +14,25 @@ const useAuthOnlyRuntime = (): boolean => {
   return Boolean(process.env.RENDER) && !process.env.TWILIO_ACCOUNT_SID?.trim();
 };
 
+const releaseMarker = (): string => {
+  const commit = process.env.RENDER_GIT_COMMIT?.trim();
+  return commit && /^[0-9a-f]{40}$/i.test(commit) ? commit.slice(0, 12) : 'local';
+};
+
 const main = async (): Promise<void> => {
   const authOnly = useAuthOnlyRuntime();
   const runtime = authOnly ? createAuthOnlyRuntime() : createProductionRuntime();
   let shuttingDown = false;
   let reconciling = false;
 
+  runtime.app.get('/health/version', async (_request, reply) =>
+    reply.header('cache-control', 'no-store').code(200).send({ release: releaseMarker() }),
+  );
+
   consoleStructuredLogger.info({
     event: 'backend.runtime.selected',
     mode: authOnly ? 'auth-only' : 'full',
+    release: releaseMarker(),
   });
 
   const reconcile = async (): Promise<void> => {
