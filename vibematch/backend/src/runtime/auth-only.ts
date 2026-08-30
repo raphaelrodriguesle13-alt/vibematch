@@ -7,6 +7,9 @@ import { AuthRepository } from '../auth/repository';
 import { AuthService } from '../auth/service';
 import { env } from '../config/env';
 import { buildApp } from '../http/app';
+import { registerAgeAssuranceRoutes } from '../profile/age-http';
+import { AgeAssuranceRepository } from '../profile/age-assurance-repository';
+import { AgeAssuranceService } from '../profile/age-assurance';
 import { ProfileRepository } from '../profile/repository';
 import { ProfileService } from '../profile/service';
 
@@ -24,6 +27,10 @@ export const createAuthOnlyRuntime = (): AuthOnlyRuntime => {
 
   const repository = new AuthRepository(pool);
   const profileService = new ProfileService(new ProfileRepository(pool));
+  // Render's auth-only runtime still exposes the authoritative age status from
+  // PostgreSQL. No provider is injected here, so starting/refreshing an external
+  // verification remains fail-closed until Didit is configured.
+  const ageAssuranceService = new AgeAssuranceService(new AgeAssuranceRepository(pool));
   const sessionTokens = new JwtSessionProvider({
     privateKeyPem: env.jwtPrivateKeyPem(),
     publicKeyPem: env.jwtPublicKeyPem(),
@@ -51,9 +58,15 @@ export const createAuthOnlyRuntime = (): AuthOnlyRuntime => {
     authRateLimiter: rateLimiter,
     phoneStateStore: repository,
     profileService,
+    ageAssuranceService,
   });
 
   registerRefreshRoute(app, { authService, rateLimiter });
+  registerAgeAssuranceRoutes(app, {
+    service: ageAssuranceService,
+    sessionTokenVerifier: sessionTokens,
+    activeSessionStore: repository,
+  });
 
   let closed = false;
   return {
