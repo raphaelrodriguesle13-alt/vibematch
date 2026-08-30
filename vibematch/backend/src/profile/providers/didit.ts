@@ -157,7 +157,9 @@ export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
       }
     }
 
-    const adaptiveAge = published.filter((row) => workflowType(row) === 'adaptive_age_verification');
+    const adaptiveAge = published.filter(
+      (row) => workflowType(row) === 'adaptive_age_verification',
+    );
     const kyc = published.filter((row) => workflowType(row) === 'kyc');
     const eligible = adaptiveAge.length > 0 ? adaptiveAge : kyc;
 
