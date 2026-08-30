@@ -12,7 +12,6 @@ const REQUIRED: Readonly<Record<string, string>> = {
   TWILIO_VERIFY_SERVICE_SID: 'VA-test',
   PHONE_HASH_PEPPER: 'phone-pepper-placeholder',
   DIDIT_API_KEY: 'didit-key-placeholder',
-  DIDIT_WORKFLOW_ID: 'didit-workflow',
   DIDIT_WEBHOOK_SECRET: 'didit-webhook-placeholder',
   LIVEKIT_URL: 'wss://vibematch.test',
   LIVEKIT_API_URL: 'https://vibematch.test',
@@ -38,9 +37,11 @@ beforeEach(() => {
     saved.set(name, process.env[name]);
     process.env[name] = value;
   }
+  saved.set('DIDIT_WORKFLOW_ID', process.env.DIDIT_WORKFLOW_ID);
   saved.set('JWT_VERIFICATION_PUBLIC_KEYS_JSON', process.env.JWT_VERIFICATION_PUBLIC_KEYS_JSON);
   saved.set('TWILIO_VERIFY_BASE_URL', process.env.TWILIO_VERIFY_BASE_URL);
   saved.set('DIDIT_API_BASE_URL', process.env.DIDIT_API_BASE_URL);
+  delete process.env.DIDIT_WORKFLOW_ID;
   delete process.env.JWT_VERIFICATION_PUBLIC_KEYS_JSON;
   delete process.env.TWILIO_VERIFY_BASE_URL;
   delete process.env.DIDIT_API_BASE_URL;
@@ -56,6 +57,12 @@ afterEach(() => {
 
 describe('validateProductionConfig', () => {
   test('accepts the complete least-privilege runtime configuration', () => {
+    expect(() => validateProductionConfig()).not.toThrow();
+  });
+
+  test('allows DIDIT_WORKFLOW_ID to be omitted for published KYC discovery', () => {
+    delete process.env.DIDIT_WORKFLOW_ID;
+
     expect(() => validateProductionConfig()).not.toThrow();
   });
 

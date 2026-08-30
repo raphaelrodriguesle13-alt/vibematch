@@ -98,7 +98,8 @@ export const env = {
   phoneHashPepper: () => required('PHONE_HASH_PEPPER'),
 
   diditApiKey: () => required('DIDIT_API_KEY'),
-  diditWorkflowId: () => required('DIDIT_WORKFLOW_ID'),
+  // Optional selector: UUID or public workflow URL. Empty means discover the unique published KYC.
+  diditWorkflowId: () => process.env.DIDIT_WORKFLOW_ID?.trim() ?? '',
   diditWebhookSecret: () => required('DIDIT_WEBHOOK_SECRET'),
   diditApiBaseUrl: () =>
     process.env.DIDIT_API_BASE_URL
