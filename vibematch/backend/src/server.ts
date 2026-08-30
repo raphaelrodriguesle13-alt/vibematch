@@ -1,14 +1,29 @@
 import { env } from './config/env';
 import { consoleStructuredLogger } from './http/observability';
+import { createAuthOnlyRuntime } from './runtime/auth-only';
 import { createProductionRuntime } from './runtime/production';
 
 const errorName = (error: unknown): string =>
   error instanceof Error ? error.name : 'UnknownError';
 
+const useAuthOnlyRuntime = (): boolean => {
+  if (process.env.RUNTIME_MODE?.trim() === 'auth-only') return true;
+
+  // Render test deployments intentionally start with only Google/JWT/PostgreSQL.
+  // Missing optional providers must disable their routes, not force fake secrets.
+  return Boolean(process.env.RENDER) && !process.env.TWILIO_ACCOUNT_SID?.trim();
+};
+
 const main = async (): Promise<void> => {
-  const runtime = createProductionRuntime();
+  const authOnly = useAuthOnlyRuntime();
+  const runtime = authOnly ? createAuthOnlyRuntime() : createProductionRuntime();
   let shuttingDown = false;
   let reconciling = false;
+
+  consoleStructuredLogger.info({
+    event: 'backend.runtime.selected',
+    mode: authOnly ? 'auth-only' : 'full',
+  });
 
   const reconcile = async (): Promise<void> => {
     if (reconciling || shuttingDown) return;
