@@ -61,6 +61,14 @@ const statusCode = (error: AgeAssuranceError): number => {
   }
 };
 
+const logProviderFailure = (request: FastifyRequest, error: AgeAssuranceError, action: string): void => {
+  if (error.code !== 'AGE_PROVIDER_UNAVAILABLE') return;
+  request.log.error(
+    { provider_error: error.message, action },
+    'age assurance provider unavailable',
+  );
+};
+
 export const registerAgeAssuranceRoutes = (
   app: FastifyInstance,
   deps: AgeAssuranceHttpDependencies,
@@ -80,6 +88,7 @@ export const registerAgeAssuranceRoutes = (
       });
     } catch (error) {
       if (error instanceof AgeAssuranceError) {
+        logProviderFailure(request, error, 'start');
         return reply.code(statusCode(error)).send({ error: error.code });
       }
       request.log.error({ err: error }, 'age assurance start failed');
@@ -95,6 +104,7 @@ export const registerAgeAssuranceRoutes = (
       return reply.code(200).send({ data: { status } });
     } catch (error) {
       if (error instanceof AgeAssuranceError) {
+        logProviderFailure(request, error, 'refresh');
         return reply.code(statusCode(error)).send({ error: error.code });
       }
       request.log.error({ err: error }, 'age assurance refresh failed');
