@@ -2,6 +2,7 @@ package com.vibematch.app
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -46,11 +47,14 @@ import com.facebook.FacebookSdk
 import com.facebook.login.LoginManager
 import com.facebook.login.LoginResult
 import com.vibematch.app.auth.AuthApiClient
+import com.vibematch.app.auth.AuthApiException
 import com.vibematch.app.auth.AuthSessionBundle
+import com.vibematch.app.auth.GoogleAuthException
 import com.vibematch.app.auth.GoogleOidcClient
 import com.vibematch.app.auth.ProviderLoginApiClient
 import com.vibematch.app.auth.SecureSessionStore
 import com.vibematch.app.auth.isGoogleServerClientIdConfigured
+import java.io.IOException
 import kotlinx.coroutines.launch
 
 private val EntryPurple = Color(0xFF6D4AFF)
@@ -79,6 +83,14 @@ class EntryActivity : ComponentActivity() {
         googleApi = AuthApiClient(BuildConfig.API_BASE_URL)
         providerApi = ProviderLoginApiClient(BuildConfig.API_BASE_URL)
         configureFacebookIfAvailable()
+
+        // Render's free tier can sleep after inactivity. Wake the API while the user is
+        // reading the entry screen / choosing an account instead of spending that cold
+        // start budget inside the critical Google login request.
+        lifecycleScope.launch {
+            val ready = googleApi.warmUp()
+            Log.i(TAG, "Backend warm-up completed; ready=$ready")
+        }
 
         setContent {
             MaterialTheme(
@@ -121,13 +133,43 @@ class EntryActivity : ComponentActivity() {
         if (uiState.loading || !isGoogleServerClientIdConfigured(BuildConfig.GOOGLE_SERVER_CLIENT_ID)) return
         uiState = uiState.copy(loading = true, errorMessage = null)
         lifecycleScope.launch {
-            try {
-                val idToken = googleClient.signIn(this@EntryActivity)
-                finishLogin(googleApi.loginWithGoogle(idToken))
-            } catch (_: Exception) {
+            val idToken = try {
+                googleClient.signIn(this@EntryActivity)
+            } catch (error: GoogleAuthException) {
+                Log.w(TAG, "Google credential step failed: ${error.javaClass.simpleName}")
                 uiState = uiState.copy(
                     loading = false,
-                    errorMessage = "Não foi possível entrar com Google agora. Tente novamente ou use outra opção.",
+                    errorMessage = "Não foi possível concluir a autenticação com Google. Tente novamente.",
+                )
+                return@launch
+            } catch (error: Exception) {
+                Log.w(TAG, "Unexpected Google credential failure: ${error.javaClass.simpleName}")
+                uiState = uiState.copy(
+                    loading = false,
+                    errorMessage = "Não foi possível abrir sua conta Google agora. Tente novamente.",
+                )
+                return@launch
+            }
+
+            try {
+                finishLogin(googleApi.loginWithGoogle(idToken))
+            } catch (error: AuthApiException) {
+                Log.w(TAG, "Backend rejected Google login with HTTP ${error.statusCode}")
+                uiState = uiState.copy(
+                    loading = false,
+                    errorMessage = error.message ?: "Não foi possível concluir o login agora.",
+                )
+            } catch (error: IOException) {
+                Log.w(TAG, "Backend Google login network failure: ${error.javaClass.simpleName}")
+                uiState = uiState.copy(
+                    loading = false,
+                    errorMessage = "O servidor demorou para responder. Aguarde alguns segundos e tente novamente.",
+                )
+            } catch (error: Exception) {
+                Log.w(TAG, "Unexpected backend login failure: ${error.javaClass.simpleName}")
+                uiState = uiState.copy(
+                    loading = false,
+                    errorMessage = "Não foi possível concluir o login agora. Tente novamente.",
                 )
             }
         }
@@ -247,6 +289,10 @@ class EntryActivity : ComponentActivity() {
             BuildConfig.FACEBOOK_CLIENT_TOKEN.isNotBlank() &&
             !BuildConfig.FACEBOOK_APP_ID.startsWith("MISSING_") &&
             !BuildConfig.FACEBOOK_CLIENT_TOKEN.startsWith("MISSING_")
+
+    private companion object {
+        const val TAG = "VibeMatchEntry"
+    }
 }
 
 private data class EntryUiState(
