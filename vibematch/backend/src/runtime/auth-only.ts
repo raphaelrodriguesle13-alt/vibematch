@@ -7,6 +7,8 @@ import { AuthRepository } from '../auth/repository';
 import { AuthService } from '../auth/service';
 import { env } from '../config/env';
 import { buildApp } from '../http/app';
+import { ProfileRepository } from '../profile/repository';
+import { ProfileService } from '../profile/service';
 
 export type AuthOnlyRuntime = {
   app: ReturnType<typeof buildApp>;
@@ -21,6 +23,7 @@ export const createAuthOnlyRuntime = (): AuthOnlyRuntime => {
   });
 
   const repository = new AuthRepository(pool);
+  const profileService = new ProfileService(new ProfileRepository(pool));
   const sessionTokens = new JwtSessionProvider({
     privateKeyPem: env.jwtPrivateKeyPem(),
     publicKeyPem: env.jwtPublicKeyPem(),
@@ -47,6 +50,7 @@ export const createAuthOnlyRuntime = (): AuthOnlyRuntime => {
     activeSessionStore: repository,
     authRateLimiter: rateLimiter,
     phoneStateStore: repository,
+    profileService,
   });
 
   registerRefreshRoute(app, { authService, rateLimiter });
