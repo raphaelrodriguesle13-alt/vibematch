@@ -158,11 +158,14 @@ jobs:
           grep -F 'https://vibematch-api-1kif.onrender.com' "$GENERATED"
           grep -F '168732259124-fjs6bcd5gldtk6caj4efkqtehqrn00q1.apps.googleusercontent.com' "$GENERATED"
 
-      - name: Record Android signing fingerprint
+      - name: Record and verify Android signing fingerprint
         shell: bash
         run: |
           set -euo pipefail
-          ./gradlew :app:signingReport --no-daemon | tee app/build/outputs/apk/debug/signing-report.txt
+          REPORT="app/build/outputs/apk/debug/signing-report.txt"
+          ./gradlew :app:signingReport --no-daemon | tee "$REPORT"
+          grep -F 'SHA1: 3F:64:DF:5C:36:CA:F1:89:B3:15:3D:55:67:0D:AC:BA:14:ED:9E:AB' "$REPORT"
+          grep -F 'SHA-256: E6:C7:05:40:77:1B:1D:20:72:AB:F6:DD:17:44:43:F8:83:8A:D8:3F:BE:E6:53:4E:8A:77:85:C8:EE:A6:7C:87' "$REPORT"
 
       - name: Upload Android debug APK
         uses: actions/upload-artifact@v4
