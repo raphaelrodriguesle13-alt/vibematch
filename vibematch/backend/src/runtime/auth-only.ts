@@ -54,7 +54,7 @@ export const createAuthOnlyRuntime = (): AuthOnlyRuntime => {
   let closed = false;
   return {
     app,
-    reconcileVideoRevocations: async () => ({ revoked: 0, failed: 0 }),
+    reconcileVideoRevocations: () => Promise.resolve({ revoked: 0, failed: 0 }),
     close: async () => {
       if (closed) return;
       closed = true;
