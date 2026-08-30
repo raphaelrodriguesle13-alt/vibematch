@@ -29,6 +29,18 @@ type DiditWorkflow = {
   status?: unknown;
 };
 
+type DiditOperation = 'workflow_discovery' | 'workflow_selection' | 'session_creation' | 'decision';
+
+export class DiditProviderError extends Error {
+  constructor(
+    readonly operation: DiditOperation,
+    readonly status?: number,
+  ) {
+    super(`Didit ${operation} failed${status === undefined ? '' : ` with ${status}`}`);
+    this.name = 'DiditProviderError';
+  }
+}
+
 const DIDIT_WORKFLOW_UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -44,6 +56,9 @@ const workflowIdentifier = (workflow: DiditWorkflow): string | undefined => {
   if (typeof workflow.uuid === 'string' && workflow.uuid.trim()) return workflow.uuid.trim();
   return undefined;
 };
+
+const workflowType = (workflow: DiditWorkflow): string =>
+  typeof workflow.workflow_type === 'string' ? workflow.workflow_type.trim().toLowerCase() : '';
 
 const publicWorkflowToken = (value: string): string | undefined => {
   try {
@@ -104,7 +119,7 @@ export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
         'x-api-key': this.options.apiKey,
       },
     });
-    if (!response.ok) throw new Error(`Didit workflow discovery failed with ${response.status}`);
+    if (!response.ok) throw new DiditProviderError('workflow_discovery', response.status);
 
     const payload: unknown = await response.json();
     let rawRows: unknown[] = [];
@@ -142,24 +157,20 @@ export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
       }
     }
 
-    const activeKyc = published.filter(
-      (row) => typeof row.workflow_type === 'string' && row.workflow_type.toLowerCase() === 'kyc',
-    );
+    const adaptiveAge = published.filter((row) => workflowType(row) === 'adaptive_age_verification');
+    const kyc = published.filter((row) => workflowType(row) === 'kyc');
+    const eligible = adaptiveAge.length > 0 ? adaptiveAge : kyc;
 
     let selected: DiditWorkflow | undefined;
-    if (activeKyc.length === 1) {
-      selected = activeKyc[0];
-    } else if (activeKyc.length > 1) {
-      const defaults = activeKyc.filter((row) => row.is_default === true);
+    if (eligible.length === 1) {
+      selected = eligible[0];
+    } else if (eligible.length > 1) {
+      const defaults = eligible.filter((row) => row.is_default === true);
       if (defaults.length === 1) selected = defaults[0];
     }
 
     const discovered = selected ? workflowIdentifier(selected) : undefined;
-    if (!discovered) {
-      throw new Error(
-        'Didit workflow id must be configured when published KYC workflow selection is ambiguous',
-      );
-    }
+    if (!discovered) throw new DiditProviderError('workflow_selection');
 
     this.discoveredWorkflowId = discovered;
     return discovered;
@@ -178,10 +189,10 @@ export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
         vendor_data: userId,
       }),
     });
-    if (!response.ok) throw new Error(`Didit create session failed with ${response.status}`);
+    if (!response.ok) throw new DiditProviderError('session_creation', response.status);
     const payload = (await response.json()) as DiditCreateSessionResponse;
     if (typeof payload.session_id !== 'string' || typeof payload.url !== 'string') {
-      throw new Error('Didit create session returned an invalid response');
+      throw new DiditProviderError('session_creation');
     }
     const verificationUrl = new URL(payload.url);
     if (verificationUrl.protocol !== 'https:') {
@@ -195,7 +206,7 @@ export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
       `${this.baseUrl}/v3/session/${encodeURIComponent(sessionRef)}/decision/`,
       { headers: { 'x-api-key': this.options.apiKey } },
     );
-    if (!response.ok) throw new Error(`Didit decision request failed with ${response.status}`);
+    if (!response.ok) throw new DiditProviderError('decision', response.status);
     const payload = (await response.json()) as DiditDecisionResponse;
     return {
       decision: decisionFromStatus(payload.status),
