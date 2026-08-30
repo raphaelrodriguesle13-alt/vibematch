@@ -21,13 +21,9 @@ type DiditDecisionResponse = {
 
 type DiditWorkflow = {
   uuid?: unknown;
-  workflow_id?: unknown;
-  status?: unknown;
+  workflow_type?: unknown;
+  is_default?: unknown;
   is_archived?: unknown;
-};
-
-type DiditWorkflowListResponse = {
-  results?: unknown;
 };
 
 export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
@@ -58,31 +54,30 @@ export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
     });
     if (!response.ok) throw new Error(`Didit workflow discovery failed with ${response.status}`);
 
-    const payload = (await response.json()) as DiditWorkflowListResponse;
-    const rows = Array.isArray(payload.results) ? (payload.results as DiditWorkflow[]) : [];
-    const published = rows.filter(
+    const payload = (await response.json()) as unknown;
+    const rows = Array.isArray(payload) ? (payload as DiditWorkflow[]) : [];
+    const activeKyc = rows.filter(
       (row) =>
-        typeof row.status === 'string' &&
-        row.status.toLowerCase() === 'published' &&
-        row.is_archived !== true,
+        row.is_archived !== true &&
+        typeof row.workflow_type === 'string' &&
+        row.workflow_type.toLowerCase() === 'kyc' &&
+        typeof row.uuid === 'string' &&
+        row.uuid.trim() !== '',
     );
-    if (published.length !== 1) {
-      throw new Error('Didit workflow id must be configured when published workflow count is not one');
+
+    let selected: DiditWorkflow | undefined;
+    if (activeKyc.length === 1) {
+      selected = activeKyc[0];
+    } else if (activeKyc.length > 1) {
+      const defaults = activeKyc.filter((row) => row.is_default === true);
+      if (defaults.length === 1) selected = defaults[0];
     }
 
-    const selected = published[0];
-    if (!selected) {
-      throw new Error('Didit workflow discovery returned no published workflow');
+    if (!selected || typeof selected.uuid !== 'string' || !selected.uuid.trim()) {
+      throw new Error('Didit workflow id must be configured when KYC workflow selection is ambiguous');
     }
-    const id =
-      typeof selected.workflow_id === 'string'
-        ? selected.workflow_id
-        : typeof selected.uuid === 'string'
-          ? selected.uuid
-          : '';
-    const discovered = id.trim();
-    if (!discovered) throw new Error('Didit workflow discovery returned an invalid workflow id');
 
+    const discovered = selected.uuid.trim();
     this.discoveredWorkflowId = discovered;
     return discovered;
   }
