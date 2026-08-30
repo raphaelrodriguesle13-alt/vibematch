@@ -26,6 +26,9 @@ type DiditWorkflow = {
   is_archived?: unknown;
 };
 
+const isDiditWorkflow = (value: unknown): value is DiditWorkflow =>
+  typeof value === 'object' && value !== null;
+
 export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
@@ -54,8 +57,8 @@ export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
     });
     if (!response.ok) throw new Error(`Didit workflow discovery failed with ${response.status}`);
 
-    const payload = (await response.json()) as unknown;
-    const rows = Array.isArray(payload) ? (payload as DiditWorkflow[]) : [];
+    const payload: unknown = await response.json();
+    const rows = Array.isArray(payload) ? payload.filter(isDiditWorkflow) : [];
     const activeKyc = rows.filter(
       (row) =>
         row.is_archived !== true &&
