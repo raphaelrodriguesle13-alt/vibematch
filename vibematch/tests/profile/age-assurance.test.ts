@@ -93,6 +93,39 @@ describe('AgeAssuranceService', () => {
     expect(repository.session?.providerSessionRef).toBe('didit-session-1');
   });
 
+  test('reuses an existing pending session instead of creating a billable duplicate', async () => {
+    const repository = new FakeAgeAssuranceRepository('PENDING');
+    repository.session = {
+      userId: 'user-1',
+      providerSessionRef: 'didit-session-existing',
+      verificationUrl: 'https://verify.didit.me/session/existing',
+      status: 'PENDING',
+    };
+    const start = jest.fn<AgeAssuranceProvider['start']>(() =>
+      Promise.resolve({
+        sessionRef: 'didit-session-new',
+        verificationUrl: 'https://verify.didit.me/session/new',
+      }),
+    );
+    const provider: AgeAssuranceProvider = {
+      start,
+      getResult: jest.fn(() =>
+        Promise.resolve<AgeAssuranceResult>({
+          decision: 'PENDING',
+          providerTransactionId: 'didit-session-existing',
+        }),
+      ),
+      verifyWebhookSignature: jest.fn(() => true),
+    };
+    const service = new AgeAssuranceService(repository, provider);
+
+    await expect(service.start('user-1')).resolves.toEqual({
+      verificationUrl: 'https://verify.didit.me/session/existing',
+      status: 'PENDING',
+    });
+    expect(start).not.toHaveBeenCalled();
+  });
+
   test('refreshes provider decision server-side and only then approves the user', async () => {
     const repository = new FakeAgeAssuranceRepository('PENDING');
     repository.session = {
