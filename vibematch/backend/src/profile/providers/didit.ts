@@ -29,10 +29,6 @@ type DiditWorkflow = {
   status?: unknown;
 };
 
-type DiditWorkflowPage = {
-  results?: unknown;
-};
-
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null;
 
@@ -94,11 +90,12 @@ export class DiditAgeAssuranceProvider implements AgeAssuranceProvider {
     if (!response.ok) throw new Error(`Didit workflow discovery failed with ${response.status}`);
 
     const payload: unknown = await response.json();
-    const rawRows = Array.isArray(payload)
-      ? payload
-      : isObject(payload) && Array.isArray((payload as DiditWorkflowPage).results)
-        ? (payload as DiditWorkflowPage).results
-        : [];
+    let rawRows: unknown[] = [];
+    if (Array.isArray(payload)) {
+      rawRows = payload;
+    } else if (isObject(payload) && Array.isArray(payload.results)) {
+      rawRows = payload.results;
+    }
     return rawRows.filter(isDiditWorkflow);
   }
 
