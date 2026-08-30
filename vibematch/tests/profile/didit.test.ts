@@ -59,11 +59,12 @@ describe('DiditAgeAssuranceProvider', () => {
       sessionRef: 'session-123',
       verificationUrl: 'https://verify.didit.me/session/session-123',
     });
-    expect(fetchImpl).toHaveBeenNthCalledWith(
-      1,
-      'https://verification.didit.me/v3/workflows/',
-      expect.objectContaining({ headers: expect.objectContaining({ 'x-api-key': 'server-only-key' }) }),
-    );
+    expect(fetchImpl).toHaveBeenNthCalledWith(1, 'https://verification.didit.me/v3/workflows/', {
+      headers: {
+        accept: 'application/json',
+        'x-api-key': 'server-only-key',
+      },
+    });
     expect(fetchImpl).toHaveBeenNthCalledWith(
       2,
       'https://verification.didit.me/v3/session/',
