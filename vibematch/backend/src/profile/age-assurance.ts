@@ -40,7 +40,9 @@ export interface AgeAssuranceRepositoryPort {
 }
 
 const providerFailureMessage = (error: unknown): string =>
-  error instanceof Error && error.message.trim() ? error.message : 'Age assurance provider unavailable';
+  error instanceof Error && error.message.trim()
+    ? error.message
+    : 'Age assurance provider unavailable';
 
 export class AgeAssuranceService {
   constructor(
